@@ -2361,29 +2361,12 @@ function findOmnipod(chassis, setName, componentName) {
   const wantedChassis = String(chassis || "").toLowerCase();
   const wantedSet = String(setName || "").toLowerCase();
   const wantedComponent = String(componentName || "").toLowerCase();
-  return Object.values(state.omnipods || {}).find((pod) => (
+  const matches = Object.values(state.omnipods || {}).filter((pod) => (
     String(pod.chassis || "").toLowerCase() === wantedChassis
     && String(pod.set || "").toLowerCase() === wantedSet
     && String(pod.component || "").toLowerCase() === wantedComponent
-  )) || null;
-}
-
-function dominantOmnipodSet(mech, build) {
-  const counts = new Map();
-  Object.values(build?.components || {}).forEach((component) => {
-    const pod = podById(component.omnipod);
-    if (!pod?.set) return;
-    counts.set(pod.set, (counts.get(pod.set) || 0) + 1);
-  });
-  if (!counts.size) return "";
-  const loadoutName = String(mech?.stock_loadout || mech?.name || "").toLowerCase();
-  return Array.from(counts.entries()).sort((a, b) => {
-    const countDiff = b[1] - a[1];
-    if (countDiff) return countDiff;
-    const aExact = a[0] === loadoutName ? 1 : 0;
-    const bExact = b[0] === loadoutName ? 1 : 0;
-    return bExact - aExact || a[0].localeCompare(b[0]);
-  })[0][0];
+  ));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function applyFixedOmnipods(mech, build) {
@@ -2409,7 +2392,7 @@ function applyFixedOmnipods(mech, build) {
   }
   const centre = build.components.centre_torso;
   if (centre && !centre.omnipod) {
-    const setName = dominantOmnipodSet(mech, build);
+    const setName = String(mech?.stock_loadout || mech?.name || "").toLowerCase();
     const centrePod = findOmnipod(mech?.chassis, setName, "centre_torso");
     if (centrePod?.id) centre.omnipod = centrePod.id;
   }
