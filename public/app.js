@@ -1847,9 +1847,13 @@ function isAmsWeapon(item) {
     && (item?.ctype === "WeaponAMS" || equipmentHardpointType(item) === "ams");
 }
 
-function fixedItemConsumesHardpoint(item, mech = state.selectedMech) {
+function fixedItemConsumesHardpoint(item, fixedSource = "", mech = state.selectedMech) {
   return Boolean(equipmentHardpointType(item))
-    && !(hasFixedOmnipods(mech) && item?.item_type === "weapon");
+    && !(
+      fixedSource === "chassis"
+      && hasFixedOmnipods(mech)
+      && item?.item_type === "weapon"
+    );
 }
 
 function isHitscanWeapon(item) {
@@ -2765,13 +2769,16 @@ function effectiveComponentDefinition(mech = state.selectedMech, build = state.c
     hardpoints = addEcmHardpoint(hardpoints);
   }
   const internals = [...(base.internals || []), ...podDefinition.internals]
-    .filter((itemId, index, values) => values.indexOf(itemId) === index)
     .filter((itemId) => !actuatorIsRemoved(componentName, itemId, build));
   return {
     ...base,
     hardpoints,
     internals,
     fixed: [...(base.fixed || []), ...podDefinition.fixed],
+    fixedSources: [
+      ...(base.fixed || []).map(() => "chassis"),
+      ...podDefinition.fixed.map(() => "omnipod"),
+    ],
   };
 }
 
@@ -5174,10 +5181,13 @@ function calculateBuild() {
       return sum + Math.max(1, itemSlots(itemById(itemId)));
     }, 0);
     const fixedItems = (compDef.fixed || [])
-      .map((itemId) => itemById(itemId))
-      .filter((item) => item && item.item_type !== "engine");
+      .map((itemId, index) => ({
+        item: itemById(itemId),
+        source: compDef.fixedSources?.[index] || "",
+      }))
+      .filter(({ item }) => item && item.item_type !== "engine");
     const fixedEquipmentSlots = fixedItems.reduce(
-      (sum, item) => sum + (
+      (sum, { item }) => sum + (
         name === "centre_torso" && isHeatSink(item)
           ? 0
           : Math.max(1, effectiveItemSlots(item))
@@ -5207,11 +5217,11 @@ function calculateBuild() {
     };
 
     armor += number(buildComp.armor);
-    for (const item of fixedItems) {
+    for (const { item, source } of fixedItems) {
       itemTonnage += itemTons(item);
       heat += itemHeat(item);
       const mountType = equipmentHardpointType(item);
-      if (mountType && fixedItemConsumesHardpoint(item, mech)) {
+      if (mountType && fixedItemConsumesHardpoint(item, source, mech)) {
         usage.hardpoints[mountType] = (usage.hardpoints[mountType] || 0) + 1;
       }
       if (item.item_type === "weapon" && !isAmsWeapon(item)) {
@@ -10420,10 +10430,13 @@ function dropValidation(item, component, source = null) {
     const used = state.currentBuild.components[component].items.reduce((count, entry) => {
       const installed = itemById(entry.item_id);
       return count + (equipmentHardpointType(installed) === type ? 1 : 0);
-    }, (compDef.fixed || []).reduce((count, itemId) => (
+    }, (compDef.fixed || []).reduce((count, itemId, index) => (
       count + (
         equipmentHardpointType(itemById(itemId)) === type
-        && fixedItemConsumesHardpoint(itemById(itemId))
+        && fixedItemConsumesHardpoint(
+          itemById(itemId),
+          compDef.fixedSources?.[index] || "",
+        )
           ? 1
           : 0
       )

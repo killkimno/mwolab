@@ -1,0 +1,16 @@
+{
+  "ntg-dcs": {
+    "centre_torso": {
+      "source_mech": "ntg-d",
+      "omnipod_set": "ntg-d",
+      "last_confirmed_omnipod_id": 30691
+    }
+  },
+  "tbr-scs": {
+    "centre_torso": {
+      "source_mech": "tbr-s",
+      "omnipod_set": "tbr-s",
+      "last_confirmed_omnipod_id": 30019
+    }
+  }
+}
