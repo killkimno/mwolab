@@ -1,9 +1,74 @@
 {
+  "adr-w": {
+    "centre_torso": {
+      "source_mech": "adr-wl",
+      "omnipod_set": "adr-wl",
+      "last_confirmed_omnipod_id": 31417
+    }
+  },
+  "exe-m": {
+    "centre_torso": {
+      "source_mech": "exe-mtsp",
+      "omnipod_set": "exe-mtsp",
+      "last_confirmed_omnipod_id": 31409
+    }
+  },
   "ntg-dcs": {
     "centre_torso": {
       "source_mech": "ntg-d",
       "omnipod_set": "ntg-d",
       "last_confirmed_omnipod_id": 30691
+    }
+  },
+  "hbr-f": {
+    "centre_torso": {
+      "source_mech": "hbr-f",
+      "omnipod_set": "hbr-f",
+      "resolution_mode": "normal_body",
+      "last_confirmed_omnipod_id": null
+    }
+  },
+  "ifr-j": {
+    "centre_torso": {
+      "source_mech": "ifr-jl",
+      "omnipod_set": "ifr-jl",
+      "last_confirmed_omnipod_id": 31426
+    }
+  },
+  "mdd-silgd": {
+    "centre_torso": {
+      "source_mech": "mddsilgd",
+      "omnipod_set": "mddsilgd",
+      "resolution_mode": "shared_body",
+      "last_confirmed_omnipod_id": null
+    }
+  },
+  "ntg-h": {
+    "centre_torso": {
+      "source_mech": "ntg-hl",
+      "omnipod_set": "ntg-hl",
+      "last_confirmed_omnipod_id": 31332
+    }
+  },
+  "smn-f": {
+    "centre_torso": {
+      "source_mech": "smn-fl",
+      "omnipod_set": "smn-fl",
+      "last_confirmed_omnipod_id": 30763
+    }
+  },
+  "smn-m": {
+    "centre_torso": {
+      "source_mech": "smn-ml",
+      "omnipod_set": "smn-ml",
+      "last_confirmed_omnipod_id": 30771
+    }
+  },
+  "shc-nolgd": {
+    "centre_torso": {
+      "source_mech": "shc-no",
+      "omnipod_set": "shc-no",
+      "last_confirmed_omnipod_id": 31587
     }
   },
   "tbr-cs": {
@@ -18,6 +83,28 @@
       "source_mech": "tbr-s",
       "omnipod_set": "tbr-s",
       "last_confirmed_omnipod_id": 30019
+    }
+  },
+  "tbr-mtsp": {
+    "centre_torso": {
+      "source_mech": "tbr-m",
+      "omnipod_set": "tbr-m",
+      "last_confirmed_omnipod_id": 31764
+    }
+  },
+  "vpr-sc": {
+    "centre_torso": {
+      "source_mech": "vpr-sclgd",
+      "omnipod_set": "vpr-sclgd",
+      "resolution_mode": "shared_body",
+      "last_confirmed_omnipod_id": null
+    }
+  },
+  "whk-klgd": {
+    "centre_torso": {
+      "source_mech": "whk-k",
+      "omnipod_set": "whk-k",
+      "last_confirmed_omnipod_id": 31442
     }
   }
 }
