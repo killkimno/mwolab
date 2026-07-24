@@ -6,6 +6,13 @@
       "last_confirmed_omnipod_id": 30691
     }
   },
+  "tbr-cs": {
+    "centre_torso": {
+      "source_mech": "tbr-c",
+      "omnipod_set": "tbr-c",
+      "last_confirmed_omnipod_id": 30011
+    }
+  },
   "tbr-scs": {
     "centre_torso": {
       "source_mech": "tbr-s",
