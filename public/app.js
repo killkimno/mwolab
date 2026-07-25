@@ -204,6 +204,41 @@ const TEXT = {
     "filters.basic": "기본 필터",
     "filters.basicTab": "기본",
     "filters.tabs": "멕 필터 카테고리",
+    "filters.specialFeaturesTab": "특수기능",
+    "filters.specialNotes": "특수 사항",
+    "filters.specialEquipment": "특수 장비",
+    "filters.noJumpShake": "점프젯 사용 시 흔들림 없음",
+    "filters.jamImmune": "잼 안 걸림",
+    "filters.fallResistant": "낙하 데미지 없음",
+    "filters.critImmune": "크리티컬 안 받음",
+    "filters.compactGyro": "COMPACT GYRO",
+    "filters.compactCockpit": "COMPACT COCKPIT",
+    "filters.noArmActuators": "Upper Arm 액추에이터 없음",
+    "filters.laserHeatSinks": "레이저 히트 싱크",
+    "filters.tacticonB2000": "Tacticon B-2000",
+    "filters.shield": "방패",
+    "filters.supercharger": "SUPERCHARGER",
+    "filters.mascSupercharger": "SUPERCHARGER + MASC",
+    "filters.specialWeapon": "특수 무기",
+    "filters.improvedJumpJets": "강화된 점프젯",
+    "filters.partialWing": "Partial Wing 점프젯",
+    "filters.specialTargetComputer": "특수 타겟컴",
+    "filters.noJumpShakeDescription": "점프젯 사용 중 화면 흔들림이 없습니다.",
+    "filters.jamImmuneDescription": "잼 확률 감소 100%",
+    "filters.fallResistantDescription": "낙하 데미지 감소 50% 이상",
+    "filters.critImmuneDescription": "CRIT HIT CHANCE (RECEIVING) 감소 100%",
+    "filters.compactGyroDescription": "슬롯 감소, 톤 증가",
+    "filters.compactCockpitDescription": "슬롯 감소, 톤 감소",
+    "filters.noArmActuatorsDescription": "팔에 슬롯 -1, 팔 움직임 불가능",
+    "filters.laserHeatSinksDescription": "환경 열 100% 무시",
+    "filters.tacticonB2000Description": "아군 센서 레인지 증가",
+    "filters.shieldDescription": "더 많은 아머, 톤 증가",
+    "filters.superchargerDescription": "톤·슬롯이 적은 MASC, 가속 없음",
+    "filters.mascSuperchargerDescription": "기본 속도 증가, 더 높은 보너스, 톤 증가",
+    "filters.specialWeaponDescription": "진영 무시 AC/20·레일건·에로우 장착",
+    "filters.improvedJumpJetsDescription": "IMPROVED JUMPJET 옵니포드를 사용하는 점프젯",
+    "filters.partialWingDescription": "글라이딩 효과가 있는 점프젯",
+    "filters.specialTargetComputerDescription": "무기 작동 방식 변경",
     "filters.faction": "진영",
     "filters.weightClass": "체급",
     "filters.mechType": "멕 종류",
@@ -619,6 +654,41 @@ const TEXT = {
     "filters.basic": "Basic filters",
     "filters.basicTab": "Basic",
     "filters.tabs": "Mech filter categories",
+    "filters.specialFeaturesTab": "Special features",
+    "filters.specialNotes": "Special traits",
+    "filters.specialEquipment": "Special equipment",
+    "filters.noJumpShake": "No jump-jet shake",
+    "filters.jamImmune": "Jam immune",
+    "filters.fallResistant": "No fall damage",
+    "filters.critImmune": "Critical-hit immune",
+    "filters.compactGyro": "COMPACT GYRO",
+    "filters.compactCockpit": "COMPACT COCKPIT",
+    "filters.noArmActuators": "No Upper Arm Actuator",
+    "filters.laserHeatSinks": "Laser heat sinks",
+    "filters.tacticonB2000": "Tacticon B-2000",
+    "filters.shield": "Shield",
+    "filters.supercharger": "SUPERCHARGER",
+    "filters.mascSupercharger": "SUPERCHARGER + MASC",
+    "filters.specialWeapon": "Special weapon",
+    "filters.improvedJumpJets": "Improved jump jets",
+    "filters.partialWing": "Partial Wing jump jets",
+    "filters.specialTargetComputer": "Special targeting computer",
+    "filters.noJumpShakeDescription": "Removes screen shake while using jump jets.",
+    "filters.jamImmuneDescription": "100% jam-chance reduction",
+    "filters.fallResistantDescription": "At least 50% fall-damage reduction",
+    "filters.critImmuneDescription": "100% CRIT HIT CHANCE (RECEIVING) reduction",
+    "filters.compactGyroDescription": "Fewer slots and increased tonnage",
+    "filters.compactCockpitDescription": "Fewer slots and less tonnage",
+    "filters.noArmActuatorsDescription": "-1 arm slot; the affected arm cannot move",
+    "filters.laserHeatSinksDescription": "Ignores 100% of environmental heat",
+    "filters.tacticonB2000Description": "Increases allied sensor range",
+    "filters.shieldDescription": "More armor at increased tonnage",
+    "filters.superchargerDescription": "Lower-tonnage, fewer-slot MASC without acceleration",
+    "filters.mascSuperchargerDescription": "Higher base speed and boost at increased tonnage",
+    "filters.specialWeaponDescription": "Faction-ignoring AC/20, Railgun, or Arrow",
+    "filters.improvedJumpJetsDescription": "Jump jets provided by an IMPROVED JUMPJET omnipod",
+    "filters.partialWingDescription": "Jump jets with a gliding effect",
+    "filters.specialTargetComputerDescription": "Changes weapon behavior",
     "filters.faction": "Faction",
     "filters.weightClass": "Weight class",
     "filters.mechType": "Mech type",
@@ -1034,6 +1104,8 @@ const MWO_UPGRADE_BITS = Object.freeze({
   heatsinks: Object.freeze(Object.fromEntries(Object.entries(MWO_UPGRADE_IDS.heatsinks).map(([bits, id]) => [id, Number(bits)]))),
 });
 
+const SHOULDER_ID = 1908;
+const UPPER_ARM_ACTUATOR_ID = 1909;
 const LOWER_ARM_ACTUATOR_ID = 1910;
 const HAND_ACTUATOR_ID = 1911;
 const MWO_ACTUATOR_BITS = Object.freeze({
@@ -1077,6 +1149,33 @@ const HARDPOINT_LABELS = {
 };
 const MECH_HARDPOINT_FILTER_ORDER = [...HARDPOINT_ORDER, "jumpjet", "masc"];
 const MECH_HARDPOINT_FILTER_TOTAL_ONLY_TYPES = new Set(["ecm", "jumpjet", "masc"]);
+const MECH_SPECIAL_TRAIT_ORDER = [
+  "no-jump-shake",
+  "jam-immune",
+  "fall-resistant",
+  "crit-immune",
+];
+const MECH_SPECIAL_EQUIPMENT_ORDER = [
+  "compact-gyro",
+  "compact-cockpit",
+  "no-arm-actuators",
+  "laser-heat-sinks",
+  "tacticon-b2000",
+  "shield",
+  "supercharger",
+  "masc-supercharger",
+  "special-weapon",
+  "improved-jump-jets",
+  "partial-wing",
+  "special-target-computer",
+];
+const SPECIAL_WEAPON_NAMES = new Set([
+  "nobleautocannon20",
+  "railgun",
+  "clanrailgun",
+  "arrowiv",
+  "clanarrowiv",
+]);
 const MECH_FILTER_HARDPOINT_LOCATIONS = [
   { key: "total", component: null, shortLabel: "TOTAL", labelKey: "filters.total" },
   { key: "right_arm", component: "right_arm", shortLabel: "RA", labelKey: "component.rightArm" },
@@ -1377,6 +1476,15 @@ const state = {
     },
   ])),
   mechHardpointFilterCountsCache: new Map(),
+  activeMechFilterTab: "basic",
+  mechSpecialTraitAll: true,
+  mechSpecialTraitSelections: new Set(),
+  mechSpecialEquipmentAll: true,
+  mechSpecialEquipmentSelections: new Set(),
+  mechSpecialFeatureCache: new Map(),
+  shakeDampingMechIds: new Set(),
+  shakeDampingMechNames: new Set(),
+  improvedJumpJetChassis: null,
   mechListSummaryCache: new Map(),
   mechHardpointBadgeCache: new Map(),
   mechSlotBadgeCache: new Map(),
@@ -1827,6 +1935,14 @@ function allocateFixedUpgradeSlots(slotsByComponent, definition, build, engine, 
 
 function itemTons(item) {
   return number(item?.stats?.tons ?? item?.stats?.weight);
+}
+
+function internalItemTonnageModifier(item) {
+  const tons = itemTons(item);
+  const itemKey = normalizeLookupKey(item?.name);
+  // Compact Gyro tonnage is an added penalty over the standard gyro.
+  if (itemKey.startsWith("compactgyro")) return Math.abs(tons);
+  return tons;
 }
 
 function itemHeat(item) {
@@ -5291,10 +5407,18 @@ function calculateBuild() {
   for (const name of COMPONENT_ORDER) {
     const compDef = definition.components?.[name] || {};
     const buildComp = state.currentBuild.components[name] || { items: [] };
-    const internalSlots = (compDef.internals || []).reduce((sum, itemId) => {
+    const internalItems = (compDef.internals || [])
+      .map((itemId) => itemById(itemId))
+      .filter(Boolean);
+    const internalSlots = internalItems.reduce((sum, item) => {
+      const itemId = Number(item.id);
       if (!hasFixedOmnipods(mech) && MOVABLE_UPGRADE_SLOT_IDS.has(Number(itemId))) return sum;
-      return sum + Math.max(1, itemSlots(itemById(itemId)));
+      return sum + Math.max(1, itemSlots(item));
     }, 0);
+    itemTonnage += internalItems.reduce(
+      (sum, item) => sum + internalItemTonnageModifier(item),
+      0,
+    );
     const fixedItems = (compDef.fixed || [])
       .map((itemId, index) => ({
         item: itemById(itemId),
@@ -5667,6 +5791,136 @@ function mechMatchesHardpointFilters(mech) {
   });
 }
 
+function specialFeatureFixedItems(mech, build) {
+  const definition = effectiveDefinition(mech, build);
+  const ids = new Set();
+  Object.values(definition.components || {}).forEach((component) => {
+    [...(component.internals || []), ...(component.fixed || [])]
+      .forEach((itemId) => ids.add(String(itemId)));
+  });
+  return Array.from(ids, (itemId) => itemById(itemId)).filter(Boolean);
+}
+
+function specialFeatureItemKey(item) {
+  return normalizeLookupKey(`${item?.name || ""} ${item?.display_name || ""}`);
+}
+
+function improvedJumpJetChassis() {
+  if (state.improvedJumpJetChassis) return state.improvedJumpJetChassis;
+  const chassis = new Set();
+  Object.values(state.omnipods || {}).forEach((pod) => {
+    const hasImprovedJumpJets = (omnipodDefinition(pod).fixed || []).some((itemId) => (
+      specialFeatureItemKey(itemById(itemId)).includes("improvedjumpjets")
+    ));
+    if (hasImprovedJumpJets) chassis.add(normalizeLookupKey(pod.chassis));
+  });
+  state.improvedJumpJetChassis = chassis;
+  return chassis;
+}
+
+function mechSpecialFeatures(mech) {
+  const key = String(mech?.id || "");
+  if (!key) return new Set();
+  const cached = state.mechSpecialFeatureCache.get(key);
+  if (cached) return cached;
+
+  const features = new Set();
+  const build = buildFromLoadout(mech);
+  const quirks = effectiveQuirks(mech, build);
+  const fixedItems = specialFeatureFixedItems(mech, build);
+  const fixedItemKeys = fixedItems.map(specialFeatureItemKey);
+  const activeDefinition = effectiveDefinition(mech, build);
+
+  if (
+    state.shakeDampingMechIds.has(key)
+    || state.shakeDampingMechNames.has(normalizeLookupKey(mech.name))
+  ) {
+    features.add("no-jump-shake");
+  }
+  if (jamChanceSummaryMax(quirks) >= 1) features.add("jam-immune");
+  if (quirks.some((quirk) => (
+    String(quirk.name || "").toLowerCase() === "falldamage_multiplier"
+    && Math.max(0, -number(quirk.value)) >= 0.5
+  ))) {
+    features.add("fall-resistant");
+  }
+  if (durabilityQuirkSummaryValues(quirks).critPrevention >= 1) {
+    features.add("crit-immune");
+  }
+  if (fixedItemKeys.some((itemKey) => itemKey.includes("compactgyro"))) {
+    features.add("compact-gyro");
+  }
+  if (fixedItemKeys.some((itemKey) => itemKey.includes("compactcockpit"))) {
+    features.add("compact-cockpit");
+  }
+  const hasShoulderOnlyArm = ["right_arm", "left_arm"].some((component) => {
+    const internals = activeDefinition.components?.[component]?.internals || [];
+    return internals.includes(SHOULDER_ID)
+      && !internals.includes(UPPER_ARM_ACTUATOR_ID)
+      && !internals.includes(LOWER_ARM_ACTUATOR_ID)
+      && !internals.includes(HAND_ACTUATOR_ID);
+  });
+  if (hasShoulderOnlyArm) {
+    features.add("no-arm-actuators");
+  }
+  if (quirks.some((quirk) => (
+    String(quirk.name || "").toLowerCase() === "externalheat_multiplier"
+    && Math.max(0, -number(quirk.value)) >= 1
+  ))) {
+    features.add("laser-heat-sinks");
+  }
+  if (fixedItemKeys.some((itemKey) => itemKey.includes("cyclopssensors") || itemKey.includes("tacticonb2000"))) {
+    features.add("tacticon-b2000");
+  }
+  if (fixedItems.some((item) => item.item_type === "internal" && specialFeatureItemKey(item).includes("shield"))) {
+    features.add("shield");
+  }
+  if (fixedItems.some((item) => {
+    const itemKey = specialFeatureItemKey(item);
+    return item.item_type === "masc"
+      && itemKey.includes("supercharger")
+      && !itemKey.includes("mascsupercharger");
+  })) {
+    features.add("supercharger");
+  }
+  if (fixedItems.some((item) => {
+    const itemKey = specialFeatureItemKey(item);
+    return (item.item_type === "masc" && itemKey.includes("mascsupercharger"))
+      || itemKey.includes("superchargerdummy");
+  })) {
+    features.add("masc-supercharger");
+  }
+  if (fixedItems.some((item) => (
+    item.item_type === "weapon" && SPECIAL_WEAPON_NAMES.has(normalizeLookupKey(item.name))
+  ))) {
+    features.add("special-weapon");
+  }
+  if (improvedJumpJetChassis().has(normalizeLookupKey(mech.chassis))) {
+    features.add("improved-jump-jets");
+  }
+  if (fixedItems.some((item) => item.item_type === "jumpjet" && specialFeatureItemKey(item).includes("partialwing"))) {
+    features.add("partial-wing");
+  }
+  if (fixedItemKeys.some((itemKey) => (
+    itemKey.includes("baneherocomputer") || itemKey.includes("nagaherocomputer")
+  ))) {
+    features.add("special-target-computer");
+  }
+
+  state.mechSpecialFeatureCache.set(key, features);
+  return features;
+}
+
+function mechMatchesSpecialFeatureFilters(mech) {
+  if (state.mechSpecialTraitAll && state.mechSpecialEquipmentAll) return true;
+  const features = mechSpecialFeatures(mech);
+  const matchesTraits = state.mechSpecialTraitAll
+    || Array.from(state.mechSpecialTraitSelections).some((feature) => features.has(feature));
+  const matchesEquipment = state.mechSpecialEquipmentAll
+    || Array.from(state.mechSpecialEquipmentSelections).some((feature) => features.has(feature));
+  return matchesTraits && matchesEquipment;
+}
+
 function mechMatchesListFilters(mech, search = "") {
   const selectedWeights = state.mechFilterWeightClasses;
   const weightFilterActive = selectedWeights.size > 0 && selectedWeights.size < 4;
@@ -5678,7 +5932,8 @@ function mechMatchesListFilters(mech, search = "") {
     && matchesFaction
     && matchesWeight
     && mechMatchesTypeFilter(mech)
-    && mechMatchesHardpointFilters(mech);
+    && mechMatchesHardpointFilters(mech)
+    && mechMatchesSpecialFeatureFilters(mech);
 }
 
 function renderMechHardpointFilterControls() {
@@ -5742,6 +5997,34 @@ function renderMechHardpointFilterControls() {
   });
 }
 
+function renderMechFilterTabs() {
+  document.querySelectorAll("[data-mech-filter-tab]").forEach((button) => {
+    const active = button.dataset.mechFilterTab === state.activeMechFilterTab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  $("mech-filter-basic-content").hidden = state.activeMechFilterTab !== "basic";
+  $("mech-filter-special-content").hidden = state.activeMechFilterTab !== "special";
+}
+
+function renderMechSpecialFeatureControls() {
+  document.querySelectorAll("[data-mech-special-feature]").forEach((button) => {
+    const feature = button.dataset.mechSpecialFeature;
+    const group = button.dataset.mechSpecialFeatureGroup || mechSpecialFeatureGroup(feature);
+    const allSelected = group === "traits"
+      ? state.mechSpecialTraitAll
+      : state.mechSpecialEquipmentAll;
+    const selections = group === "traits"
+      ? state.mechSpecialTraitSelections
+      : state.mechSpecialEquipmentSelections;
+    const active = feature === "all"
+      ? allSelected
+      : selections.has(feature);
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
 function renderMechFilterControls() {
   const overlayOpen = !$("mech-filter-overlay").hidden;
   const weightFilterActive = state.mechFilterWeightClasses.size > 0
@@ -5749,7 +6032,9 @@ function renderMechFilterControls() {
   const filterActive = Boolean(state.mechFilterFaction)
     || weightFilterActive
     || !state.mechFilterAllTypes
-    || MECH_HARDPOINT_FILTER_ORDER.some((type) => state.mechHardpointFilters[type].enabled);
+    || MECH_HARDPOINT_FILTER_ORDER.some((type) => state.mechHardpointFilters[type].enabled)
+    || !state.mechSpecialTraitAll
+    || !state.mechSpecialEquipmentAll;
   document.querySelectorAll("[data-open-mech-filter]").forEach((button) => {
     button.classList.toggle("active", filterActive);
     button.setAttribute("aria-expanded", String(overlayOpen));
@@ -5807,6 +6092,8 @@ function renderMechFilterControls() {
     button.disabled = !specialEnabled;
   });
   renderMechHardpointFilterControls();
+  renderMechFilterTabs();
+  renderMechSpecialFeatureControls();
 }
 
 function renderMechlabCompactList() {
@@ -9649,7 +9936,7 @@ function openMechFilterDialog(trigger) {
   document.body.classList.add("mech-filter-open");
   renderMechFilterControls();
   requestAnimationFrame(() => {
-    $("mech-filter-overlay").querySelector("[data-mech-filter-faction].active")?.focus();
+    $("mech-filter-overlay").querySelector("[data-mech-filter-tab].active")?.focus();
   });
 }
 
@@ -9725,6 +10012,47 @@ function setMechHardpointFilterMinimum(type, location, value) {
   filter.minimums[location] = Number.isFinite(numericValue)
     ? Math.max(0, Math.floor(numericValue))
     : 0;
+  renderMechList();
+}
+
+function setMechFilterTab(tab) {
+  if (tab !== "basic" && tab !== "special") return;
+  state.activeMechFilterTab = tab;
+  renderMechFilterControls();
+}
+
+function mechSpecialFeatureGroup(feature) {
+  if (MECH_SPECIAL_TRAIT_ORDER.includes(feature)) return "traits";
+  if (MECH_SPECIAL_EQUIPMENT_ORDER.includes(feature)) return "equipment";
+  return "";
+}
+
+function toggleMechSpecialFeature(feature, requestedGroup = "") {
+  const group = requestedGroup || mechSpecialFeatureGroup(feature);
+  if (group !== "traits" && group !== "equipment") return;
+  const allKey = group === "traits" ? "mechSpecialTraitAll" : "mechSpecialEquipmentAll";
+  const selections = group === "traits"
+    ? state.mechSpecialTraitSelections
+    : state.mechSpecialEquipmentSelections;
+  const order = group === "traits"
+    ? MECH_SPECIAL_TRAIT_ORDER
+    : MECH_SPECIAL_EQUIPMENT_ORDER;
+
+  if (feature === "all") {
+    if (state[allKey]) return;
+    state[allKey] = true;
+    selections.clear();
+  } else {
+    state[allKey] = false;
+    if (selections.has(feature)) {
+      selections.delete(feature);
+      if (selections.size === 0) {
+        state[allKey] = true;
+      }
+    } else if (order.includes(feature)) {
+      selections.add(feature);
+    }
+  }
   renderMechList();
 }
 
@@ -11614,6 +11942,11 @@ function bindEvents() {
   $("close-mech-filter-x").addEventListener("click", closeMechFilterDialog);
   $("close-mech-filter").addEventListener("click", closeMechFilterDialog);
   $("mech-filter-overlay").addEventListener("click", (event) => {
+    const tab = event.target.closest("[data-mech-filter-tab]");
+    if (tab) {
+      setMechFilterTab(tab.dataset.mechFilterTab);
+      return;
+    }
     const faction = event.target.closest("[data-mech-filter-faction]");
     if (faction) {
       state.mechFilterFaction = faction.dataset.mechFilterFaction;
@@ -11643,6 +11976,14 @@ function bindEvents() {
     const specialType = event.target.closest("[data-mech-filter-special-type]");
     if (specialType) {
       toggleMechSpecialTypeFilter(specialType.dataset.mechFilterSpecialType);
+      return;
+    }
+    const specialFeature = event.target.closest("[data-mech-special-feature]");
+    if (specialFeature) {
+      toggleMechSpecialFeature(
+        specialFeature.dataset.mechSpecialFeature,
+        specialFeature.dataset.mechSpecialFeatureGroup,
+      );
       return;
     }
     if (event.target === event.currentTarget) closeMechFilterDialog();
@@ -12136,11 +12477,14 @@ async function init() {
   setMainTab(state.activeMainTab);
   try {
     state.index = await loadJson("data/index.json");
-    const [mechs, equipment, loadouts, omnipods] = await Promise.all([
+    const [mechs, equipment, loadouts, omnipods, shakeDamping] = await Promise.all([
       loadJson(state.index.files.mechs),
       loadJson(state.index.files.equipment),
       loadJson(state.index.files.loadouts),
       loadJson(state.index.files.omnipods),
+      state.index.files.shake_damping_mechs
+        ? loadJson(state.index.files.shake_damping_mechs)
+        : Promise.resolve({ mechs: [] }),
     ]);
     state.mechs = mechs.filter((mech) => mech.definition && mech.definition.components);
     initializeMechTypeFilters();
@@ -12148,6 +12492,14 @@ async function init() {
     state.equipmentInfoHtmlCache.clear();
     state.loadouts = loadouts;
     state.omnipods = omnipods;
+    state.shakeDampingMechIds = new Set(
+      (shakeDamping.mechs || []).map((mech) => String(mech.id)),
+    );
+    state.shakeDampingMechNames = new Set(
+      (shakeDamping.mechs || []).map((mech) => normalizeLookupKey(mech.name)),
+    );
+    state.mechSpecialFeatureCache.clear();
+    state.improvedJumpJetChassis = null;
     scheduleStatsSummaryWarmup();
     $("data-status").textContent = t("status.loadedData", { count: state.index.counts.mechs });
     initializeMechNavigation();

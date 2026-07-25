@@ -1021,16 +1021,24 @@ body.donate-open {
   justify-content: space-between;
   gap: 0.5rem;
   align-items: center;
-  padding: 0.7rem 0.75rem 0.45rem;
-  background: #101719;
-  color: var(--blue);
+  min-height: 2.65rem;
+  margin: 0.65rem 0.65rem 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #315366;
+  border-left: 4px solid var(--blue);
+  border-radius: 3px;
+  background: #18262d;
+  box-shadow: inset 0 0 0 1px #0b1114;
+  color: #bcecff;
   text-transform: uppercase;
-  font-size: 0.78rem;
+  font-size: 0.98rem;
+  letter-spacing: 0.06rem;
 }
 
 .class-heading span {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
+  letter-spacing: 0;
   text-transform: none;
 }
 
@@ -1047,11 +1055,13 @@ body.donate-open {
   justify-content: space-between;
   gap: 0.5rem;
   align-items: center;
-  min-height: 2rem;
-  padding: 0.45rem 0.75rem;
-  background: #11191c;
-  border-left: 3px solid var(--blue);
+  min-height: 1.55rem;
+  padding: 0.25rem 0.75rem;
+  background: #0d1417;
+  border-left: 2px solid var(--blue);
   color: var(--blue);
+  font-size: 0.7rem;
+  letter-spacing: 0.03rem;
   text-transform: uppercase;
 }
 
@@ -1062,7 +1072,8 @@ body.donate-open {
 
 .faction-heading span {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.64rem;
+  letter-spacing: 0;
   text-transform: none;
 }
 
@@ -1188,9 +1199,8 @@ body.donate-open {
 }
 
 .mech-list-large .faction-heading {
-  margin: 0.55rem 0.65rem 0;
-  border-radius: 3px;
-  background: #151c20;
+  margin: 0.25rem 0.65rem 0;
+  border-radius: 2px;
 }
 
 .large-chassis-list .chassis-group {
@@ -2778,11 +2788,16 @@ body.donate-open {
 }
 
 .compact-mech-list .class-heading {
-  padding: 0.4rem 0.5rem;
+  min-height: 2.2rem;
+  margin: 0.45rem 0.45rem 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.86rem;
 }
 
 .compact-mech-list .faction-heading {
+  min-height: 1.4rem;
   padding-inline: 0.5rem;
+  font-size: 0.66rem;
 }
 
 .compact-mech-list .chassis-row,
@@ -3142,7 +3157,7 @@ body.ui-settings-open {
 .mech-filter-dialog {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: min(62rem, calc(100vw - 2rem));
-  max-height: calc(100dvh - 3rem);
+  height: min(48rem, calc(100dvh - 3rem));
 }
 
 .mech-filter-tabs {
@@ -3176,6 +3191,10 @@ body.ui-settings-open {
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
+}
+
+.mech-filter-content[hidden] {
+  display: none;
 }
 
 .mech-filter-panel {
@@ -3234,6 +3253,10 @@ body.ui-settings-open {
   grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
 }
 
+.mech-special-feature-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .mech-filter-options button {
   display: flex;
   align-items: center;
@@ -3247,6 +3270,30 @@ body.ui-settings-open {
   color: #d7e7eb;
   font-weight: 800;
   text-align: left;
+}
+
+.mech-filter-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.mech-filter-option-copy strong {
+  color: inherit;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.mech-filter-option-copy small {
+  color: #91aab3;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.mech-filter-options button:hover .mech-filter-option-copy small,
+.mech-filter-options button.active .mech-filter-option-copy small {
+  color: #c4dce4;
 }
 
 .mech-filter-options button::before {
@@ -3472,6 +3519,10 @@ body.ui-settings-open {
 
   .mech-filter-weight-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mech-special-feature-options {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
