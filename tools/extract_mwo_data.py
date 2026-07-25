@@ -442,7 +442,13 @@ def parse_mdf(data: bytes, source: str, localization, hardpoint_slot_counts):
     root = parse_xml(data, source)
     mech_node = root.find("Mech")
     if mech_node is None:
-        return None
+        return None, None
+    cockpit = root.find("Cockpit")
+    cockpit_shake_damping = (
+        maybe_num(cockpit.attrib.get("ShakeDamping"))
+        if cockpit is not None and "ShakeDamping" in cockpit.attrib
+        else None
+    )
     definition = {
         "variant": mech_node.attrib.get("Variant", Path(source).stem).lower(),
         "stats": attrs(mech_node),
@@ -452,7 +458,7 @@ def parse_mdf(data: bytes, source: str, localization, hardpoint_slot_counts):
     }
     component_list = root.find("ComponentList")
     if component_list is None:
-        return definition
+        return definition, cockpit_shake_damping
 
     for comp in component_list.findall("Component"):
         name = comp.attrib.get("Name", "").lower()
@@ -467,7 +473,7 @@ def parse_mdf(data: bytes, source: str, localization, hardpoint_slot_counts):
             "internals": parse_component_internals(comp),
             "fixed": parse_component_fixed(comp),
         }
-    return definition
+    return definition, cockpit_shake_damping
 
 
 def parse_detailed_omnipods(zf, localization, hardpoint_slot_counts):
@@ -511,9 +517,10 @@ def parse_detailed_omnipods(zf, localization, hardpoint_slot_counts):
 def parse_mech_definitions(game_dir: Path, localization):
     definitions = {}
     omnipod_details = {}
+    cockpit_shake_damping = {}
     mech_dir = game_dir / MECHS_DIR
     if not mech_dir.exists():
-        return definitions, omnipod_details
+        return definitions, omnipod_details, cockpit_shake_damping
     for pak_path in sorted(mech_dir.glob("*.pak")):
         try:
             with zipfile.ZipFile(pak_path) as zf:
@@ -527,7 +534,7 @@ def parse_mech_definitions(game_dir: Path, localization):
                     if not inner_path.lower().endswith(".mdf"):
                         continue
                     try:
-                        definition = parse_mdf(
+                        definition, shake_damping = parse_mdf(
                             zf.read(inner_path),
                             f"{pak_path.name}:{inner_path}",
                             localization,
@@ -536,10 +543,17 @@ def parse_mech_definitions(game_dir: Path, localization):
                     except Exception:
                         continue
                     if definition:
-                        definitions[Path(inner_path).stem.lower()] = definition
+                        variant = Path(inner_path).stem.lower()
+                        definitions[variant] = definition
+                        if shake_damping is not None:
+                            cockpit_shake_damping[variant] = {
+                                "shake_damping": shake_damping,
+                                "source_pak": pak_path.name,
+                                "source_mdf": inner_path,
+                            }
         except zipfile.BadZipFile:
             continue
-    return definitions, omnipod_details
+    return definitions, omnipod_details, cockpit_shake_damping
 
 
 def parse_omnipods(game_data, omnipod_details):
@@ -583,6 +597,32 @@ def build_mech_payload(mechs, definitions, loadouts):
             "stock_loadout": mech["name"] if mech["name"] in loadouts else (loadout or {}).get("name"),
         })
     return payload
+
+
+def build_shake_damping_payload(mech_payload, cockpit_shake_damping):
+    matches = []
+    for mech in mech_payload:
+        source = cockpit_shake_damping.get(mech["name"])
+        if not source or source["shake_damping"] != 1.0:
+            continue
+        matches.append({
+            "id": mech["id"],
+            "name": mech["name"],
+            "display_name": mech["display_name"],
+            "chassis": mech["chassis"],
+            "faction": mech["faction"],
+            "shake_damping": float(source["shake_damping"]),
+            "source_pak": source["source_pak"],
+            "source_mdf": source["source_mdf"],
+        })
+    return {
+        "criterion": {
+            "field": "Cockpit.ShakeDamping",
+            "value": 1.0,
+        },
+        "count": len(matches),
+        "mechs": matches,
+    }
 
 
 def write_json(path: Path, data):
@@ -632,7 +672,7 @@ def main(argv=None):
         print(f"Extracted {len(items_by_id)} items.")
         return 0
 
-    definitions, omnipod_details = parse_mech_definitions(game_dir, localization)
+    definitions, omnipod_details, cockpit_shake_damping = parse_mech_definitions(game_dir, localization)
 
     with zipfile.ZipFile(game_data_path) as game_data:
         items_by_id, by_family = parse_items(game_data, localization)
@@ -641,6 +681,7 @@ def main(argv=None):
         omnipods = parse_omnipods(game_data, omnipod_details)
 
     mech_payload = build_mech_payload(mechs, definitions, loadouts)
+    shake_damping_payload = build_shake_damping_payload(mech_payload, cockpit_shake_damping)
 
     write_json(out_dir / "index.json", {
         "generated_from": "local game install",
@@ -649,20 +690,27 @@ def main(argv=None):
             "items": len(items_by_id),
             "loadouts": len(loadouts),
             "omnipods": len(omnipods),
+            "shake_damping_mechs": shake_damping_payload["count"],
         },
         "files": {
             "mechs": "data/mechs.json",
             "equipment": "data/equipment.json",
             "loadouts": "data/loadouts.json",
             "omnipods": "data/omnipods.json",
+            "shake_damping_mechs": "data/shake_damping_mechs.json",
         },
     })
     write_json(out_dir / "mechs.json", mech_payload)
     write_json(out_dir / "equipment.json", {"items": items_by_id, "families": by_family})
     write_json(out_dir / "loadouts.json", loadouts)
     write_json(out_dir / "omnipods.json", omnipods)
+    write_json(out_dir / "shake_damping_mechs.json", shake_damping_payload)
 
-    print(f"Extracted {len(mech_payload)} mechs, {len(items_by_id)} items, {len(loadouts)} loadouts.")
+    print(
+        f"Extracted {len(mech_payload)} mechs, {len(items_by_id)} items, "
+        f"{len(loadouts)} loadouts, and {shake_damping_payload['count']} "
+        "Cockpit.ShakeDamping=1.0 mechs."
+    )
     return 0
 
 

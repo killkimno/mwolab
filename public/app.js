@@ -10,6 +10,7 @@ let mechNavigationReady = false;
 let mechFilterTrigger = null;
 const LOCAL_BUILDS_STORAGE_KEY = "mwolab:local-builds:v1";
 const MAIN_TAB_NAMES = new Set(["mechlab", "equipment-info", "info", "compare", "stats"]);
+const SINGLE_MECH_SELECTION_TABS = new Set(["mechlab", "info"]);
 // Fixed MWO escalation curve. Weapon-specific heat, penalty, threshold, and group values come from equipment.json.
 const GHOST_HEAT_LEVEL_MULTIPLIERS = Object.freeze([0, 0, 8, 18, 30, 45, 60, 80, 110, 150, 200, 300, 500]);
 const GHOST_HEAT_GROUPS = Object.freeze([
@@ -200,9 +201,20 @@ const TEXT = {
     "filters.allWeightClasses": "모든 체급",
     "filters.open": "필터",
     "filters.title": "멕 필터",
+    "filters.basic": "기본 필터",
+    "filters.basicTab": "기본",
+    "filters.tabs": "멕 필터 카테고리",
     "filters.faction": "진영",
     "filters.weightClass": "체급",
+    "filters.mechType": "멕 종류",
+    "filters.hardpoints": "하드포인트",
+    "filters.hardpointType": "하드포인트 종류",
+    "filters.total": "전체",
     "filters.all": "모두",
+    "filters.normal": "일반형",
+    "filters.hero": "히어로",
+    "filters.champion": "챔피언",
+    "filters.special": "스페셜",
     "filters.clan": "클랜",
     "filters.innerSphere": "이너",
     "filters.close": "닫기",
@@ -604,9 +616,20 @@ const TEXT = {
     "filters.allWeightClasses": "All weight classes",
     "filters.open": "Filter",
     "filters.title": "Mech filters",
+    "filters.basic": "Basic filters",
+    "filters.basicTab": "Basic",
+    "filters.tabs": "Mech filter categories",
     "filters.faction": "Faction",
     "filters.weightClass": "Weight class",
+    "filters.mechType": "Mech type",
+    "filters.hardpoints": "Hardpoints",
+    "filters.hardpointType": "Hardpoint type",
+    "filters.total": "Total",
     "filters.all": "All",
+    "filters.normal": "Standard",
+    "filters.hero": "Hero",
+    "filters.champion": "Champion",
+    "filters.special": "Special",
     "filters.clan": "Clan",
     "filters.innerSphere": "Inner Sphere",
     "filters.close": "Close",
@@ -1049,7 +1072,19 @@ const HARDPOINT_LABELS = {
   ballistic: "B",
   ams: "AMS",
   ecm: "ECM",
+  jumpjet: "JJ",
+  masc: "MASC",
 };
+const MECH_HARDPOINT_FILTER_ORDER = [...HARDPOINT_ORDER, "jumpjet", "masc"];
+const MECH_HARDPOINT_FILTER_TOTAL_ONLY_TYPES = new Set(["ecm", "jumpjet", "masc"]);
+const MECH_FILTER_HARDPOINT_LOCATIONS = [
+  { key: "total", component: null, shortLabel: "TOTAL", labelKey: "filters.total" },
+  { key: "right_arm", component: "right_arm", shortLabel: "RA", labelKey: "component.rightArm" },
+  { key: "right_torso", component: "right_torso", shortLabel: "RT", labelKey: "component.rightTorso" },
+  { key: "head", component: "head", shortLabel: "HD", labelKey: "component.head" },
+  { key: "left_torso", component: "left_torso", shortLabel: "LT", labelKey: "component.leftTorso" },
+  { key: "left_arm", component: "left_arm", shortLabel: "LA", labelKey: "component.leftArm" },
+];
 
 const INFO_COMPONENTS = [
   { key: "head", label: t("component.head"), suffix: "hd" },
@@ -1082,6 +1117,14 @@ const ARMOR_CONTAINER_SLOT_COUNTS = new Map([
   [2802, 7],
   [2805, 7],
 ]);
+const STEALTH_ARMOR_SLOTS_BY_COMPONENT = Object.freeze({
+  left_torso: 2,
+  right_torso: 2,
+  left_arm: 2,
+  right_arm: 2,
+  left_leg: 2,
+  right_leg: 2,
+});
 const STRUCTURE_SLOT_ORDER = [
   "right_torso",
   "centre_torso",
@@ -1275,6 +1318,11 @@ const state = {
   loadouts: {},
   omnipods: {},
   activeMainTab: "mechlab",
+  selectedMechIdsByTab: {
+    mechlab: null,
+    info: null,
+  },
+  mechlabBuild: null,
   mechlabBrowseMode: true,
   mechlabCompactListOpen: false,
   mechListScrollTop: 0,
@@ -1314,6 +1362,21 @@ const state = {
   mechSort: "default",
   mechFilterFaction: "",
   mechFilterWeightClasses: new Set(),
+  mechFilterAllTypes: true,
+  mechFilterTypeCategories: new Set(),
+  mechFilterSpecialTypes: new Set(),
+  mechSpecialTypeOptions: [],
+  mechHardpointFilters: Object.fromEntries(MECH_HARDPOINT_FILTER_ORDER.map((type) => [
+    type,
+    {
+      enabled: false,
+      minimums: Object.fromEntries(MECH_FILTER_HARDPOINT_LOCATIONS.map((location) => [
+        location.key,
+        type === "masc" && location.key === "total" ? 1 : 0,
+      ])),
+    },
+  ])),
+  mechHardpointFilterCountsCache: new Map(),
   mechListSummaryCache: new Map(),
   mechHardpointBadgeCache: new Map(),
   mechSlotBadgeCache: new Map(),
@@ -1696,8 +1759,20 @@ function structureUpgradeSlots(mech = state.selectedMech, build = state.currentB
 function armorUpgradeSlots(mech = state.selectedMech, build = state.currentBuild) {
   if (!mech || !build || hasFixedOmnipods(mech)) return 0;
   const upgrade = itemById(build.upgrades?.armor?.ItemID);
-  if (!upgrade || /stealth/i.test(String(upgrade.name || ""))) return 0;
+  if (!upgrade) return 0;
+  if (/stealth/i.test(String(upgrade.name || ""))) {
+    return Object.values(STEALTH_ARMOR_SLOTS_BY_COMPONENT)
+      .reduce((sum, slots) => sum + slots, 0);
+  }
   return number(ARMOR_CONTAINER_SLOT_COUNTS.get(number(upgrade.stats?.containerId)));
+}
+
+function fixedArmorUpgradeSlots(mech = state.selectedMech, build = state.currentBuild) {
+  if (!mech || !build || hasFixedOmnipods(mech)) return {};
+  const upgrade = itemById(build.upgrades?.armor?.ItemID);
+  return /stealth/i.test(String(upgrade?.name || ""))
+    ? STEALTH_ARMOR_SLOTS_BY_COMPONENT
+    : {};
 }
 
 function componentBaseSlotUsage(name, definition, build, engine, fixedEngine) {
@@ -1735,6 +1810,19 @@ function allocateUpgradeSlots(requiredSlots, definition, build, engine, fixedEng
     remaining -= allocated;
   }
   return { byComponent, unallocated: remaining };
+}
+
+function allocateFixedUpgradeSlots(slotsByComponent, definition, build, engine, fixedEngine) {
+  const byComponent = { ...slotsByComponent };
+  const unallocated = Object.entries(byComponent).reduce((sum, [name, requiredSlots]) => {
+    const slotLimit = number(definition.components?.[name]?.slots);
+    const available = Math.max(
+      0,
+      slotLimit - componentBaseSlotUsage(name, definition, build, engine, fixedEngine),
+    );
+    return sum + Math.max(0, number(requiredSlots) - available);
+  }, 0);
+  return { byComponent, unallocated };
 }
 
 function itemTons(item) {
@@ -2777,18 +2865,51 @@ function effectiveDefinition(mech = state.selectedMech, build = state.currentBui
   };
 }
 
+function rememberActiveTabMechSelection() {
+  if (!SINGLE_MECH_SELECTION_TABS.has(state.activeMainTab)) return;
+  state.selectedMechIdsByTab[state.activeMainTab] = state.selectedMech?.id ?? null;
+  if (state.activeMainTab === "mechlab") state.mechlabBuild = state.currentBuild;
+}
+
+function restoreTabMechSelection(tabName) {
+  if (!SINGLE_MECH_SELECTION_TABS.has(tabName)) {
+    state.selectedMech = null;
+    state.currentBuild = null;
+    state.selectedChassis = "";
+    return;
+  }
+
+  const mech = mechById(state.selectedMechIdsByTab[tabName]);
+  state.selectedMech = mech;
+  state.selectedChassis = mech?.chassis || "";
+  if (!mech) {
+    state.currentBuild = null;
+    return;
+  }
+
+  if (
+    tabName === "mechlab"
+    && String(state.mechlabBuild?.mechId || "") === String(mech.id)
+  ) {
+    state.currentBuild = state.mechlabBuild;
+  } else {
+    state.currentBuild = loadBuild(mech);
+    if (tabName === "mechlab") state.mechlabBuild = state.currentBuild;
+  }
+}
+
 function setMainTab(tabName) {
   if (!MAIN_TAB_NAMES.has(tabName)) tabName = "mechlab";
+  rememberActiveTabMechSelection();
   const isCompareTab = tabName === "compare";
   state.activeMainTab = tabName;
   state.compareMode = isCompareTab;
+  restoreTabMechSelection(tabName);
   if (tabName === "mechlab") {
     state.mechlabBrowseMode = !state.selectedMech;
     state.mechlabCompactListOpen = false;
   }
   if (isCompareTab) {
-    state.compareMechIds = [];
-    state.compareBaselineMechId = null;
     state.selectedChassis = "";
   } else if (state.selectedMech) {
     state.selectedChassis = state.selectedMech.chassis || "";
@@ -5137,21 +5258,32 @@ function calculateBuild() {
   const guidanceTons = number(selectedGuidanceUpgrade?.stats?.extraTons);
   const requiredStructureSlots = structureUpgradeSlots(mech, state.currentBuild);
   const requiredArmorSlots = armorUpgradeSlots(mech, state.currentBuild);
+  const fixedArmorSlotsByComponent = fixedArmorUpgradeSlots(mech, state.currentBuild);
+  const hasFixedArmorUpgradeSlots = Object.keys(fixedArmorSlotsByComponent).length > 0;
   const structureAllocation = allocateUpgradeSlots(
     requiredStructureSlots,
     definition,
     state.currentBuild,
     engine,
     fixedEngine,
+    fixedArmorSlotsByComponent,
   );
-  const armorAllocation = allocateUpgradeSlots(
-    requiredArmorSlots,
-    definition,
-    state.currentBuild,
-    engine,
-    fixedEngine,
-    structureAllocation.byComponent,
-  );
+  const armorAllocation = hasFixedArmorUpgradeSlots
+    ? allocateFixedUpgradeSlots(
+      fixedArmorSlotsByComponent,
+      definition,
+      state.currentBuild,
+      engine,
+      fixedEngine,
+    )
+    : allocateUpgradeSlots(
+      requiredArmorSlots,
+      definition,
+      state.currentBuild,
+      engine,
+      fixedEngine,
+      structureAllocation.byComponent,
+    );
   let installedHeatSinkCount = 0;
   const warnings = [];
   const componentUsage = {};
@@ -5193,6 +5325,7 @@ function calculateBuild() {
       occupiedArmorSlots: 0,
       movableStructureSlots: 0,
       movableArmorSlots: 0,
+      fixedArmorSlots: number(fixedArmorSlotsByComponent[name]),
       occupiedUpgradeSlots: 0,
       movableUpgradeSlots: 0,
       hardpoints: {},
@@ -5291,15 +5424,24 @@ function calculateBuild() {
     usage.structureSlots = number(usage.preferredStructureSlots);
     usage.armorSlots = number(usage.preferredArmorSlots);
     const componentUpgradeSlots = usage.structureSlots + usage.armorSlots;
-    usage.occupiedUpgradeSlots = Math.min(
-      componentUpgradeSlots,
-      Math.max(0, availableSlots - upgradeFreeSlots),
+    const floatingUpgradeSlots = componentUpgradeSlots - usage.fixedArmorSlots;
+    const occupiedFloatingSlots = Math.min(
+      floatingUpgradeSlots,
+      Math.max(0, availableSlots - usage.fixedArmorSlots - upgradeFreeSlots),
     );
+    usage.occupiedUpgradeSlots = usage.fixedArmorSlots + occupiedFloatingSlots;
     usage.movableUpgradeSlots = componentUpgradeSlots - usage.occupiedUpgradeSlots;
-    usage.occupiedStructureSlots = Math.min(usage.structureSlots, usage.occupiedUpgradeSlots);
-    usage.occupiedArmorSlots = usage.occupiedUpgradeSlots - usage.occupiedStructureSlots;
-    usage.movableStructureSlots = usage.structureSlots - usage.occupiedStructureSlots;
-    usage.movableArmorSlots = usage.armorSlots - usage.occupiedArmorSlots;
+    if (usage.fixedArmorSlots) {
+      usage.occupiedArmorSlots = usage.fixedArmorSlots;
+      usage.movableArmorSlots = 0;
+      usage.occupiedStructureSlots = occupiedFloatingSlots;
+      usage.movableStructureSlots = usage.structureSlots - usage.occupiedStructureSlots;
+    } else {
+      usage.occupiedStructureSlots = Math.min(usage.structureSlots, usage.occupiedUpgradeSlots);
+      usage.occupiedArmorSlots = usage.occupiedUpgradeSlots - usage.occupiedStructureSlots;
+      usage.movableStructureSlots = usage.structureSlots - usage.occupiedStructureSlots;
+      usage.movableArmorSlots = usage.armorSlots - usage.occupiedArmorSlots;
+    }
     usage.slots += usage.occupiedUpgradeSlots;
     if (slotLimit && usage.slots > slotLimit) {
       usage.warnings.push(`Slots ${usage.slots}/${slotLimit}`);
@@ -5310,11 +5452,20 @@ function calculateBuild() {
   // full required amount so an over-capacity build remains visible.
   const displayedSlotUsage = Object.values(componentUsage).reduce((sum, usage) => sum + number(usage.slots), 0);
   const allocatedStructureSlots = requiredStructureSlots - structureAllocation.unallocated;
-  const allocatedArmorSlots = requiredArmorSlots - armorAllocation.unallocated;
+  const allocatedArmorSlots = hasFixedArmorUpgradeSlots
+    ? requiredArmorSlots
+    : requiredArmorSlots - armorAllocation.unallocated;
   const allocatedUpgradeSlots = allocatedStructureSlots + allocatedArmorSlots;
   const upgradeCalculationUsage = reservedUpgradeUsage;
   const currentSlotUsage = upgradeCalculationUsage;
   const freeSlots = Math.max(0, totalSlotCapacity - currentSlotUsage);
+
+  if (structureAllocation.unallocated) {
+    warnings.push(t("build.structureSlotsUnavailable", { count: structureAllocation.unallocated }));
+  }
+  if (armorAllocation.unallocated) {
+    warnings.push(t("build.armorSlotsUnavailable", { count: armorAllocation.unallocated }));
+  }
 
   for (const [name, usage] of Object.entries(componentUsage)) {
     for (const warning of usage.warnings) {
@@ -5425,6 +5576,97 @@ function filteredMechsForCompactList() {
   return state.mechs.filter((mech) => mechMatchesListFilters(mech, search));
 }
 
+function normalizedMechVariantType(mech) {
+  return String(mech?.definition?.stats?.VariantType || "").trim().toLowerCase();
+}
+
+function mechTypeFilterCategory(mech) {
+  const type = normalizedMechVariantType(mech);
+  if (!type) return "normal";
+  if (type === "hero" || type === "champion") return type;
+  return "special";
+}
+
+function initializeMechTypeFilters() {
+  const specialTypes = new Map();
+  state.mechs.forEach((mech) => {
+    if (mechTypeFilterCategory(mech) !== "special") return;
+    const label = String(mech.definition?.stats?.VariantType || "").trim();
+    const key = label.toLowerCase();
+    if (key && !specialTypes.has(key)) specialTypes.set(key, label);
+  });
+  const preferredOrder = new Map(["founder", "phoenix", "sarah", "special"].map((type, index) => [type, index]));
+  state.mechSpecialTypeOptions = Array.from(specialTypes, ([key, label]) => ({ key, label }))
+    .sort((left, right) => (
+      (preferredOrder.get(left.key) ?? Number.MAX_SAFE_INTEGER)
+      - (preferredOrder.get(right.key) ?? Number.MAX_SAFE_INTEGER)
+      || left.label.localeCompare(right.label)
+    ));
+  state.mechFilterSpecialTypes = new Set(state.mechSpecialTypeOptions.map((option) => option.key));
+}
+
+function mechMatchesTypeFilter(mech) {
+  if (state.mechFilterAllTypes) return true;
+  const category = mechTypeFilterCategory(mech);
+  if (!state.mechFilterTypeCategories.has(category)) return false;
+  return category !== "special" || state.mechFilterSpecialTypes.has(normalizedMechVariantType(mech));
+}
+
+function hardpointFilterTypeLabel(type) {
+  if (type === "energy" || type === "missile" || type === "ballistic") {
+    return t(`stats.${type}`);
+  }
+  if (type === "jumpjet") return t("filters.jumpjets");
+  if (type === "masc") return t("filters.masc");
+  return HARDPOINT_LABELS[type] || String(type).toUpperCase();
+}
+
+function mechHardpointFilterCounts(mech) {
+  const key = String(mech?.id || "");
+  if (!key) return {};
+  const cached = state.mechHardpointFilterCountsCache.get(key);
+  if (cached) return cached;
+
+  const counts = Object.fromEntries(MECH_HARDPOINT_FILTER_ORDER.map((type) => [
+    type,
+    Object.fromEntries(MECH_FILTER_HARDPOINT_LOCATIONS.map((location) => [location.key, 0])),
+  ]));
+  const build = buildFromLoadout(mech);
+  const definition = effectiveDefinition(mech, build);
+  Object.entries(definition.components || {}).forEach(([componentName, component]) => {
+    (component.hardpoints || []).forEach((hardpoint) => {
+      const type = hardpointType(hardpoint);
+      if (!counts[type]) return;
+      const slots = hardpointSlots(hardpoint);
+      counts[type].total += slots;
+      if (Object.hasOwn(counts[type], componentName)) {
+        counts[type][componentName] += slots;
+      }
+    });
+  });
+  counts.jumpjet.total = maximumJumpJets(mech, build);
+  const stats = currentDefinition(mech).stats || {};
+  counts.masc.total = number(stats.CanEquipMASC) > 0 || number(stats.CanEquipMasc) > 0 ? 1 : 0;
+  state.mechHardpointFilterCountsCache.set(key, counts);
+  return counts;
+}
+
+function mechMatchesHardpointFilters(mech) {
+  const enabledTypes = MECH_HARDPOINT_FILTER_ORDER
+    .filter((type) => state.mechHardpointFilters[type].enabled);
+  if (!enabledTypes.length) return true;
+  const counts = mechHardpointFilterCounts(mech);
+  return enabledTypes.every((type) => {
+    const locations = MECH_FILTER_HARDPOINT_LOCATIONS.filter((location) => (
+      location.key === "total" || !MECH_HARDPOINT_FILTER_TOTAL_ONLY_TYPES.has(type)
+    ));
+    return locations.every((location) => (
+      number(counts[type]?.[location.key])
+        >= number(state.mechHardpointFilters[type].minimums[location.key])
+    ));
+  });
+}
+
 function mechMatchesListFilters(mech, search = "") {
   const selectedWeights = state.mechFilterWeightClasses;
   const weightFilterActive = selectedWeights.size > 0 && selectedWeights.size < 4;
@@ -5432,14 +5674,82 @@ function mechMatchesListFilters(mech, search = "") {
     || `${mech.display_name} ${mech.name} ${mech.chassis}`.toLowerCase().includes(search);
   const matchesFaction = !state.mechFilterFaction || mech.faction === state.mechFilterFaction;
   const matchesWeight = !weightFilterActive || selectedWeights.has(mech.weight_class);
-  return matchesSearch && matchesFaction && matchesWeight;
+  return matchesSearch
+    && matchesFaction
+    && matchesWeight
+    && mechMatchesTypeFilter(mech)
+    && mechMatchesHardpointFilters(mech);
+}
+
+function renderMechHardpointFilterControls() {
+  const rows = $("mech-hardpoint-filter-rows");
+  const renderedTypes = Array.from(
+    rows.querySelectorAll("[data-mech-hardpoint-filter-row]"),
+    (row) => row.dataset.mechHardpointFilterRow,
+  );
+  if (
+    renderedTypes.length !== MECH_HARDPOINT_FILTER_ORDER.length
+    || renderedTypes.some((type, index) => type !== MECH_HARDPOINT_FILTER_ORDER[index])
+  ) {
+    rows.innerHTML = MECH_HARDPOINT_FILTER_ORDER.map((type) => {
+      const typeLabel = hardpointFilterTypeLabel(type);
+      return `
+        <div class="mech-hardpoint-filter-row ${type}" data-mech-hardpoint-filter-row="${type}">
+          <button class="mech-hardpoint-filter-enable" type="button" data-mech-hardpoint-filter-toggle="${type}" aria-label="${escapeHtml(`${typeLabel} ${t("filters.hardpoints")}`)}" aria-pressed="false"></button>
+          <strong><span>${HARDPOINT_LABELS[type]}</span>${escapeHtml(typeLabel)}</strong>
+          ${MECH_FILTER_HARDPOINT_LOCATIONS.map((location) => {
+            if (type === "masc") {
+              return location.key === "total"
+                ? '<span class="mech-hardpoint-filter-fixed-value">1</span>'
+                : '<span class="mech-hardpoint-filter-unavailable">-</span>';
+            }
+            if (
+              MECH_HARDPOINT_FILTER_TOTAL_ONLY_TYPES.has(type)
+              && location.key !== "total"
+            ) {
+              return '<span class="mech-hardpoint-filter-unavailable">-</span>';
+            }
+            return `
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                data-mech-hardpoint-filter-type="${type}"
+                data-mech-hardpoint-filter-location="${location.key}"
+                aria-label="${escapeHtml(`${typeLabel} ${t(location.labelKey)}`)}"
+              >
+            `;
+          }).join("")}
+        </div>
+      `;
+    }).join("");
+  }
+
+  rows.querySelectorAll("[data-mech-hardpoint-filter-row]").forEach((row) => {
+    const type = row.dataset.mechHardpointFilterRow;
+    const filter = state.mechHardpointFilters[type];
+    row.classList.toggle("enabled", filter.enabled);
+    const toggle = row.querySelector("[data-mech-hardpoint-filter-toggle]");
+    toggle.classList.toggle("active", filter.enabled);
+    toggle.setAttribute("aria-pressed", String(filter.enabled));
+    row.querySelectorAll("[data-mech-hardpoint-filter-location]").forEach((input) => {
+      const location = input.dataset.mechHardpointFilterLocation;
+      const value = number(filter.minimums[location]);
+      if (document.activeElement !== input || input.value !== "") input.value = String(value);
+      input.disabled = !filter.enabled;
+    });
+  });
 }
 
 function renderMechFilterControls() {
   const overlayOpen = !$("mech-filter-overlay").hidden;
   const weightFilterActive = state.mechFilterWeightClasses.size > 0
     && state.mechFilterWeightClasses.size < 4;
-  const filterActive = Boolean(state.mechFilterFaction) || weightFilterActive;
+  const filterActive = Boolean(state.mechFilterFaction)
+    || weightFilterActive
+    || !state.mechFilterAllTypes
+    || MECH_HARDPOINT_FILTER_ORDER.some((type) => state.mechHardpointFilters[type].enabled);
   document.querySelectorAll("[data-open-mech-filter]").forEach((button) => {
     button.classList.toggle("active", filterActive);
     button.setAttribute("aria-expanded", String(overlayOpen));
@@ -5455,6 +5765,48 @@ function renderMechFilterControls() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  document.querySelectorAll("[data-mech-filter-type]").forEach((button) => {
+    const type = button.dataset.mechFilterType;
+    const active = type === "all"
+      ? state.mechFilterAllTypes
+      : state.mechFilterTypeCategories.has(type);
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  const specialOptions = $("mech-filter-special-options");
+  const renderedSpecialTypes = Array.from(
+    specialOptions.querySelectorAll("[data-mech-filter-special-type]"),
+    (button) => button.dataset.mechFilterSpecialType,
+  );
+  const renderedSpecialAll = specialOptions.querySelector("[data-mech-filter-special-all]");
+  const availableSpecialTypes = state.mechSpecialTypeOptions.map((option) => option.key);
+  if (
+    !renderedSpecialAll
+    || renderedSpecialTypes.length !== availableSpecialTypes.length
+    || renderedSpecialTypes.some((type, index) => type !== availableSpecialTypes[index])
+  ) {
+    specialOptions.innerHTML = `
+      <button type="button" data-mech-filter-special-all>${t("filters.all")}</button>
+      ${state.mechSpecialTypeOptions.map((option) => `
+        <button type="button" data-mech-filter-special-type="${escapeHtml(option.key)}">${escapeHtml(option.label)}</button>
+      `).join("")}
+    `;
+  }
+  const specialEnabled = !state.mechFilterAllTypes
+    && state.mechFilterTypeCategories.has("special");
+  const allSpecialTypesSelected = availableSpecialTypes.length > 0
+    && availableSpecialTypes.every((type) => state.mechFilterSpecialTypes.has(type));
+  const specialAll = specialOptions.querySelector("[data-mech-filter-special-all]");
+  specialAll.classList.toggle("active", allSpecialTypesSelected);
+  specialAll.setAttribute("aria-pressed", String(allSpecialTypesSelected));
+  specialAll.disabled = !specialEnabled;
+  specialOptions.querySelectorAll("[data-mech-filter-special-type]").forEach((button) => {
+    const active = state.mechFilterSpecialTypes.has(button.dataset.mechFilterSpecialType);
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+    button.disabled = !specialEnabled;
+  });
+  renderMechHardpointFilterControls();
 }
 
 function renderMechlabCompactList() {
@@ -8887,8 +9239,12 @@ function selectMech(id, { historyMode = "push", enterFitting = true } = {}) {
     && String(state.selectedMech?.id || "") === String(nextMech?.id || "")
     && state.currentBuild;
   state.selectedMech = nextMech;
+  if (SINGLE_MECH_SELECTION_TABS.has(state.activeMainTab)) {
+    state.selectedMechIdsByTab[state.activeMainTab] = nextMech?.id ?? null;
+  }
   state.selectedChassis = state.selectedMech?.chassis || "";
   if (!preserveCurrentBuild) state.currentBuild = loadBuild(state.selectedMech);
+  if (state.activeMainTab === "mechlab") state.mechlabBuild = state.currentBuild;
   const selectedItem = itemById(state.selectedItemId);
   if (
     !itemMatchesMechFaction(selectedItem, state.selectedMech)
@@ -8976,8 +9332,8 @@ function initializeMechNavigation() {
 
 function openMechFitting(id) {
   if (!mechById(id)) return;
-  selectMech(id);
   setMainTab("mechlab");
+  selectMech(id);
 }
 
 function setLoadoutCodeStatus(message = "", tone = "") {
@@ -9312,6 +9668,63 @@ function toggleMechWeightFilter(weightClass) {
   } else {
     state.mechFilterWeightClasses.add(weightClass);
   }
+  renderMechList();
+}
+
+function toggleMechTypeFilter(type) {
+  if (type === "all") {
+    if (state.mechFilterAllTypes) return;
+    state.mechFilterAllTypes = true;
+    state.mechFilterTypeCategories.clear();
+  } else {
+    state.mechFilterAllTypes = false;
+    if (state.mechFilterTypeCategories.has(type)) {
+      state.mechFilterTypeCategories.delete(type);
+      if (state.mechFilterTypeCategories.size === 0) {
+        state.mechFilterAllTypes = true;
+      }
+    } else {
+      state.mechFilterTypeCategories.add(type);
+    }
+  }
+  renderMechList();
+}
+
+function toggleMechSpecialTypeFilter(type) {
+  if (state.mechFilterSpecialTypes.has(type)) {
+    state.mechFilterSpecialTypes.delete(type);
+    if (state.mechFilterSpecialTypes.size === 0) {
+      state.mechFilterSpecialTypes = new Set(
+        state.mechSpecialTypeOptions.map((option) => option.key),
+      );
+    }
+  } else {
+    state.mechFilterSpecialTypes.add(type);
+  }
+  renderMechList();
+}
+
+function selectAllMechSpecialTypes() {
+  state.mechFilterSpecialTypes = new Set(
+    state.mechSpecialTypeOptions.map((option) => option.key),
+  );
+  renderMechList();
+}
+
+function toggleMechHardpointFilter(type) {
+  const filter = state.mechHardpointFilters[type];
+  if (!filter) return;
+  filter.enabled = !filter.enabled;
+  renderMechList();
+}
+
+function setMechHardpointFilterMinimum(type, location, value) {
+  const filter = state.mechHardpointFilters[type];
+  if (!filter || !Object.hasOwn(filter.minimums, location)) return;
+  const numericValue = Number(value);
+  filter.minimums[location] = Number.isFinite(numericValue)
+    ? Math.max(0, Math.floor(numericValue))
+    : 0;
   renderMechList();
 }
 
@@ -10382,8 +10795,12 @@ function dropValidation(item, component, source = null) {
   const replacedEngineSlots = item.item_type === "engine" && source?.source !== "component"
     ? Math.max(0, itemSlots(loadoutInstalledEngine()))
     : 0;
+  const reflowableOccupiedUpgradeSlots = Math.max(
+    0,
+    number(usage.occupiedUpgradeSlots) - number(usage.fixedArmorSlots),
+  );
   const nextSlots = usage.slots
-    - number(usage.occupiedUpgradeSlots)
+    - reflowableOccupiedUpgradeSlots
     - replacedEngineSlots
     + addedItemSlots;
   if (!slotLimit || nextSlots > slotLimit) return `Slots ${nextSlots}/${slotLimit}`;
@@ -10394,9 +10811,13 @@ function dropValidation(item, component, source = null) {
       const sideDef = effectiveComponentDefinition(state.selectedMech, state.currentBuild, side);
       const sideLimit = number(sideDef.slots);
       const sideUsage = calc.componentUsage[side] || { slots: 0, engineSideSlots: 0 };
+      const sideReflowableUpgradeSlots = Math.max(
+        0,
+        number(sideUsage.occupiedUpgradeSlots) - number(sideUsage.fixedArmorSlots),
+      );
       const sideNextSlots = sideUsage.slots
         - number(sideUsage.engineSideSlots)
-        - number(sideUsage.occupiedUpgradeSlots)
+        - sideReflowableUpgradeSlots
         + proposedSideSlots;
       if (!sideLimit || sideNextSlots > sideLimit) {
         return `${COMPONENT_NAMES[side] || side}: Slots ${sideNextSlots}/${sideLimit}`;
@@ -11159,7 +11580,11 @@ function bindEvents() {
         return;
       }
       if (state.activeMainTab === button.dataset.mainTab) return;
-      updateMainTabNavigation(button.dataset.mainTab);
+      const nextTab = button.dataset.mainTab;
+      const nextMechId = SINGLE_MECH_SELECTION_TABS.has(nextTab)
+        ? state.selectedMechIdsByTab[nextTab] || ""
+        : "";
+      updateMainTabNavigation(nextTab, "push", nextMechId);
       setMainTab(button.dataset.mainTab);
     });
   });
@@ -11200,7 +11625,42 @@ function bindEvents() {
       toggleMechWeightFilter(weight.dataset.mechFilterWeight);
       return;
     }
+    const hardpoint = event.target.closest("[data-mech-hardpoint-filter-toggle]");
+    if (hardpoint) {
+      toggleMechHardpointFilter(hardpoint.dataset.mechHardpointFilterToggle);
+      return;
+    }
+    const type = event.target.closest("[data-mech-filter-type]");
+    if (type) {
+      toggleMechTypeFilter(type.dataset.mechFilterType);
+      return;
+    }
+    const specialAll = event.target.closest("[data-mech-filter-special-all]");
+    if (specialAll) {
+      selectAllMechSpecialTypes();
+      return;
+    }
+    const specialType = event.target.closest("[data-mech-filter-special-type]");
+    if (specialType) {
+      toggleMechSpecialTypeFilter(specialType.dataset.mechFilterSpecialType);
+      return;
+    }
     if (event.target === event.currentTarget) closeMechFilterDialog();
+  });
+  $("mech-filter-overlay").addEventListener("input", (event) => {
+    const input = event.target.closest("[data-mech-hardpoint-filter-location]");
+    if (!input) return;
+    setMechHardpointFilterMinimum(
+      input.dataset.mechHardpointFilterType,
+      input.dataset.mechHardpointFilterLocation,
+      input.value,
+    );
+  });
+  $("mech-filter-overlay").addEventListener("focusout", (event) => {
+    const input = event.target.closest("[data-mech-hardpoint-filter-location]");
+    if (!input) return;
+    const filter = state.mechHardpointFilters[input.dataset.mechHardpointFilterType];
+    input.value = String(number(filter?.minimums[input.dataset.mechHardpointFilterLocation]));
   });
   $("mech-sort").addEventListener("change", (event) => {
     state.mechSort = event.target.value;
@@ -11683,6 +12143,7 @@ async function init() {
       loadJson(state.index.files.omnipods),
     ]);
     state.mechs = mechs.filter((mech) => mech.definition && mech.definition.components);
+    initializeMechTypeFilters();
     state.equipment = excludeUnusedEquipment(equipment);
     state.equipmentInfoHtmlCache.clear();
     state.loadouts = loadouts;

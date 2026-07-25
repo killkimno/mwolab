@@ -3,6 +3,14 @@
 - Do not start, inspect, probe, or verify the local preview/dev server unless the user explicitly asks for it.
 - The user manually handles whether the server is running and whether the app can be opened.
 
+## Implementation Wiki Rules
+
+- Before implementing or changing project behavior, consult `wiki/mwolab-implementation-wiki.html` for the relevant shared rule, definition, tab guide, JSON parsing rule, or MechLab rule.
+- Treat the current code and freshly extracted game data as the source of truth when they conflict with the implementation wiki. Confirm the actual behavior before changing either side.
+- After completing a user-requested implementation or code change, decide whether it introduces, changes, or clarifies a reusable implementation rule. When a wiki update is judged necessary, update the implementation wiki immediately as part of that same task without waiting for a separate wiki-update request.
+- When updating the wiki, verify the current implementation first and keep its tab guides, shared rules, definitions, JSON parser rules, MechLab rules, and ETC guidance consistent with the code.
+- The implementation wiki is a separate internal HTML document. Do not add an application link to it unless the user explicitly requests one.
+
 ## Simulation UI Rules
 
 - Keep simulation controls and HUD placement close to the in-game layout when practical; otherwise prioritize clear sightlines, comfortable reach, and immediate readability.

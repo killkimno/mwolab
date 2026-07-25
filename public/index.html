@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MwoLab</title>
+    <title>MWO Mechlab</title>
     <link rel="stylesheet" href="styles.css?v=20260723-4">
   </head>
   <body>
@@ -300,23 +300,61 @@
           <h2 id="mech-filter-title" data-i18n="filters.title">멕 필터</h2>
           <button id="close-mech-filter-x" class="build-actions-close" type="button" aria-label="Close">X</button>
         </header>
-        <section class="mech-filter-section" aria-labelledby="mech-filter-faction-title">
-          <h3 id="mech-filter-faction-title" data-i18n="filters.faction">진영</h3>
-          <div class="mech-filter-options mech-filter-faction-options" role="group" aria-labelledby="mech-filter-faction-title">
-            <button type="button" data-mech-filter-faction="" data-i18n="filters.all">모두</button>
-            <button type="button" data-mech-filter-faction="Clan" data-i18n="filters.clan">클랜</button>
-            <button type="button" data-mech-filter-faction="InnerSphere" data-i18n="filters.innerSphere">이너</button>
-          </div>
-        </section>
-        <section class="mech-filter-section" aria-labelledby="mech-filter-weight-title">
-          <h3 id="mech-filter-weight-title" data-i18n="filters.weightClass">체급</h3>
-          <div class="mech-filter-options mech-filter-weight-options" role="group" aria-labelledby="mech-filter-weight-title">
-            <button type="button" data-mech-filter-weight="light" data-i18n="weight.light">라이트</button>
-            <button type="button" data-mech-filter-weight="medium" data-i18n="weight.medium">미디엄</button>
-            <button type="button" data-mech-filter-weight="heavy" data-i18n="weight.heavy">헤비</button>
-            <button type="button" data-mech-filter-weight="assault" data-i18n="weight.assault">어썰트</button>
-          </div>
-        </section>
+        <div class="mech-filter-tabs" role="tablist" aria-label="멕 필터 카테고리" data-i18n-aria-label="filters.tabs">
+          <button id="mech-filter-basic-tab" class="active" type="button" role="tab" aria-selected="true" aria-controls="mech-filter-basic-content" data-i18n="filters.basicTab">기본</button>
+        </div>
+        <div id="mech-filter-basic-content" class="mech-filter-content" role="tabpanel" aria-labelledby="mech-filter-basic-tab">
+          <section class="mech-filter-panel" aria-labelledby="mech-filter-basic-title">
+            <h3 id="mech-filter-basic-title" data-i18n="filters.basic">기본 필터</h3>
+            <div class="mech-filter-section" aria-labelledby="mech-filter-faction-title">
+              <h4 id="mech-filter-faction-title" data-i18n="filters.faction">진영</h4>
+              <div class="mech-filter-options mech-filter-faction-options" role="group" aria-labelledby="mech-filter-faction-title">
+                <button type="button" data-mech-filter-faction="" data-i18n="filters.all">모두</button>
+                <button type="button" data-mech-filter-faction="Clan" data-i18n="filters.clan">클랜</button>
+                <button type="button" data-mech-filter-faction="InnerSphere" data-i18n="filters.innerSphere">이너</button>
+              </div>
+            </div>
+            <div class="mech-filter-section" aria-labelledby="mech-filter-weight-title">
+              <h4 id="mech-filter-weight-title" data-i18n="filters.weightClass">체급</h4>
+              <div class="mech-filter-options mech-filter-weight-options" role="group" aria-labelledby="mech-filter-weight-title">
+                <button type="button" data-mech-filter-weight="light" data-i18n="weight.light">라이트</button>
+                <button type="button" data-mech-filter-weight="medium" data-i18n="weight.medium">미디엄</button>
+                <button type="button" data-mech-filter-weight="heavy" data-i18n="weight.heavy">헤비</button>
+                <button type="button" data-mech-filter-weight="assault" data-i18n="weight.assault">어썰트</button>
+              </div>
+            </div>
+          </section>
+          <section class="mech-filter-panel" aria-labelledby="mech-filter-type-title">
+            <h3 id="mech-filter-type-title" data-i18n="filters.mechType">멕 종류</h3>
+            <div class="mech-filter-options mech-filter-type-options" role="group" aria-labelledby="mech-filter-type-title">
+              <button type="button" data-mech-filter-type="all" data-i18n="filters.all">모두</button>
+              <button type="button" data-mech-filter-type="normal" data-i18n="filters.normal">일반형</button>
+              <button type="button" data-mech-filter-type="hero" data-i18n="filters.hero">히어로</button>
+              <button type="button" data-mech-filter-type="champion" data-i18n="filters.champion">챔피언</button>
+              <button type="button" data-mech-filter-type="special" data-i18n="filters.special">스페셜</button>
+            </div>
+            <div class="mech-filter-section mech-filter-special-section" aria-labelledby="mech-filter-special-title">
+              <h4 id="mech-filter-special-title" data-i18n="filters.special">스페셜</h4>
+              <div id="mech-filter-special-options" class="mech-filter-options mech-filter-special-options" role="group" aria-labelledby="mech-filter-special-title"></div>
+            </div>
+          </section>
+          <section class="mech-filter-panel mech-hardpoint-filter-panel" aria-labelledby="mech-filter-hardpoint-title">
+            <h3 id="mech-filter-hardpoint-title" data-i18n="filters.hardpoints">하드포인트</h3>
+            <div class="mech-hardpoint-filter-table">
+              <div class="mech-hardpoint-filter-header" aria-hidden="true">
+                <span></span>
+                <span data-i18n="filters.hardpointType">하드포인트 종류</span>
+                <span data-i18n="filters.total">전체</span>
+                <span>RA</span>
+                <span>RT</span>
+                <span>HD</span>
+                <span>LT</span>
+                <span>LA</span>
+              </div>
+              <div id="mech-hardpoint-filter-rows" class="mech-hardpoint-filter-rows"></div>
+            </div>
+          </section>
+        </div>
         <button id="close-mech-filter" class="build-actions-cancel" type="button" data-i18n="filters.close">닫기</button>
       </section>
     </div>

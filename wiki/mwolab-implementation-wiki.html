@@ -162,15 +162,24 @@
       <strong>MwoLab 구현 위키</strong>
       <a href="#policy">문서 운용 원칙</a>
       <a href="#status">현재 상태</a>
+      <a href="#common">공통 규칙</a>
+      <a href="#definitions">정의</a>
+      <a href="#tabs">탭별 구현 가이드</a>
+      <a href="#tab-mechlab-guide">└ 멕랩</a>
+      <a href="#tab-info-guide">└ 정보보기</a>
+      <a href="#tab-equipment-guide">└ 무기정보</a>
+      <a href="#tab-compare-guide">└ 비교하기</a>
+      <a href="#tab-stats-guide">└ 통계</a>
+      <a href="#mechlab-rules">멕랩 룰</a>
+      <a href="#fitting">└ 피팅·슬롯</a>
+      <a href="#quirks">└ 쿼크</a>
+      <a href="#weapons">└ 무장</a>
+      <a href="#ghost-heat">└ 고스트 힛</a>
+      <a href="#simulation">└ 사격 시뮬레이션</a>
+      <a href="#json-parser">JSON 파서 법</a>
       <a href="#architecture">구조와 데이터 흐름</a>
-      <a href="#screens">화면별 구현</a>
       <a href="#state">상태와 캐시</a>
-      <a href="#fitting">피팅 규칙</a>
-      <a href="#quirks">쿼크 규칙</a>
-      <a href="#weapons">무기 계산 규칙</a>
-      <a href="#ghost-heat">고스트 힛</a>
-      <a href="#simulation">사격 시뮬레이션</a>
-      <a href="#data">데이터 추출</a>
+      <a href="#etc">ETC</a>
       <a href="#files">주요 파일</a>
       <a href="#verification">변경 검증</a>
       <a href="#history">구현 이력</a>
@@ -179,11 +188,11 @@
     <main>
       <header>
         <h1>MwoLab 구현 위키</h1>
-        <p class="meta">기준일 2026-07-23 · 현재 저장소 구현 기준</p>
+        <p class="meta">기준일 2026-07-24 · 현재 저장소 구현 기준</p>
         <p>이 문서는 MwoLab의 현재 구조, 계산 기준, UI 동작과 수정 시 주의사항을 한곳에 모은 내부 구현 가이드다.</p>
         <div class="notice" id="policy">
           <strong>문서 운용 원칙</strong><br>
-          이 위키는 MwoLab 프로젝트와 분리된 단일 HTML 파일이다. 앱에는 링크를 추가하지 않는다. 자동으로 갱신하지 않으며, 사용자가 명시적으로 “위키 갱신”을 요청한 경우에만 현재 구현을 다시 확인해 수정한다.
+          구현 전에는 관련 위키 내역을 참고한다. 단, 현재 코드와 새로 추출한 게임 데이터가 항상 우선하며 위키와 충돌하면 실제 구현을 확인한 뒤 판단한다. 사용자가 기능 구현이나 코드 수정을 명령하면 작업 완료 후 재사용 가능한 규칙이 추가·변경·명확화되었는지 판단하고, 필요하면 별도의 “위키 갱신” 요청을 기다리지 않고 같은 작업에서 즉시 위키도 갱신한다. 모든 작업 뒤 기계적으로 갱신하는 것은 아니다. 이 파일은 앱과 분리된 내부 문서이며 사용자가 요청하지 않는 한 앱에 링크를 추가하지 않는다.
         </div>
       </header>
 
@@ -206,7 +215,41 @@
             <tr><td>장비</td><td>751개</td></tr>
             <tr><td>로드아웃</td><td>1,315개</td></tr>
             <tr><td>옵니포드</td><td>1,833개</td></tr>
-            <tr><td>핵심 코드 규모</td><td><code>app.js</code> 약 11,706줄, <code>styles.css</code> 약 6,668줄</td></tr>
+            <tr><td>핵심 코드 규모</td><td><code>app.js</code> 약 10,939줄, <code>styles.css</code> 약 5,698줄</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="common">
+        <h2>공통 규칙</h2>
+        <ul>
+          <li><strong>근거 우선순위:</strong> 사용자의 최신 요구 → 현재 코드의 실제 동작 → 새로 추출한 게임 데이터 → 이 위키의 기존 설명 순서로 판단한다. 위키는 구현 가이드이지만 코드나 게임 데이터를 덮어쓰는 원본은 아니다.</li>
+          <li><strong>동일 계산:</strong> 정보보기·비교하기·통계·멕랩에서 같은 수치를 보여 줄 때는 같은 원본 데이터, 정규화 함수, 쿼크 계산을 재사용한다.</li>
+          <li><strong>데이터 우선:</strong> 멕, 장비, 로드아웃, 옵니포드 수치는 이름별 하드코딩보다 <code>public/data</code>의 속성과 재사용 인덱스에서 가져온다.</li>
+          <li><strong>선택 상태:</strong> 주 탭은 <code>state.activeMainTab</code>을 기준으로 하며, 멕랩과 정보보기의 선택 멕은 <code>state.selectedMechIdsByTab</code>에서 탭별로 따로 기억한다. <code>state.selectedMech</code>는 현재 활성 탭 선택의 작업용 값, <code>state.currentBuild</code>와 <code>state.mechlabBuild</code>는 현재 피팅, <code>state.compareMechIds</code>는 비교 대상, <code>state.selectedStatsMechId</code>는 통계 선택을 담당한다. 탭 전환만으로 다른 탭의 선택이나 피팅을 덮어쓰지 않는다.</li>
+          <li><strong>탭 수명주기:</strong> 숨겨진 주 탭은 불필요하게 미리 렌더링하지 않는다. 탭 전환 시 그 탭에 필요한 렌더 함수만 호출하고 URL의 멕 및 <code>tab</code> 상태와 동기화한다.</li>
+          <li><strong>표현 일관성:</strong> 하드포인트 태그, 멕 슬롯, 쿼크 색상, 숫자 단위와 빈 값 표시는 화면마다 별도로 복제하지 말고 공용 렌더링 규칙을 따른다.</li>
+          <li><strong>성능:</strong> 추출 데이터는 게임 갱신 전까지 정적이라고 보고 반복 파생값을 브라우저 메모리에 캐시한다. 선택만 바뀌는 경우 전체 목록을 재계산하거나 재생성하지 않는다.</li>
+          <li><strong>검증:</strong> 수정한 범위의 구문, 데이터 구조, 계산 회귀, <code>git diff --check</code>를 확인한다. 사용자가 요청하지 않으면 로컬 미리보기 서버를 시작하거나 검사하지 않는다.</li>
+        </ul>
+      </section>
+
+      <section id="definitions">
+        <h2>정의</h2>
+        <table>
+          <thead><tr><th>용어</th><th>구현 정의</th></tr></thead>
+          <tbody>
+            <tr><td>주 탭</td><td>멕랩(<code>mechlab</code>), 무기정보(<code>equipment-info</code>), 정보보기(<code>info</code>), 비교하기(<code>compare</code>), 통계(<code>stats</code>)의 다섯 화면을 말한다.</td></tr>
+            <tr><td>멕 슬롯</td><td>멕 목록·미리보기·통계 등에서 한 멕을 나타내는 선택 단위다. 변형명, 진영·체급 정보와 완전한 하드포인트 태그 묶음을 함께 표시한다.</td></tr>
+            <tr><td>하드포인트 태그</td><td>유효 멕 정의에서 계산한 Energy, Missile, Ballistic, AMS의 수용량과 ECM, JJ, MASC 보유 여부를 나타내는 공용 태그다. E·M·B는 한 글자 폭을 유지하고 AMS·ECM은 자연스러운 폭을 쓴다.</td></tr>
+            <tr><td>하드포인트 수용량</td><td>같은 타입 하드포인트의 <code>weapon_slots</code> 합계다. MDF의 원본 <code>Slots</code> 값이나 기본 로드아웃의 장착 무기 수가 아니다.</td></tr>
+            <tr><td>컴포넌트 슬롯</td><td>Head, 팔, 토르소, 다리의 장비 장착 영역이다. 사용 슬롯은 내부 고정 항목과 장착 장비의 <code>stats.slots</code> 합계이며 한도는 컴포넌트 <code>slots</code>다.</td></tr>
+            <tr><td>유효 멕 정의</td><td>일반 멕은 차체 정의, 옵니멕은 현재 빌드에 선택된 옵니포드 정의를 부위별로 합성한 결과다. 하드포인트·내부 장비·쿼크 계산의 기준이다.</td></tr>
+            <tr><td>기본 로드아웃</td><td><code>loadouts.json</code>에서 멕에 대응하는 출고 상태 장비·아머·옵니포드 구성이다. 최대 하드포인트를 뜻하지 않는다.</td></tr>
+            <tr><td>고정 장비</td><td>차체 또는 옵니포드 정의가 제공하여 사용자가 일반 장비처럼 제거할 수 없는 장비다. 출처를 보존해 하드포인트 점유 여부를 구분한다.</td></tr>
+            <tr><td>쿼크 최종값</td><td>기본값에 적용 가능한 일반·계열·무기 전용 쿼크를 반영한 실제 표시·계산 값이다. 최종값과 기여도를 같이 보이면 최종값은 초록, 기여도는 노랑이다.</td></tr>
+            <tr><td>DPH</td><td>Damage Per Heat. <code>damage / heat</code>로 계산하는 발열 1점당 피해량이다.</td></tr>
+            <tr><td>고스트 힛/HSL</td><td>같은 열 페널티 그룹을 동시 발사할 때 임계치를 넘으면 추가되는 발열과 그 임계치를 늦추는 Heat Scale Limit 보너스다.</td></tr>
           </tbody>
         </table>
       </section>
@@ -225,48 +268,82 @@
         <p>추출된 숫자는 게임 데이터 갱신 전까지 사실상 정적이다. 반복 계산이 큰 값은 JSON에 다시 저장하지 않고 브라우저 메모리에서 캐시한다.</p>
       </section>
 
-      <section id="screens">
-        <h2>화면별 구현</h2>
+      <section id="tabs">
+        <h2>탭별 구현 가이드</h2>
+        <p>각 탭은 공통 상태와 계산 함수를 공유하되, 아래의 책임과 하위 카테고리를 기준으로 구현한다. 화면 이름은 사용자에게 보이는 한국어 명칭을 쓰고 괄호에는 코드의 탭 키를 적는다.</p>
         <table>
-          <thead><tr><th>화면</th><th>주요 기능</th><th>핵심 구현</th></tr></thead>
+          <thead><tr><th>탭</th><th>책임</th><th>진입 렌더링</th></tr></thead>
           <tbody>
-            <tr><td>멕랩</td><td>멕 탐색, 장비 장착, 아머·엔진·옵니포드·업그레이드 편집</td><td><code>renderMechList</code>, <code>renderComponents</code>, <code>renderEquipmentList</code>, <code>calculateBuild</code></td></tr>
-            <tr><td>무장 정보</td><td>무기·모듈·고스트 힛 정보표와 정렬</td><td><code>renderEquipmentInfo</code> 계열</td></tr>
-            <tr><td>정보</td><td>선택 멕의 내구도, 기동성, 쿼크 및 쿼크 서머리</td><td><code>renderInfoPanel</code>, <code>renderInfoQuirks</code></td></tr>
-            <tr><td>비교하기</td><td>최대 15개 멕 비교, 기준 멕, 차이 강조, 쿼크 적용 전환</td><td><code>renderComparePanel</code>, <code>renderCompareTable</code></td></tr>
-            <tr><td>통계</td><td>내구도·기동성·쿼크 순위, 조건 필터, 개별/기종별 집계</td><td><code>statsEntries</code>, <code>renderStatsPanel</code></td></tr>
+            <tr><td>멕랩</td><td>멕 탐색과 현재 빌드 편집·계산</td><td><code>renderMechList</code>, <code>renderComponents</code>, <code>renderEquipmentList</code>, <code>calculateBuild</code></td></tr>
+            <tr><td>정보보기</td><td>선택 멕의 정적 사양과 쿼크 적용 결과</td><td><code>renderInfoPanel</code>, <code>renderInfoQuirks</code></td></tr>
+            <tr><td>무기정보</td><td>장비 원본·파생 통계와 고스트 힛 규칙표</td><td><code>renderEquipmentInfo</code> 및 하위 렌더 함수</td></tr>
+            <tr><td>비교하기</td><td>여러 멕의 동일 항목 비교와 기준 차이</td><td><code>renderComparePanel</code>, <code>renderCompareTable</code></td></tr>
+            <tr><td>통계</td><td>전체 멕의 내구도·기동성·쿼크 순위</td><td><code>statsEntries</code>, <code>renderStatsPanel</code></td></tr>
           </tbody>
         </table>
 
-        <h3>멕 탐색</h3>
+        <h3 id="tab-mechlab-guide">멕랩 탭</h3>
+        <p><strong>세부 카테고리:</strong> 멕 탐색, 빌드 헤더, 컴포넌트, 장비 목록, 업그레이드, 피팅 요약, 로컬 저장·MWO 코드, 사격 시뮬레이션.</p>
         <ul>
-          <li>검색, 진영, 체급, 톤수 정렬과 큰/작은 리스트를 지원한다.</li>
-          <li>기종과 변형을 그룹화하며 하드포인트, 슬롯, 쿼크 요약 배지를 표시한다.</li>
+          <li><strong>멕 탐색:</strong> 검색, 진영, 체급, 톤수 정렬과 큰/작은 목록을 지원한다. 기종과 변형을 그룹화하며 공용 멕 슬롯과 하드포인트 태그를 쓴다.</li>
+          <li><strong>멕 종류 필터:</strong> <code>definition.stats.VariantType</code>이 없으면 일반형, <code>Hero</code>와 <code>Champion</code>은 각각 히어로와 챔피언으로 분류하며 그 밖의 값은 스페셜로 분류한다. 스페셜 하위 타입은 현재 멕 데이터에서 동적으로 만들고 기본 선택하며, 첫째 줄의 스페셜이 선택된 동안에만 조작할 수 있다. 하위의 모두 토글은 모든 스페셜 타입을 한 번에 선택하고, 모든 타입이 선택됐을 때만 체크 상태가 된다. 첫째 줄과 스페셜 하위 줄 모두 개별 선택을 전부 끄면 빈 선택으로 두지 않고 해당 줄의 모두 상태로 자동 복귀한다. 필터 선택지는 왼쪽 사각형에 체크 표시가 나타나는 체크박스형 토글로 표현한다.</li>
+          <li><strong>필터 탭:</strong> 현재 구현된 진영·체급·멕 종류·하드포인트 필터는 상단의 기본 탭에 둔다. 이후 필터 패널은 같은 탭 구조를 확장한다.</li>
+          <li><strong>하드포인트 필터:</strong> 에너지·미사일·발리스틱·AMS·ECM·JJ·MASC를 서로 독립적으로 활성화한다. 비활성 종류는 필터링하지 않으며, 에너지·미사일·발리스틱·AMS의 전체·RA·RT·HD·LT·LA 입력값은 모두 해당 위치의 하드포인트 수에 대한 최솟값이다. 한 종류에 여러 최솟값을 입력하면 전체와 모든 부위 조건을 동시에 만족해야 한다. ECM과 JJ는 전체 최솟값만 입력하며, MASC는 활성화 시 전체 1 조건으로 고정한다. JJ는 쿼크를 포함한 최대 점프젯 수, MASC는 장착 가능 여부를 사용한다. 옵니멕은 기본 로드아웃의 옵니포드를 합성한 유효 정의를 사용하고 결과는 멕별 브라우저 메모리에 캐시한다.</li>
           <li>호버 미리보기와 실제 선택 상태는 분리한다. 호버 종료 후 선택 멕이 복원되어야 한다.</li>
-          <li>URL의 멕 식별자와 <code>tab</code> 쿼리를 브라우저 히스토리와 동기화한다. 뒤로/앞으로 이동 시 멕랩·무장 정보·정보·비교·통계 탭과 선택 멕을 함께 복원한다.</li>
+          <li><strong>빌드 헤더:</strong> 선택 변형, 진영, 톤수, 속도 범위와 Stock/Save/Clear 등 현재 빌드 동작을 한곳에서 관리한다.</li>
+          <li><strong>컴포넌트:</strong> 고정 장비, 이동식 장비, 아머, 슬롯, 하드포인트, 옵니포드를 부위별로 표시하고 모든 장착 경로에 같은 검증을 적용한다.</li>
+          <li><strong>장비 목록:</strong> 무기·탄약·엔진·모듈 하위 카테고리와 검색·정렬을 제공한다. 현재 멕이 장착할 수 없는 계열은 필터링한다.</li>
+          <li><strong>업그레이드:</strong> 아머·스트럭처·히트싱크·아르테미스 상태를 빌드에 저장하고 관련 장비 ID와 계산값을 함께 바꾼다.</li>
+          <li><strong>피팅 요약:</strong> 중량, 아머·스트럭처, 속도, 냉각, 점프 높이, ALPHA, HEAT, DPS, 탄약과 경고를 <code>calculateBuild()</code> 결과로 표시한다.</li>
+          <li><strong>저장과 코드:</strong> 이름 있는 로컬 빌드와 멕별 저장 빌드를 분리하고 MWO 코드 입출력 후에도 같은 장착 검증을 거친다.</li>
+          <li><strong>시뮬레이션:</strong> 현재 빌드의 무기만 사용하며 실제 피팅 쿼크, 탄약, 잼, 고스트 힛과 발열 조건을 반영한다.</li>
         </ul>
 
-        <h3>정보와 비교</h3>
+        <h3 id="tab-info-guide">정보보기 탭</h3>
+        <p><strong>세부 카테고리:</strong> 종합 내구도, 기동성, 스트럭처, 아머, 엔진, 쿼크 서머리, 상세 쿼크.</p>
         <ul>
-          <li>정보 탭은 아머, 스트럭처, 종합 내구도, 엔진 범위, 기동성, 쿼크를 보여 준다.</li>
-          <li>비교 탭은 선택 멕 중 하나를 기준으로 삼아 상승·하락을 표시하며 고정 헤더를 사용한다.</li>
-          <li>정보·비교·통계에서 쿼크 적용 기준이 서로 어긋나지 않아야 한다.</li>
+          <li>현재 <code>selectedMech</code>의 기본 로드아웃으로 유효 멕 정의를 구성한다. 멕랩에서 임시 편집 중인 장비 구성을 정적 멕 사양처럼 섞지 않는다.</li>
+          <li><code>피팅하기</code>는 정보보기 탭에 기억된 현재 선택 멕 ID를 멕랩 선택으로 넘긴 뒤 해당 멕의 피팅을 연다.</li>
+          <li>쿼크 적용 체크는 내구도와 기동성의 최종값 및 쿼크 요약에 같은 기준으로 반영한다.</li>
+          <li>종합 내구도·스트럭처·아머는 같은 부위 순서와 동일한 합계 기준을 쓴다.</li>
+          <li>기동성은 속도, 가속, 감속, 선회, 몸통 각도·회전속도를 공용 계산에서 가져온다. MASC 값은 정의된 최종값 규칙을 따른다.</li>
+          <li><code>쿼크 서머리</code>는 상세 <code>QUIRKS</code> 목록에 넣지 않고 독립 카드로 표시한다.</li>
+          <li>통계 상세 패널이 정보보기 카드를 재사용할 때도 값과 표현이 달라지지 않아야 한다.</li>
         </ul>
 
-        <h3>통계</h3>
+        <h3 id="tab-equipment-guide">무기정보 탭</h3>
+        <p><strong>세부 카테고리:</strong> 무기, 모듈, 고스트 힛.</p>
         <ul>
-          <li>멕 요약은 데이터 로드 후 유휴 시간에 작은 묶음으로 미리 계산하며, 카테고리·필터·집계 조건별 순위 결과는 브라우저 메모리에 캐시한다.</li>
-          <li>순위 조건이 같으면 기존 목록 DOM을 재사용하고, 멕 선택 시 이전 활성 행과 새 활성 행 및 상세 패널만 갱신한다.</li>
-          <li>화면 밖 통계 행은 <code>content-visibility</code>와 레이아웃 격리로 불필요한 배치·페인트를 줄인다.</li>
-          <li>통계의 멕 슬롯 영역은 다른 멕 슬롯과 동일한 하드포인트 태그 렌더링을 사용한다. E·M·B는 짧은 폭, AMS·ECM은 자연스러운 긴 폭을 사용하며 개수, JJ, MASC를 함께 표시한다.</li>
-          <li>체급 배지와 슬롯 영역의 배경색은 통계 전용 표현을 유지하고, 왼쪽 순위 목록에는 기존보다 약 10% 넓은 화면 폭을 할당한다.</li>
+          <li><strong>무기:</strong> 장비 JSON의 원본 수치에서 피해, 사거리, 속도, 발열, 쿨다운, DPS·DPH, 탄약, 산포, 잼 등의 파생 통계를 계산한다.</li>
+          <li><strong>모듈:</strong> 엔진·히트싱크·점프젯·MASC·전자장비 등 무기가 아닌 장비를 종류별로 보여 주며 없는 속성을 억지로 0으로 만들지 않는다.</li>
+          <li><strong>고스트 힛:</strong> <code>heatPenaltyID</code> 그룹과 개별 그룹을 분리하고 동시 발사 수별 추가 발열을 보여 준다. 외부 위키 표를 수치 원본으로 쓰지 않는다.</li>
+          <li>하위 탭과 표 정렬 상태는 <code>state</code>에 보존한다. 데이터와 정렬 조건이 같으면 렌더 HTML 캐시를 재사용한다.</li>
+          <li>표시명은 현지화를 쓰되 계산과 매칭은 정규화한 내부 이름·ID·원본 속성을 사용한다.</li>
         </ul>
 
-        <h3>후원</h3>
+        <h3 id="tab-compare-guide">비교하기 탭</h3>
+        <p><strong>세부 카테고리:</strong> 선택 목록, 기준 멕, 차이 표시, 내구도, 기동성, 엔진·기본 정보, 쿼크 요약.</p>
         <ul>
-          <li>한국어에서 상단 후원하기를 누르면 카카오페이 QR 팝업을 연다. 팝업은 우측 상단 X, 배경 클릭, Esc로 닫는다.</li>
-          <li>영어에서는 팝업을 열지 않고 <code>https://ko-fi.com/killkimno</code>로 바로 이동한다.</li>
-          <li>QR 이미지는 <code>public/assets/kakaopay-donate-qr.png</code>에 포함한다.</li>
+          <li>최대 15개 멕을 <code>compareMechIds</code>에 유지하고 동일 멕을 중복 추가하지 않는다. 전체 지우기와 개별 제거를 지원한다.</li>
+          <li>각 멕은 정보보기와 같은 기본 로드아웃·유효 정의·쿼크 계산으로 비교 엔트리를 만든다.</li>
+          <li>기준 멕이 있으면 그 멕과의 차이를, 없으면 행의 최대·최소를 기준으로 상승·하락 색과 기호를 표시한다.</li>
+          <li>값이 클수록 좋은 항목과 작을수록 좋은 항목의 순위를 구분하고 동률은 같은 순위로 처리한다.</li>
+          <li>쿼크 적용 전환은 비교 대상 전체에 동시에 적용한다. 정보보기·통계와 계산식이 달라지지 않아야 한다.</li>
+          <li>스크롤 시 열 제목을 유지하는 고정 헤더 오버레이와 실제 표의 열 너비를 동기화한다.</li>
+        </ul>
+
+        <h3 id="tab-stats-guide">통계 탭</h3>
+        <p><strong>세부 카테고리:</strong> 내구도, 기동성, QUIRKS, 세부 범위, 전체 목록·조건 필터, 개별·기종별 순위, 상세 패널.</p>
+        <ul>
+          <li><strong>내구도:</strong> 총합·아머·스트럭처와 전체·몸통·어깨·개별 부위 범위를 지원한다.</li>
+          <li><strong>기동성:</strong> 가속, 감속, 선회 속도, 몸통 회전속도를 같은 단위와 정렬 방향으로 비교한다.</li>
+          <li><strong>QUIRKS:</strong> 쿨다운, 발열, 내구도, 사거리, 탄속과 각 하위 스코프를 공용 쿼크 요약 함수에서 가져온다.</li>
+          <li><strong>순위 방식:</strong> 개별 변형과 기종별 집계를 구분한다. 기종별은 평균·최대·최소 집계 방식을 명시적으로 적용한다.</li>
+          <li><strong>필터:</strong> 전체 목록 또는 조건 필터를 선택하고 진영·체급·톤수·값 범위를 기존 순위 조건에 포함한다.</li>
+          <li>멕 요약은 데이터 로드 후 유휴 시간에 작은 묶음으로 미리 계산하며 카테고리·필터·집계별 결과를 브라우저 메모리에 캐시한다.</li>
+          <li>순위 조건이 같으면 기존 목록 DOM을 재사용하고, 멕 선택 시 이전·새 활성 행과 상세 패널만 갱신한다.</li>
+          <li>화면 밖 행은 <code>content-visibility</code>와 레이아웃 격리로 불필요한 배치·페인트를 줄인다.</li>
+          <li>통계 멕 슬롯은 공용 하드포인트 태그의 개수, JJ, MASC를 모두 표시한다. 체급과 슬롯 배경은 통계 전용 표현을 유지한다.</li>
         </ul>
       </section>
 
@@ -295,8 +372,20 @@
         </ul>
       </section>
 
+      <section id="mechlab-rules">
+        <h2>멕랩에 사용되는 룰</h2>
+        <p>이 장은 멕랩 탭의 실제 피팅과 계산에 적용되는 도메인 규칙을 모은다. UI 배치는 탭별 가이드를 따르고, 장착 가능 여부와 수치는 아래 피팅·쿼크·무장·고스트 힛·시뮬레이션 규칙을 따른다.</p>
+        <div class="flow">멕 + 기본/저장 빌드 → 유효 차체·옵니포드 정의 → 장착 검증 → 쿼크 적용 → 피팅 합계 → 경고·툴팁·시뮬레이션</div>
+        <ul>
+          <li>장착·제거·드래그·자동 장착·MWO 코드 가져오기는 모두 같은 빌드 구조와 검증 함수를 사용한다.</li>
+          <li>장비 이름으로 예외를 만들기 전에 장비 ID, <code>hardpoint_type</code>, <code>stats.type</code>, 탄약 타입과 원본 특수 속성으로 표현할 수 있는지 확인한다.</li>
+          <li>멕랩 요약은 최종 빌드 계산의 결과이며 화면에 보이는 슬롯을 다시 세어 별도 합계를 만들지 않는다.</li>
+          <li>고정 장비와 이동식 장비, 차체와 옵니포드 출처를 잃지 않아야 하드포인트 점유와 중복 내부 장비를 정확히 계산할 수 있다.</li>
+        </ul>
+      </section>
+
       <section id="fitting">
-        <h2>피팅 규칙</h2>
+        <h2>피팅·슬롯 규칙</h2>
         <h3>컴포넌트 순서</h3>
         <p>Head → Left Arm → Left Torso → Center Torso → Right Torso → Right Arm → Left Leg → Right Leg 순서를 유지한다. 후방 토르소 아머는 독립 장비 카드가 아니라 아머 계산에만 포함한다.</p>
 
@@ -309,6 +398,9 @@
           <li>옵니멕은 현재 장착한 옵니포드 하드포인트를 최우선으로 사용한다.</li>
           <li>옵니멕의 차체 고정 무기는 옵니포드 하드포인트를 점유하지 않지만, 옵니포드 자체의 고정 무기는 해당 하드포인트를 점유한다. 계산과 장착 검증에서 고정 장비의 출처를 함께 보존한다.</li>
           <li>차체와 옵니포드가 제공하는 내부 고정 장비는 같은 ID라도 각각의 실제 장착분이므로 중복 제거하지 않는다.</li>
+          <li>옵니포드 귀속 장비, SHOULDER·HIP 같은 내부 고정 슬롯, XL 엔진 측면처럼 사용자가 움직일 수 없는 슬롯은 고정 옵니 엔진과 같은 그라데이션 없는 단색 진회색 블록으로 표시한다. 이동식 슬롯보다 어두운 배경, 저채도 글자, 굵은 좌측 고정 레일과 내부 테두리를 사용해 빈 슬롯 및 이동식 장비와 구분한다.</li>
+          <li>장착 후 위치가 확정되어 움직일 수 없는 아머·스트럭처 업그레이드 점유 슬롯도 좌측 고정 레일, 내부 테두리, 굵은 글자 규칙을 따른다. 좌측 레일과 글자는 일반 고정 슬롯의 회색을 사용하고, 아머와 스트럭처의 점유 배경·테두리도 같은 차콜 회색 계열로 통일한다. 아직 점유되지 않은 업그레이드 슬롯에는 적용하지 않는다.</li>
+          <li>스텔스 아머는 좌우 팔, 좌우 몸통, 좌우 다리에 각각 2칸씩 총 12칸을 고정 점유한다. 이 슬롯은 다른 부위로 이동하거나 장비 장착 시 밀려나지 않으며, 어느 부위든 필요한 2칸이 부족하면 해당 부위 슬롯 초과와 아머 업그레이드 슬롯 부족을 경고한다. 머리와 중앙 몸통에는 스텔스 아머 슬롯을 배치하지 않는다.</li>
           <li>하드포인트 ID는 선행 0을 제거해 정규화한 뒤 비교한다.</li>
         </ul>
 
@@ -449,15 +541,39 @@
         </ul>
       </section>
 
-      <section id="data">
-        <h2>데이터 추출</h2>
+      <section id="json-parser">
+        <h2>JSON 파서 법</h2>
+        <p>게임 아카이브를 브라우저 JSON으로 만드는 추출 단계와 앱이 JSON을 읽어 계산 가능한 형태로 정규화하는 소비 단계를 함께 관리한다. 생성 JSON은 원본에 가까운 교환 데이터이며 화면별 파생 요약 저장소가 아니다.</p>
+
+        <h3>브라우저 로딩과 결합</h3>
+        <ul>
+          <li><code>index.json</code>에서 생성 파일 경로와 개수를 읽고 <code>mechs.json</code>, <code>equipment.json</code>, <code>loadouts.json</code>, <code>omnipods.json</code>을 로드한다.</li>
+          <li>멕, 장비, 로드아웃, 옵니포드는 숫자 ID의 표현이 달라도 찾을 수 있도록 조회 경계에서 문자열 또는 정규화 키로 통일한다. 원본 ID 자체는 임의로 바꾸지 않는다.</li>
+          <li>이름 매칭은 대소문자, 공백, 구분 기호 차이를 정규화한 검색 키를 사용한다. 표시 이름은 UI에만 사용하고 내부 이름·ID를 기본 결합 키로 둔다.</li>
+          <li>누락 속성은 <code>undefined</code>, <code>null</code>, 빈 문자열을 구분해 처리한다. 의미가 확인되지 않은 누락값을 0, 빈 배열 또는 다른 레코드로 조용히 대체하지 않는다.</li>
+          <li>숫자 필드는 계산 경계에서 유한 숫자로 변환하고, 퍼센트 multiplier의 부호 의미는 쿼크 종류별 규칙에 따라 해석한다.</li>
+          <li>멕과 기본 로드아웃은 멕 ID로, 장비 장착 항목은 장비 ID로, 옵니포드는 현재 <code>set</code>과 <code>component</code> 또는 확정된 현재 ID로 결합한다.</li>
+          <li>옵니멕의 유효 정의는 기본 차체를 복사한 뒤 현재 빌드의 부위별 옵니포드 하드포인트·내부 장비·고정 장비·쿼크를 합성한다. 원본 JSON 객체를 화면 상태 변경으로 직접 변형하지 않는다.</li>
+        </ul>
+
+        <h3>하드포인트와 장비 정규화</h3>
+        <ul>
+          <li>하드포인트 타입은 대소문자를 제거해 energy, missile, ballistic, ams, ecm 등의 공용 키로 변환한다.</li>
+          <li>하드포인트 ID는 선행 0을 제거해 비교한다. 예를 들어 <code>"02"</code>와 <code>2</code>는 같은 ID다.</li>
+          <li>무기 수용량은 직접 <code>WeaponSlot</code> 자식 수를 추출한 <code>weapon_slots</code>를 사용한다. 매칭 자체가 없는 경우에만 1을 폴백한다.</li>
+          <li>무기 계열은 가능한 경우 <code>hardpoint_type</code> 또는 <code>stats.type</code>으로 판정한다. 레이저·PPC·미사일·발리스틱 이름 목록을 코드에 반복해서 만들지 않는다.</li>
+          <li>탄약 풀은 정규화한 활성 탄약 <code>stats.type</code>으로 결합한다. 선택형 아르테미스는 무기의 <code>artemisAmmoType</code>, 일반 상태는 <code>ammoType</code>을 쓴다.</li>
+          <li>파생 검색 인덱스, 쿼크 요약, 하드포인트 배지와 통계 엔트리는 로드 후 브라우저 메모리에서 만들며 생성 JSON에 역으로 기록하지 않는다.</li>
+        </ul>
+
+        <h3>게임 데이터 추출</h3>
         <p>의도적인 게임 데이터 갱신은 반드시 <code>tools/extract_mwo_data.py</code>를 사용한다.</p>
         <table>
           <thead><tr><th>원본</th><th>용도</th></tr></thead>
           <tbody>
             <tr><td><code>Game/GameData.pak</code></td><td>멕 목록, 장비, 로드아웃, 아르테미스 원본 속성</td></tr>
             <tr><td><code>Game/Localized/English_xml.pak</code></td><td>표시 이름과 현지화 텍스트</td></tr>
-            <tr><td><code>Game/mechs/*.pak</code></td><td>차체·옵니포드 상세 정의와 하드포인트 WeaponSlot 수</td></tr>
+            <tr><td><code>Game/mechs/*.pak</code></td><td>차체·옵니포드 상세 정의, Cockpit 속성, 하드포인트 WeaponSlot 수</td></tr>
           </tbody>
         </table>
         <p><strong>전체 추출</strong></p>
@@ -465,6 +581,7 @@
         <p><strong>하드포인트만 갱신</strong></p>
         <p><code>python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data --hardpoints-only</code></p>
         <p>전체 추출은 설치된 게임의 모든 데이터를 다시 읽기 때문에 요청 범위 밖의 밸런스 값이나 숫자 형식도 바뀔 수 있다. 하드포인트 수정만 필요하면 <code>--hardpoints-only</code>로 기존 장비·로드아웃 데이터를 보존한다.</p>
+        <p>전체 추출은 모든 MDF의 <code>Cockpit.ShakeDamping</code>을 검사하고 값이 정확히 <code>1.0</code>인 멕을 <code>shake_damping_mechs.json</code> 하나에 모은다. 항목에는 멕 식별 정보, 원본 값, PAK와 MDF 경로를 보존하며, 속성이 누락된 멕이나 최상위 <code>Mech.ShakeDamping</code> 값은 이 목록에 포함하지 않는다.</p>
 
         <h3>NULL 옵니포드 처리</h3>
         <ul>
@@ -498,6 +615,32 @@
         </ul>
       </section>
 
+      <section id="etc">
+        <h2>ETC</h2>
+
+        <h3>URL과 브라우저 히스토리</h3>
+        <ul>
+          <li>URL의 멕 식별자와 <code>tab</code> 쿼리를 선택 상태와 동기화한다. 뒤로·앞으로 이동 시 다섯 주 탭과 선택 멕을 함께 복원한다.</li>
+          <li>탭 전환만으로 유효한 현재 빌드나 비교 목록을 불필요하게 초기화하지 않는다.</li>
+        </ul>
+
+        <h3>현지화</h3>
+        <ul>
+          <li>사용자 UI는 한국어와 영어를 지원한다. 게임 내부 이름, 장비 ID와 데이터 키는 번역 문자열을 계산 키로 사용하지 않는다.</li>
+          <li>새 UI 문구는 가능한 경우 <code>data-i18n</code> 키와 번역 테이블을 함께 추가한다. 단위·약어·대시 표기는 같은 종류의 기존 화면을 따른다.</li>
+        </ul>
+
+        <h3>후원</h3>
+        <ul>
+          <li>한국어에서 상단 후원하기를 누르면 카카오페이 QR 팝업을 연다. 우측 상단 X, 배경 클릭, Esc로 닫는다.</li>
+          <li>영어에서는 팝업 대신 <code>https://ko-fi.com/killkimno</code>로 이동한다.</li>
+          <li>QR 이미지는 <code>public/assets/kakaopay-donate-qr.png</code>에 둔다.</li>
+        </ul>
+
+        <h3>범위 밖 기능</h3>
+        <p>서버 API, 계정, 온라인 빌드 공유, 앱 내부 위키 화면, 드랍십 기능은 별도의 명시적 요구가 없는 한 구현 범위에 포함하지 않는다.</p>
+      </section>
+
       <section id="files">
         <h2>주요 파일</h2>
         <table>
@@ -512,6 +655,7 @@
             <tr><td><code>public/data/equipment.json</code></td><td>무기·탄약·엔진·모듈과 세부 통계</td></tr>
             <tr><td><code>public/data/loadouts.json</code></td><td>기본 장착 장비와 아머</td></tr>
             <tr><td><code>public/data/omnipods.json</code></td><td>옵니포드 컴포넌트, 하드포인트, 세트 쿼크</td></tr>
+            <tr><td><code>public/data/shake_damping_mechs.json</code></td><td><code>Cockpit.ShakeDamping=1.0</code>인 멕과 원본 PAK·MDF 경로</td></tr>
             <tr><td><code>public/assets/kakaopay-donate-qr.png</code></td><td>한국어 후원 팝업의 카카오페이 QR 이미지</td></tr>
             <tr><td><code>tools/extract_mwo_data.py</code></td><td>로컬 게임 아카이브를 브라우저 JSON으로 변환</td></tr>
             <tr><td><code>tools/omnipod_null_resolutions.json</code></td><td>동명 자동 할당으로 해결되지 않는 NULL 옵니포드의 사용자 확정 원본 기록</td></tr>
@@ -561,13 +705,13 @@
             <tr><td>2026-07-20 ~ 07-21</td><td>이름 있는 로컬 피팅 저장, 장비 정보 확장, 쿼크 표시와 무기 계산 개선</td></tr>
             <tr><td>2026-07-22</td><td>멕 브라우저와 피팅 하드포인트 개선, 호버 선택 복원, 게임 데이터 갱신, 탄약 쿼크·비교 통계 수정</td></tr>
             <tr><td>2026-07-23</td><td>JSON 기반 고스트 힛 정보표·시뮬레이션·멕랩 경고와 슬롯 툴팁, 발열 허용량 점유율 표시, HSL 임계치 보정, 고스트 힛 쿼크 독립 계산, 탭 히스토리 복원, 활성 탭 지연 렌더링과 무장 정보 캐시, DPH·MASC·점프젯 쿼크 계산, 카카오페이·Ko-fi 후원, 통계 순위 캐시·DOM 재사용·화면 밖 행 최적화와 멕 슬롯 태그 통일</td></tr>
-            <tr><td>2026-07-24</td><td>NULL 옵니포드 동명 자동 할당, 사용자 확정 숫자·일반형 몸통·공유 몸통 기록, 이름 축약 상속, 비일반형 예상 후보와 두 미확정 보고 구역을 포함하는 고정 해석 순서 추가. 전체 JSON을 갱신해 362개 센터 옵니포드를 보완하고 미확정·누락 썸네일을 0건으로 해소. 차체 고정 무기와 옵니포드 고정 무기의 하드포인트 점유 구분 및 중복 내부 장비 보존</td></tr>
+            <tr><td>2026-07-24</td><td>NULL 옵니포드 동명 자동 할당, 사용자 확정 숫자·일반형 몸통·공유 몸통 기록, 이름 축약 상속, 비일반형 예상 후보와 두 미확정 보고 구역을 포함하는 고정 해석 순서 추가. 전체 JSON을 갱신해 362개 센터 옵니포드를 보완하고 미확정·누락 썸네일을 0건으로 해소. 차체 고정 무기와 옵니포드 고정 무기의 하드포인트 점유 구분 및 중복 내부 장비 보존. 구현 위키를 공통 규칙·정의·다섯 탭별 가이드·멕랩 룰·JSON 파서 법·ETC로 세분화하고 코드·게임 데이터 우선 참조 및 구현·수정 작업 후 필요 판단 시 별도 요청 없이 즉시 갱신하는 원칙을 추가</td></tr>
           </tbody>
         </table>
       </section>
 
       <footer>
-        마지막 문서 갱신: 2026-07-24 · 다음 갱신은 사용자의 명시적 요청이 있을 때만 진행한다.
+        마지막 문서 갱신: 2026-07-24 · 구현 시 관련 내용을 참고하고, 기능 구현·코드 수정 작업 후 재사용 가능한 규칙 변경이 있어 필요하다고 판단하면 별도 위키 갱신 요청 없이 즉시 갱신한다.
       </footer>
     </main>
   </div>
