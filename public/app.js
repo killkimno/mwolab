@@ -110,11 +110,36 @@ const TEXT = {
     "localBuild.delete": "삭제",
     "localBuild.deleted": "{mech} | {name} 삭제 완료",
     "mechlab.tools": "TOOL",
+    "skills.open": "스킬 적용",
+    "skills.title": "스킬 적용",
+    "skills.description": "활성화한 항목의 사용 가능한 모든 노드를 적용합니다.",
+    "skills.applyAll": "모두 적용",
+    "skills.applyRecommended": "추천 스킬 적용",
+    "skills.nodeCount": "{count}개 노드",
+    "skills.close": "닫기",
+    "skills.category.firepower": "화력",
+    "skills.category.survival": "생존",
+    "skills.category.mobility": "기동성",
+    "skills.category.jumpjets": "점프젯",
+    "skills.category.operations": "오퍼레이션",
+    "skills.category.sensors": "센서",
+    "skills.category.auxiliary": "보조",
+    "skills.group.firepowerCooldown": "화력 · 쿨다운",
+    "skills.group.firepowerRange": "화력 · 레인지",
+    "skills.group.firepowerHeatGen": "화력 · 힛 젠",
+    "skills.group.firepowerVelocity": "화력 · 벨로시티",
+    "skills.group.firepowerOther": "화력 · 그 외",
+    "skills.group.operationsHeatSinks": "오퍼레이션 · 히트싱크 강화 (쿨 런 · 히트 콘테이먼트)",
+    "skills.group.operationsOther": "오퍼레이션 · 그 외",
     "ui.open": "UI",
     "ui.valueDisplayTitle": "수치 표기",
     "ui.finalOnly": "최종 결과만 표시",
     "ui.quirkValues": "쿼크 수치 표시",
     "ui.allValues": "모든 수치 표시",
+    "ui.simplifyAmmoQuirks": "탄약 쿼크 표시 간소화",
+    "ui.ammoQuirksActive": "탄약 쿼크 적용중",
+    "ui.on": "ON",
+    "ui.off": "OFF",
     "ui.close": "닫기",
     "loadout.import": "IMPORT",
     "loadout.export": "EXPORT",
@@ -565,11 +590,36 @@ const TEXT = {
     "localBuild.delete": "Delete",
     "localBuild.deleted": "Deleted {mech} | {name}",
     "mechlab.tools": "TOOL",
+    "skills.open": "Apply skills",
+    "skills.title": "Apply skills",
+    "skills.description": "Applies every available node in each enabled group.",
+    "skills.applyAll": "Apply all",
+    "skills.applyRecommended": "Apply recommended",
+    "skills.nodeCount": "{count} nodes",
+    "skills.close": "Close",
+    "skills.category.firepower": "Firepower",
+    "skills.category.survival": "Survival",
+    "skills.category.mobility": "Mobility",
+    "skills.category.jumpjets": "Jump Jets",
+    "skills.category.operations": "Operations",
+    "skills.category.sensors": "Sensors",
+    "skills.category.auxiliary": "Auxiliary",
+    "skills.group.firepowerCooldown": "Firepower · Cooldown",
+    "skills.group.firepowerRange": "Firepower · Range",
+    "skills.group.firepowerHeatGen": "Firepower · Heat Gen",
+    "skills.group.firepowerVelocity": "Firepower · Velocity",
+    "skills.group.firepowerOther": "Firepower · Other",
+    "skills.group.operationsHeatSinks": "Operations · Heat Sinks (Cool Run · Heat Containment)",
+    "skills.group.operationsOther": "Operations · Other",
     "ui.open": "UI",
     "ui.valueDisplayTitle": "Value display",
     "ui.finalOnly": "Final result only",
     "ui.quirkValues": "Show quirk value",
     "ui.allValues": "Show all values",
+    "ui.simplifyAmmoQuirks": "Simplify ammo quirks",
+    "ui.ammoQuirksActive": "Ammo quirks active",
+    "ui.on": "ON",
+    "ui.off": "OFF",
     "ui.close": "Close",
     "loadout.import": "IMPORT",
     "loadout.export": "EXPORT",
@@ -1406,9 +1456,47 @@ const DIRECT_SPREAD_QUIRKS = new Set([
   "missile_spread_multiplier",
   "ballistic_spread_multiplier",
 ]);
+const SKILL_SELECTION_GROUP_DEFINITIONS = Object.freeze([
+  Object.freeze({ key: "firepower:cooldown", category: "firepower", subcategories: ["Cooldown"], labelKey: "skills.group.firepowerCooldown" }),
+  Object.freeze({ key: "firepower:range", category: "firepower", subcategories: ["Range"], labelKey: "skills.group.firepowerRange" }),
+  Object.freeze({ key: "firepower:heatgen", category: "firepower", subcategories: ["HeatGen"], labelKey: "skills.group.firepowerHeatGen" }),
+  Object.freeze({ key: "firepower:velocity", category: "firepower", subcategories: ["Velocity"], labelKey: "skills.group.firepowerVelocity" }),
+  Object.freeze({
+    key: "firepower:other",
+    category: "firepower",
+    excludeSubcategories: ["Cooldown", "Range", "HeatGen", "Velocity"],
+    labelKey: "skills.group.firepowerOther",
+  }),
+  Object.freeze({ key: "survival", category: "survival", labelKey: "skills.category.survival" }),
+  Object.freeze({ key: "mobility", category: "mobility", labelKey: "skills.category.mobility" }),
+  Object.freeze({ key: "jumpjets", category: "jumpjets", labelKey: "skills.category.jumpjets" }),
+  Object.freeze({
+    key: "operations:heatsinks",
+    category: "operations",
+    subcategories: ["CoolRun", "HeatContainment"],
+    labelKey: "skills.group.operationsHeatSinks",
+  }),
+  Object.freeze({
+    key: "operations:other",
+    category: "operations",
+    excludeSubcategories: ["CoolRun", "HeatContainment"],
+    labelKey: "skills.group.operationsOther",
+  }),
+  Object.freeze({ key: "sensors", category: "sensors", labelKey: "skills.category.sensors" }),
+  Object.freeze({ key: "auxiliary", category: "auxiliary", labelKey: "skills.category.auxiliary" }),
+]);
+const RECOMMENDED_SKILL_GROUP_KEYS = Object.freeze([
+  "firepower:cooldown",
+  "firepower:range",
+  "firepower:heatgen",
+  "firepower:velocity",
+  "survival",
+  "operations:heatsinks",
+]);
 
 const QUIRK_VALUE_DISPLAY_STORAGE_KEY = "mwolab:quirk-value-display";
 const QUIRK_VALUE_DISPLAY_MODES = new Set(["final", "quirk", "all"]);
+const SIMPLIFY_AMMO_QUIRKS_STORAGE_KEY = "mwolab:simplify-ammo-quirks";
 
 function savedQuirkValueDisplayMode() {
   try {
@@ -1419,6 +1507,14 @@ function savedQuirkValueDisplayMode() {
   }
 }
 
+function savedSimplifyAmmoQuirks() {
+  try {
+    return localStorage.getItem(SIMPLIFY_AMMO_QUIRKS_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 const state = {
   language: activeLanguage,
   index: null,
@@ -1426,6 +1522,9 @@ const state = {
   equipment: null,
   loadouts: {},
   omnipods: {},
+  skills: { categories: [], node_count: 0 },
+  selectedSkillGroups: new Set(),
+  skillEffectsCache: new Map(),
   activeMainTab: "mechlab",
   selectedMechIdsByTab: {
     mechlab: null,
@@ -1437,6 +1536,7 @@ const state = {
   mechListScrollTop: 0,
   infoApplyQuirks: true,
   quirkValueDisplayMode: savedQuirkValueDisplayMode(),
+  simplifyAmmoQuirks: savedSimplifyAmmoQuirks(),
   compareMode: false,
   compareMechIds: [],
   compareBaselineMechId: null,
@@ -3191,6 +3291,186 @@ function effectiveQuirks(mech = state.selectedMech, build = state.currentBuild) 
     .sort((a, b) => a.display_name.localeCompare(b.display_name));
 }
 
+function skillScopeMatches(scope, mech) {
+  const type = String(scope?.type || "").toLowerCase();
+  const expected = normalizeLookupKey(scope?.name);
+  if (!type || !expected || !mech) return false;
+  if (type === "faction") {
+    const faction = String(mech.faction || "").toLowerCase() === "innersphere"
+      ? "is"
+      : normalizeLookupKey(mech.faction);
+    return faction === expected;
+  }
+  if (type === "weightclass") {
+    return normalizeLookupKey(mech.weight_class) === expected;
+  }
+  if (type === "tonnage") {
+    return number(currentDefinition(mech).stats?.MaxTons) === number(scope.name);
+  }
+  if (type === "mech") {
+    return [mech.name, mech.chassis, mech.display_name]
+      .map(normalizeLookupKey)
+      .includes(expected);
+  }
+  return false;
+}
+
+function resolvedSkillEffectValue(effect, mech) {
+  let best = {
+    depth: 0,
+    value: number(effect?.value),
+  };
+  const visit = (scopes, depth) => {
+    (scopes || []).forEach((scope) => {
+      if (!skillScopeMatches(scope, mech)) return;
+      const value = scope.value === null || scope.value === undefined
+        ? best.value
+        : number(scope.value);
+      if (depth >= best.depth) best = { depth, value };
+      visit(scope.children, depth + 1);
+    });
+  };
+  visit(effect?.scopes, 1);
+  return best.value;
+}
+
+function skillNodeRequirementsMet(node, mech, build) {
+  const definition = effectiveDefinition(mech, build);
+  const requirementsMet = (node?.requires || []).every((requirement) => {
+    if (requirement.equipment) {
+      return normalizeLookupKey(requirement.equipment) === "jumpjets"
+        && maximumJumpJets(mech, build) > 0;
+    }
+    if (requirement.hardpoint) {
+      const requiredType = normalizeLookupKey(requirement.hardpoint);
+      return Object.values(definition.components || {}).some((component) => (
+        (component.hardpoints || []).some((hardpoint) => (
+          normalizeLookupKey(hardpointType(hardpoint)) === requiredType
+        ))
+      ));
+    }
+    return false;
+  });
+  if (!requirementsMet) return false;
+
+  return (node?.affects || []).every((affect) => {
+    if (!affect.mechProperty) return true;
+    if (normalizeLookupKey(affect.mechProperty) === "no360torsotwist") {
+      return number(definition.movement?.MaxTorsoAngleYaw) < 360;
+    }
+    return false;
+  });
+}
+
+function skillSelectionGroups() {
+  const categories = new Map(
+    (state.skills.categories || []).map((category) => [category.key, category]),
+  );
+  return SKILL_SELECTION_GROUP_DEFINITIONS
+    .map((definition) => {
+      const category = categories.get(definition.category);
+      if (!category) return null;
+      const included = new Set(definition.subcategories || []);
+      const excluded = new Set(definition.excludeSubcategories || []);
+      const nodes = (category.nodes || []).filter((node) => {
+        if (included.size) return included.has(node.subcategory);
+        if (excluded.size) return !excluded.has(node.subcategory);
+        return true;
+      });
+      return {
+        ...definition,
+        categoryName: category.name,
+        nodes,
+      };
+    })
+    .filter(Boolean);
+}
+
+function skillEffectsForGroups(groups, mech = state.selectedMech, build = state.currentBuild) {
+  if (!mech || !build || !groups.length) return [];
+  const collector = new Map();
+  const visitedNodes = new Set();
+  groups.forEach((group) => {
+    (group.nodes || []).forEach((node) => {
+      const nodeKey = `${group.category}:${node.name}`;
+      if (visitedNodes.has(nodeKey) || !skillNodeRequirementsMet(node, mech, build)) return;
+      visitedNodes.add(nodeKey);
+      (node.effects || []).forEach((effect) => {
+        const value = resolvedSkillEffectValue(effect, mech);
+        if (!value) return;
+        addQuirk(collector, {
+          name: String(effect.name || "").toLowerCase(),
+          display_name: effect.display_name || effect.name,
+          value,
+        }, `SKILLS · ${group.key}`, {
+          sourceKind: "skill",
+          skillCategory: group.category,
+          skillGroup: group.key,
+          skillNode: node.name,
+        });
+      });
+    });
+  });
+
+  return Array.from(collector.values())
+    .map((effect) => ({
+      ...effect,
+      value_text: quirkValueText(effect.name, effect.value),
+      source_text: Array.from(effect.sources).join(", "),
+    }))
+    .sort((left, right) => left.display_name.localeCompare(right.display_name));
+}
+
+function selectedSkillEffects(mech = state.selectedMech, build = state.currentBuild) {
+  if (!mech || !build || state.selectedSkillGroups.size === 0) return [];
+  const omnipods = COMPONENT_ORDER.map((name) => build.components?.[name]?.omnipod || "").join(":");
+  const selections = Array.from(state.selectedSkillGroups).sort().join(",");
+  const cacheKey = `${mech.id}:${omnipods}:${selections}`;
+  const cached = state.skillEffectsCache.get(cacheKey);
+  if (cached) return cached;
+
+  const effects = skillEffectsForGroups(
+    skillSelectionGroups().filter((group) => state.selectedSkillGroups.has(group.key)),
+    mech,
+    build,
+  );
+  state.skillEffectsCache.set(cacheKey, effects);
+  return effects;
+}
+
+function mechlabEffectiveQuirks(mech = state.selectedMech, build = state.currentBuild) {
+  const baseQuirks = effectiveQuirks(mech, build);
+  const skillEffects = selectedSkillEffects(mech, build);
+  if (!skillEffects.length) return baseQuirks;
+
+  const collector = new Map();
+  [...baseQuirks, ...skillEffects].forEach((effect) => {
+    (effect.contributions || []).forEach((contribution) => {
+      const normalizedName = String(contribution.name || "").toLowerCase();
+      const existing = collector.get(normalizedName);
+      const {
+        name,
+        display_name: displayName,
+        value,
+        source,
+        ...details
+      } = contribution;
+      addQuirk(collector, {
+        name: normalizedName,
+        display_name: existing?.display_name || displayName || name,
+        value,
+      }, source, details);
+    });
+  });
+  return Array.from(collector.values())
+    .map((quirk) => ({
+      ...quirk,
+      value_text: quirkValueText(quirk.name, quirk.value),
+      source_text: Array.from(quirk.sources).join(", "),
+    }))
+    .sort((left, right) => left.display_name.localeCompare(right.display_name));
+}
+
 function effectiveQuirkValues(mech = state.selectedMech, build = state.currentBuild) {
   const values = {};
   effectiveQuirks(mech, build).forEach((quirk) => {
@@ -3201,9 +3481,13 @@ function effectiveQuirkValues(mech = state.selectedMech, build = state.currentBu
 
 function mechlabQuirkValues(mech = state.selectedMech, build = state.currentBuild) {
   const omnipodKey = COMPONENT_ORDER.map((name) => build?.components?.[name]?.omnipod || "").join(":");
-  const key = `${mech?.id || ""}:${omnipodKey}`;
+  const skillKey = Array.from(state.selectedSkillGroups).sort().join(",");
+  const key = `${mech?.id || ""}:${omnipodKey}:${skillKey}`;
   if (state.mechlabQuirkValuesCache.has(key)) return state.mechlabQuirkValuesCache.get(key);
-  const values = effectiveQuirkValues(mech, build);
+  const values = {};
+  mechlabEffectiveQuirks(mech, build).forEach((quirk) => {
+    values[quirk.name.toLowerCase()] = number(quirk.value);
+  });
   state.mechlabQuirkValuesCache.set(key, values);
   return values;
 }
@@ -5379,7 +5663,7 @@ function calculateBuild() {
   let alpha = 0;
   let ammo = 0;
   let armor = 0;
-  const quirks = effectiveQuirks(mech, state.currentBuild);
+  const quirks = mechlabEffectiveQuirks(mech, state.currentBuild);
   const engine = installedEngine();
   const structureUpgrade = itemById(state.currentBuild.upgrades?.structure?.ItemID);
   const selectedGuidanceUpgrade = guidanceUpgrade();
@@ -6336,7 +6620,7 @@ function ammoGroupWeaponLabel(weapons) {
 
 function mechSummaryAmmoGroups(weapons) {
   const groups = new Map();
-  const quirks = effectiveQuirks(state.selectedMech, state.currentBuild);
+  const quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild);
   weapons.forEach((weapon) => {
     const ammoType = activeWeaponAmmoType(weapon.item);
     const key = normalizeLookupKey(ammoType);
@@ -6387,6 +6671,27 @@ function renderMechSummaryAmmo(weapons) {
   `;
 }
 
+function renderMechSummaryQuirkRows(entries, showSources = true) {
+  const ammoActive = state.simplifyAmmoQuirks && entries.some(isAmmoQuirk);
+  const visibleEntries = ammoActive
+    ? entries.filter((quirk) => !isAmmoQuirk(quirk))
+    : entries;
+  const rows = sortQuirksForDisplay(visibleEntries).map((quirk) => `
+    <div class="mech-summary-quirk ${quirkToneClass(quirk)}${quirk.inactive ? " inactive" : ""}"${showSources ? ` title="${escapeHtml(quirk.source_text || quirk.name)}"` : ""}>
+      <span>${escapeHtml(quirk.display_name)}</span>
+      <strong>${escapeHtml(quirk.value_text)}</strong>
+    </div>
+  `);
+  if (ammoActive) {
+    rows.push(`
+      <div class="mech-summary-quirk mech-summary-ammo-quirks-active">
+        <span>${t("ui.ammoQuirksActive")}</span>
+      </div>
+    `);
+  }
+  return rows.join("");
+}
+
 function renderMechSummaryQuirks(
   quirks,
   mech = state.selectedMech,
@@ -6396,12 +6701,7 @@ function renderMechSummaryQuirks(
     <section class="mech-summary-section mech-summary-quirks-section">
       <h3>${title}</h3>
       <div class="mech-summary-quirks">
-        ${entries.length ? sortQuirksForDisplay(entries).map((quirk) => `
-          <div class="mech-summary-quirk ${quirkToneClass(quirk)}${quirk.inactive ? " inactive" : ""}" title="${escapeHtml(quirk.source_text || quirk.name)}">
-            <span>${escapeHtml(quirk.display_name)}</span>
-            <strong>${escapeHtml(quirk.value_text)}</strong>
-          </div>
-        `).join("") : '<div class="empty">No quirks</div>'}
+        ${entries.length ? renderMechSummaryQuirkRows(entries) : '<div class="empty">No quirks</div>'}
       </div>
     </section>
   ` : "";
@@ -6419,6 +6719,18 @@ function renderMechSummaryQuirks(
 
   const displayQuirks = partitionDisplayQuirks(quirks);
   return `${renderSection("QUIRKS", displayQuirks.regular, true)}${renderSection(t("info.ammoQuirks"), displayQuirks.ammo)}`;
+}
+
+function renderMechSummarySkillQuirks(quirks) {
+  if (state.selectedSkillGroups.size === 0) return "";
+  return `
+    <section class="mech-summary-section mech-summary-quirks-section mech-summary-skill-quirks-section">
+      <h3>SKILL + QUIRKS</h3>
+      <div class="mech-summary-quirks">
+        ${renderMechSummaryQuirkRows(quirks, false)}
+      </div>
+    </section>
+  `;
 }
 
 function renderMechBrowserHardpoints(mech, build) {
@@ -6551,7 +6863,8 @@ function renderMechSummary(calc = null) {
     return;
   }
 
-  const quirks = effectiveQuirks(mech, state.currentBuild);
+  const baseQuirks = effectiveQuirks(mech, state.currentBuild);
+  const quirks = mechlabEffectiveQuirks(mech, state.currentBuild);
   const quirkValues = mechlabQuirkValues(mech, state.currentBuild);
   const weapons = collectSimulationWeapons();
   const heatSink = simulationHeatSinkItem();
@@ -6622,14 +6935,17 @@ function renderMechSummary(calc = null) {
       ["ALPHA HEAT", `${fmt(alphaHeat, 2)} (${fmt(alphaHeatPercent, 1)}%)`],
     ])}
     ${renderMechSummaryAmmo(weapons)}
-    ${renderMechSummaryQuirks(quirks)}
+    ${renderMechSummarySkillQuirks(quirks)}
+    ${renderMechSummaryQuirks(baseQuirks)}
   `;
 }
 
 function renderMechlabActionPanel() {
+  const skillsActive = state.selectedSkillGroups.size > 0;
   return `
     <section class="mechlab-action-panel" aria-label="MechLab actions">
       <button id="open-simulation" class="simulation-open-button" type="button" data-mechlab-action="simulation">${t("simulation.open")}</button>
+      <button id="open-skills" class="skill-apply-button${skillsActive ? " active" : ""}" type="button" data-mechlab-action="skills" aria-pressed="${skillsActive}">${t("skills.open")}</button>
       <button id="open-build-actions" class="mechlab-tool-button" type="button" data-mechlab-action="tools">${t("mechlab.tools")}</button>
       <div class="loadout-code-actions">
         <button id="import-loadout-code" type="button" data-mechlab-action="import">${t("loadout.import")}</button>
@@ -6922,7 +7238,7 @@ function simulationHeatSystem() {
   const heatSinkCount = state.selectedMech && state.currentBuild
     ? calculateBuild().totalHeatSinkCount
     : 0;
-  const quirks = effectiveQuirks(state.selectedMech, state.currentBuild);
+  const quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild);
   return simulationHeatSystemFromSink(
     sink,
     heatSinkCount,
@@ -6933,7 +7249,7 @@ function simulationHeatSystem() {
 function collectSimulationWeapons() {
   if (!state.selectedMech || !state.currentBuild) return [];
   const definition = effectiveDefinition(state.selectedMech, state.currentBuild);
-  const quirks = effectiveQuirks(state.selectedMech, state.currentBuild);
+  const quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild);
   const weapons = [];
 
   for (const component of COMPONENT_ORDER) {
@@ -7174,7 +7490,7 @@ function addSimulationHeat(weapon, shotCount = 1) {
   state.simulation.currentHeat += number(weapon.heat) * shotCount;
 }
 
-function ghostHeatHslBonus(item, quirks = effectiveQuirks(state.selectedMech, state.currentBuild)) {
+function ghostHeatHslBonus(item, quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild)) {
   const suffix = "_minheatpenaltylevel_additive";
   const weaponType = equipmentHardpointType(item);
   return quirks.reduce((sum, quirk) => {
@@ -7214,7 +7530,7 @@ function ghostHeatGroupKey(item) {
 
 function mechlabGhostHeatWarnings() {
   const groups = new Map();
-  const quirks = effectiveQuirks(state.selectedMech, state.currentBuild);
+  const quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild);
   installedMechItems("weapon").forEach((item) => {
     const groupKey = ghostHeatGroupKey(item);
     if (!groupKey) return;
@@ -10151,6 +10467,99 @@ function toggleMechSpecialFeature(feature, requestedGroup = "") {
   renderMechList();
 }
 
+function renderSkillControls() {
+  const groups = skillSelectionGroups();
+  const allSelected = groups.length > 0
+    && groups.every((group) => state.selectedSkillGroups.has(group.key));
+  const recommendedGroups = groups.filter((group) => (
+    RECOMMENDED_SKILL_GROUP_KEYS.includes(group.key)
+  ));
+  const recommendedSelected = recommendedGroups.length === RECOMMENDED_SKILL_GROUP_KEYS.length
+    && state.selectedSkillGroups.size === recommendedGroups.length
+    && recommendedGroups.every((group) => state.selectedSkillGroups.has(group.key));
+  const recommendedNodeCount = recommendedGroups.reduce(
+    (total, group) => total + group.nodes.length,
+    0,
+  );
+  $("skill-category-options").innerHTML = `
+    <button class="skill-category-all${allSelected ? " active" : ""}" type="button" data-skill-category-all aria-pressed="${allSelected}">
+      <span class="mech-filter-option-copy">
+        <strong>${t("skills.applyAll")}</strong>
+        <small class="skill-node-count">${t("skills.nodeCount", { count: state.skills.node_count || 0 })}</small>
+      </span>
+    </button>
+    <button class="skill-category-recommended${recommendedSelected ? " active" : ""}" type="button" data-skill-category-recommended aria-pressed="${recommendedSelected}">
+      <span class="mech-filter-option-copy">
+        <strong>${t("skills.applyRecommended")}</strong>
+        <small class="skill-node-count">${t("skills.nodeCount", { count: recommendedNodeCount })}</small>
+      </span>
+    </button>
+    ${groups.map((group) => {
+      const active = state.selectedSkillGroups.has(group.key);
+      return `
+        <button class="${active ? "active" : ""}" type="button" data-skill-group="${escapeHtml(group.key)}" aria-pressed="${active}">
+          <span class="mech-filter-option-copy">
+            <strong>${escapeHtml(t(group.labelKey))}</strong>
+            <small class="skill-node-count">${t("skills.nodeCount", { count: group.nodes.length })}</small>
+          </span>
+        </button>
+      `;
+    }).join("")}
+  `;
+}
+
+function refreshSelectedSkills() {
+  state.skillEffectsCache.clear();
+  state.mechlabQuirkValuesCache.clear();
+  if (state.selectedMech && state.currentBuild) renderVariant();
+  renderSkillControls();
+}
+
+function toggleSkillGroup(groupKey) {
+  if (!skillSelectionGroups().some((group) => group.key === groupKey)) return;
+  if (state.selectedSkillGroups.has(groupKey)) {
+    state.selectedSkillGroups.delete(groupKey);
+  } else {
+    state.selectedSkillGroups.add(groupKey);
+  }
+  refreshSelectedSkills();
+}
+
+function toggleAllSkillGroups() {
+  const groups = skillSelectionGroups();
+  const allSelected = groups.length > 0
+    && groups.every((group) => state.selectedSkillGroups.has(group.key));
+  state.selectedSkillGroups.clear();
+  if (!allSelected) groups.forEach((group) => state.selectedSkillGroups.add(group.key));
+  refreshSelectedSkills();
+}
+
+function applyRecommendedSkillGroups() {
+  const availableKeys = new Set(skillSelectionGroups().map((group) => group.key));
+  state.selectedSkillGroups.clear();
+  RECOMMENDED_SKILL_GROUP_KEYS.forEach((groupKey) => {
+    if (availableKeys.has(groupKey)) state.selectedSkillGroups.add(groupKey);
+  });
+  refreshSelectedSkills();
+}
+
+function openSkillDialog() {
+  if (!state.selectedMech || !state.currentBuild) return;
+  renderSkillControls();
+  $("skill-overlay").hidden = false;
+  document.body.classList.add("skill-open");
+  requestAnimationFrame(() => {
+    $("skill-category-options").querySelector("button")?.focus();
+  });
+}
+
+function closeSkillDialog() {
+  if ($("skill-overlay").hidden) return;
+  $("skill-overlay").hidden = true;
+  document.body.classList.remove("skill-open");
+  $("open-skills")?.focus();
+}
+
 function openBuildActionsDialog() {
   if (!state.selectedMech || !state.currentBuild) return;
   $("build-actions-overlay").hidden = false;
@@ -10172,6 +10581,10 @@ function renderUiSettingsDialog() {
     input.checked = input.value === state.quirkValueDisplayMode;
     input.closest(".ui-display-option")?.classList.toggle("active", input.checked);
   });
+  const simplifyAmmo = $("simplify-ammo-quirks");
+  simplifyAmmo.checked = state.simplifyAmmoQuirks;
+  simplifyAmmo.closest(".ui-display-option")?.classList.toggle("active", simplifyAmmo.checked);
+  $("simplify-ammo-quirks-state").textContent = t(simplifyAmmo.checked ? "ui.on" : "ui.off");
 }
 
 function openUiSettingsDialog() {
@@ -10200,6 +10613,22 @@ function setQuirkValueDisplayMode(mode) {
   }
   renderUiSettingsDialog();
   if (activeEquipmentTooltipTarget) showEquipmentTooltip(activeEquipmentTooltipTarget);
+}
+
+function setSimplifyAmmoQuirks(enabled) {
+  state.simplifyAmmoQuirks = Boolean(enabled);
+  try {
+    localStorage.setItem(
+      SIMPLIFY_AMMO_QUIRKS_STORAGE_KEY,
+      String(state.simplifyAmmoQuirks),
+    );
+  } catch {
+    // Keep the selected mode for this session when storage is unavailable.
+  }
+  renderUiSettingsDialog();
+  if (state.selectedMech && state.currentBuild) {
+    renderMechSummary(calculateBuild());
+  }
 }
 
 function stripBuildArmor() {
@@ -10670,7 +11099,7 @@ function targetComputerTooltipRows(item) {
 
 function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
   const stats = item?.stats || {};
-  const quirks = effectiveQuirks(state.selectedMech, state.currentBuild);
+  const quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild);
   const quirkValues = mechlabQuirkValues();
   const groups = [[
       ["TONS", tooltipNumber(itemTons(item), 2)],
@@ -11923,6 +12352,13 @@ function bindEvents() {
       }
       return;
     }
+    if (!$("skill-overlay").hidden) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSkillDialog();
+      }
+      return;
+    }
     if (!$("ui-settings-overlay").hidden) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -12145,10 +12581,33 @@ function bindEvents() {
   $("ui-settings-overlay").addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeUiSettingsDialog();
   });
+  $("close-skill-x").addEventListener("click", closeSkillDialog);
+  $("close-skill").addEventListener("click", closeSkillDialog);
+  $("skill-overlay").addEventListener("click", (event) => {
+    const all = event.target.closest("[data-skill-category-all]");
+    if (all) {
+      toggleAllSkillGroups();
+      return;
+    }
+    const recommended = event.target.closest("[data-skill-category-recommended]");
+    if (recommended) {
+      applyRecommendedSkillGroups();
+      return;
+    }
+    const group = event.target.closest("[data-skill-group]");
+    if (group) {
+      toggleSkillGroup(group.dataset.skillGroup);
+      return;
+    }
+    if (event.target === event.currentTarget) closeSkillDialog();
+  });
   document.querySelectorAll('[name="quirk-value-display"]').forEach((input) => {
     input.addEventListener("change", () => {
       if (input.checked) setQuirkValueDisplayMode(input.value);
     });
+  });
+  $("simplify-ammo-quirks").addEventListener("change", (event) => {
+    setSimplifyAmmoQuirks(event.target.checked);
   });
   $("close-build-actions-x").addEventListener("click", closeBuildActionsDialog);
   $("close-build-actions").addEventListener("click", closeBuildActionsDialog);
@@ -12450,6 +12909,7 @@ function bindEvents() {
     if (mechlabAction) {
       const action = mechlabAction.dataset.mechlabAction;
       if (action === "simulation") openSimulation();
+      else if (action === "skills") openSkillDialog();
       else if (action === "import") openLoadoutCodeDialog("import");
       else if (action === "export") openLoadoutCodeDialog("export");
       else if (action === "local-save") openLocalBuildDialog("save");
@@ -12582,7 +13042,7 @@ async function init() {
   setMainTab(state.activeMainTab);
   try {
     state.index = await loadJson("data/index.json");
-    const [mechs, equipment, loadouts, omnipods, shakeDamping] = await Promise.all([
+    const [mechs, equipment, loadouts, omnipods, shakeDamping, skills] = await Promise.all([
       loadJson(state.index.files.mechs),
       loadJson(state.index.files.equipment),
       loadJson(state.index.files.loadouts),
@@ -12590,6 +13050,9 @@ async function init() {
       state.index.files.shake_damping_mechs
         ? loadJson(state.index.files.shake_damping_mechs)
         : Promise.resolve({ mechs: [] }),
+      state.index.files.skills
+        ? loadJson(state.index.files.skills)
+        : Promise.resolve({ categories: [], node_count: 0 }),
     ]);
     state.mechs = mechs.filter((mech) => mech.definition && mech.definition.components);
     initializeMechTypeFilters();
@@ -12597,6 +13060,7 @@ async function init() {
     state.equipmentInfoHtmlCache.clear();
     state.loadouts = loadouts;
     state.omnipods = omnipods;
+    state.skills = skills;
     initializeMechQuirkFilters();
     state.shakeDampingMechIds = new Set(
       (shakeDamping.mechs || []).map((mech) => String(mech.id)),

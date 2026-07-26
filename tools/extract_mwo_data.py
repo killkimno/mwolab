@@ -32,6 +32,19 @@ ITEM_FILES = [
     ("upgrades", "Libs/Items/UpgradeTypes/UpgradeTypes.xml"),
 ]
 
+SKILL_TREE_FILE = "Libs/MechPilotTalents/MechSkillTreeNodes.xml"
+SKILL_TREE_DISPLAY_FILE = "Libs/MechPilotTalents/MechSkillTreeNodesDisplay.xml"
+SKILL_CATEGORY_COLUMN_RANGES = [
+    ("FirePower", 0, 16),
+    ("Survival", 18, 28),
+    ("Mobility", 30, 39),
+    ("JumpJets", 41, 45),
+    ("Operations", 47, 54),
+    ("Sensors", 56, 63),
+    ("Auxiliary", 65, 73),
+]
+SKILL_SCOPE_TYPES = {"Faction", "WeightClass", "Tonnage", "Mech"}
+
 
 def parse_xml(data: bytes, source: str):
     try:
@@ -383,6 +396,136 @@ def parse_items(game_data, localization):
     return items_by_id, by_family
 
 
+def skill_scope_payload(node):
+    if node.tag not in SKILL_SCOPE_TYPES:
+        raise RuntimeError(f"Unexpected skill effect scope: {node.tag}")
+    if not node.attrib.get("name"):
+        raise RuntimeError(f"Skill effect scope {node.tag} is missing its name")
+    return {
+        "type": node.tag,
+        "name": node.attrib.get("name", ""),
+        "value": maybe_num(node.attrib.get("value")),
+        "children": [skill_scope_payload(child) for child in list(node)],
+    }
+
+
+def skill_category_for_column(column):
+    matches = [
+        name
+        for name, minimum, maximum in SKILL_CATEGORY_COLUMN_RANGES
+        if minimum <= column <= maximum
+    ]
+    if len(matches) != 1:
+        raise RuntimeError(f"Skill node column {column} did not resolve to exactly one category")
+    return matches[0]
+
+
+def skill_subcategory(node_name):
+    return node_name.rstrip("0123456789")
+
+
+def parse_skills(game_data, localization):
+    root = parse_xml(game_data.read(SKILL_TREE_FILE), SKILL_TREE_FILE)
+    display_root = parse_xml(
+        game_data.read(SKILL_TREE_DISPLAY_FILE),
+        SKILL_TREE_DISPLAY_FILE,
+    )
+    category_order = [node.attrib.get("name", "") for node in display_root.findall("Category")]
+    expected_categories = [name for name, _, _ in SKILL_CATEGORY_COLUMN_RANGES]
+    if category_order != expected_categories:
+        raise RuntimeError(
+            f"Unexpected skill categories: {category_order}; expected {expected_categories}"
+        )
+
+    display_nodes = {}
+    display_coordinates = set()
+    for node in display_root.findall("Node"):
+        name = node.attrib.get("name", "")
+        if not name:
+            continue
+        if name in display_nodes:
+            raise RuntimeError(f"Duplicate skill display node: {name}")
+        column = int(node.attrib["column"])
+        row = int(node.attrib["row"])
+        if (column, row) in display_coordinates:
+            raise RuntimeError(f"Duplicate skill display coordinate: column={column}, row={row}")
+        display_coordinates.add((column, row))
+        display_nodes[name] = {
+            "name": name,
+            "category": skill_category_for_column(column),
+            "subcategory": skill_subcategory(name),
+            "column": column,
+            "row": row,
+            "color_type": maybe_num(node.attrib.get("colortype", 0)),
+        }
+
+    definitions = {}
+    for group in root.findall("Node"):
+        names = [name.strip() for name in group.attrib.get("names", "").split(",") if name.strip()]
+        affects = [attrs(node) for node in group.findall("Affects")]
+        requires = [attrs(node) for node in group.findall("Require")]
+        effects = []
+        for effect in group.findall("Effect"):
+            effect_name = effect.attrib.get("name", "")
+            if not effect_name:
+                raise RuntimeError(f"Skill node group {names} has an effect without a name")
+            display_name = ""
+            for key in quirk_loc_candidates(effect_name):
+                if key in localization:
+                    display_name = localization[key]
+                    break
+            effects.append({
+                "name": effect_name,
+                "display_name": display_name or fallback_quirk_name(effect_name),
+                "value": maybe_num(effect.attrib.get("value", 0)),
+                "scopes": [skill_scope_payload(child) for child in list(effect)],
+            })
+        if names and not effects:
+            raise RuntimeError(f"Skill node group {names} has no effects")
+        for name in names:
+            if name in definitions:
+                raise RuntimeError(f"Duplicate skill node definition: {name}")
+            definitions[name] = {
+                "affects": affects,
+                "requires": requires,
+                "effects": effects,
+            }
+
+    missing_definitions = sorted(set(display_nodes) - set(definitions))
+    missing_display = sorted(set(definitions) - set(display_nodes))
+    if missing_definitions or missing_display:
+        raise RuntimeError(
+            "Skill node definition/display mismatch: "
+            f"missing definitions={missing_definitions}, missing display={missing_display}"
+        )
+
+    categories = []
+    for category_name in category_order:
+        nodes = []
+        for node in sorted(
+            (entry for entry in display_nodes.values() if entry["category"] == category_name),
+            key=lambda entry: (entry["column"], entry["row"], entry["name"]),
+        ):
+            nodes.append({
+                **node,
+                **definitions[node["name"]],
+            })
+        categories.append({
+            "key": category_name.lower(),
+            "name": category_name,
+            "nodes": nodes,
+        })
+
+    return {
+        "source": {
+            "nodes": SKILL_TREE_FILE,
+            "display": SKILL_TREE_DISPLAY_FILE,
+        },
+        "categories": categories,
+        "node_count": sum(len(category["nodes"]) for category in categories),
+    }
+
+
 def parse_mech_list(game_data):
     root = parse_xml(game_data.read("Libs/Items/Mechs/Mechs.xml"), "Mechs.xml")
     mechs = {}
@@ -643,6 +786,11 @@ def main(argv=None):
         action="store_true",
         help="Refresh equipment.json without regenerating mech, loadout, or omnipod data.",
     )
+    parser.add_argument(
+        "--skills-only",
+        action="store_true",
+        help="Refresh skills.json and its index metadata without regenerating other datasets.",
+    )
     args = parser.parse_args(argv)
 
     game_dir = Path(args.game_dir)
@@ -665,6 +813,25 @@ def main(argv=None):
 
     localization = parse_localization(game_dir)
 
+    if args.skills_only:
+        with zipfile.ZipFile(game_data_path) as game_data:
+            skills = parse_skills(game_data, localization)
+        index_path = out_dir / "index.json"
+        index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else {
+            "generated_from": "local game install",
+            "counts": {},
+            "files": {},
+        }
+        index.setdefault("counts", {})["skill_nodes"] = skills["node_count"]
+        index.setdefault("files", {})["skills"] = "data/skills.json"
+        write_json(index_path, index)
+        write_json(out_dir / "skills.json", skills)
+        print(
+            f"Extracted {skills['node_count']} skill nodes across "
+            f"{len(skills['categories'])} categories."
+        )
+        return 0
+
     if args.equipment_only:
         with zipfile.ZipFile(game_data_path) as game_data:
             items_by_id, by_family = parse_items(game_data, localization)
@@ -679,6 +846,7 @@ def main(argv=None):
         mechs = parse_mech_list(game_data)
         loadouts = parse_loadouts(game_data)
         omnipods = parse_omnipods(game_data, omnipod_details)
+        skills = parse_skills(game_data, localization)
 
     mech_payload = build_mech_payload(mechs, definitions, loadouts)
     shake_damping_payload = build_shake_damping_payload(mech_payload, cockpit_shake_damping)
@@ -691,6 +859,7 @@ def main(argv=None):
             "loadouts": len(loadouts),
             "omnipods": len(omnipods),
             "shake_damping_mechs": shake_damping_payload["count"],
+            "skill_nodes": skills["node_count"],
         },
         "files": {
             "mechs": "data/mechs.json",
@@ -698,6 +867,7 @@ def main(argv=None):
             "loadouts": "data/loadouts.json",
             "omnipods": "data/omnipods.json",
             "shake_damping_mechs": "data/shake_damping_mechs.json",
+            "skills": "data/skills.json",
         },
     })
     write_json(out_dir / "mechs.json", mech_payload)
@@ -705,6 +875,7 @@ def main(argv=None):
     write_json(out_dir / "loadouts.json", loadouts)
     write_json(out_dir / "omnipods.json", omnipods)
     write_json(out_dir / "shake_damping_mechs.json", shake_damping_payload)
+    write_json(out_dir / "skills.json", skills)
 
     print(
         f"Extracted {len(mech_payload)} mechs, {len(items_by_id)} items, "

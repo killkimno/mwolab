@@ -2926,6 +2926,21 @@ body.donate-open {
   min-height: 2.65rem;
 }
 
+.mechlab-action-panel .skill-apply-button {
+  min-height: 2.35rem;
+  border-color: #536f78;
+  background: #1a292e;
+  color: #d8e8ed;
+  font-weight: 900;
+}
+
+.mechlab-action-panel .skill-apply-button.active {
+  border-color: var(--green);
+  background: #173d2b;
+  color: #8fffc0;
+  box-shadow: inset 0 0 0 1px #46d98b55, 0 0 0.45rem #46d98b33;
+}
+
 .mechlab-action-panel .loadout-code-actions button,
 .mechlab-tool-button {
   min-height: 2.35rem;
@@ -2933,16 +2948,18 @@ body.donate-open {
 
 .mechlab-tool-button {
   width: 100%;
-  border-color: #69747a;
-  background: #292f32;
-  color: #d9e1e4;
+  border-color: #64b7d2;
+  background: #205061;
+  color: #f2fbff;
   font-weight: 900;
   letter-spacing: 0.06em;
+  box-shadow: inset 0 0 0 1px #9adef133, 0 0 0.4rem #52b9df33;
 }
 
 .mechlab-tool-button:hover {
-  border-color: #82b5c8;
-  background: #344249;
+  border-color: #9de7ff;
+  background: #2c687c;
+  box-shadow: inset 0 0 0 1px #c5f2ff55, 0 0 0.55rem #52b9df66;
 }
 
 .mech-summary-ammo-head,
@@ -3077,6 +3094,7 @@ body.local-build-open {
 
 body.mech-filter-open,
 body.build-actions-open,
+body.skill-open,
 body.ui-settings-open {
   overflow: hidden;
 }
@@ -3158,6 +3176,80 @@ body.ui-settings-open {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: min(62rem, calc(100vw - 2rem));
   height: min(48rem, calc(100dvh - 3rem));
+}
+
+.skill-dialog {
+  width: min(48rem, calc(100vw - 2rem));
+}
+
+.skill-dialog-description {
+  margin: 0;
+  color: #91aab3;
+  font-size: 0.78rem;
+}
+
+.skill-category-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: min(30rem, calc(100dvh - 14rem));
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.skill-category-options button.skill-category-all,
+.skill-category-options button.skill-category-recommended {
+  grid-column: 1 / -1;
+  min-height: 4.15rem;
+  border-width: 2px;
+  border-color: #69aabd;
+  background: linear-gradient(135deg, #1d3b45, #142a31);
+  box-shadow: inset 0 0 0 1px #8acbdd22, 0 0 0.45rem #52b9df2b;
+}
+
+.skill-category-options button.skill-category-all:hover,
+.skill-category-options button.skill-category-recommended:hover {
+  border-color: #92d9ef;
+  background: linear-gradient(135deg, #285362, #193841);
+  box-shadow: inset 0 0 0 1px #b8eafa33, 0 0 0.6rem #52b9df55;
+}
+
+.skill-category-options button.skill-category-all.active,
+.skill-category-options button.skill-category-recommended.active {
+  border-color: var(--green);
+  background: linear-gradient(135deg, #1c5137, #153525);
+  box-shadow: inset 0 0 0 1px #8fffc033, 0 0 0.6rem #46d98b66;
+}
+
+.skill-category-options button.skill-category-all .mech-filter-option-copy strong,
+.skill-category-options button.skill-category-recommended .mech-filter-option-copy strong {
+  font-size: 0.92rem;
+  letter-spacing: 0.04em;
+}
+
+.skill-category-options button {
+  min-height: 3.8rem;
+  padding-block: 0.55rem;
+}
+
+.skill-category-options .mech-filter-option-copy {
+  width: 100%;
+}
+
+.skill-node-count {
+  color: #708991 !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0.04em;
+}
+
+.skill-category-options button.skill-category-all .skill-node-count,
+.skill-category-options button.skill-category-recommended .skill-node-count {
+  color: #a9cbd5 !important;
+  font-size: 0.68rem !important;
+}
+
+@media (max-width: 640px) {
+  .skill-category-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .mech-filter-tabs {
@@ -3600,6 +3692,35 @@ body.ui-settings-open {
   border-color: var(--green);
   background: var(--green);
   box-shadow: inset 0 0 0 2px #14252b, 0 0 0.35rem #46d98b88;
+}
+
+.ui-toggle-option span {
+  padding-right: 4.2rem;
+}
+
+.ui-toggle-option span::before {
+  border-radius: 3px;
+}
+
+.ui-toggle-state {
+  position: absolute;
+  top: 50%;
+  right: 0.85rem;
+  color: #8199a2;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.ui-toggle-option.active .ui-toggle-state {
+  color: #8fffc0;
+}
+
+.mech-summary-ammo-quirks-active span {
+  grid-column: 1 / -1;
+  color: #e1b86a;
+  font-weight: 800;
 }
 
 .loadout-code-overlay {

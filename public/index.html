@@ -419,6 +419,18 @@
       </section>
     </div>
 
+    <div id="skill-overlay" class="build-actions-overlay skill-overlay" hidden>
+      <section class="build-actions-dialog skill-dialog" role="dialog" aria-modal="true" aria-labelledby="skill-dialog-title">
+        <header>
+          <h2 id="skill-dialog-title" data-i18n="skills.title">스킬 적용</h2>
+          <button id="close-skill-x" class="build-actions-close" type="button" aria-label="Close">X</button>
+        </header>
+        <p class="skill-dialog-description" data-i18n="skills.description">활성화한 카테고리의 사용 가능한 모든 노드를 적용합니다.</p>
+        <div id="skill-category-options" class="mech-filter-options skill-category-options" role="group" aria-labelledby="skill-dialog-title"></div>
+        <button id="close-skill" class="build-actions-cancel" type="button" data-i18n="skills.close">닫기</button>
+      </section>
+    </div>
+
     <div id="ui-settings-overlay" class="build-actions-overlay ui-settings-overlay" hidden>
       <section class="build-actions-dialog ui-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="ui-settings-title">
         <header>
@@ -439,6 +451,11 @@
             <span data-i18n="ui.allValues">모든 수치 표시</span>
           </label>
         </div>
+        <label class="ui-display-option ui-toggle-option">
+          <input id="simplify-ammo-quirks" type="checkbox">
+          <span data-i18n="ui.simplifyAmmoQuirks">탄약 쿼크 표시 간소화</span>
+          <strong id="simplify-ammo-quirks-state" class="ui-toggle-state">OFF</strong>
+        </label>
         <button id="close-ui-settings" class="build-actions-cancel" type="button" data-i18n="ui.close">닫기</button>
       </section>
     </div>

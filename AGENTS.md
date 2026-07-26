@@ -63,7 +63,8 @@
 
 ## JSON Extraction Rules
 
-- Use `tools/extract_mwo_data.py` for deliberate game-data updates. The generated browser data lives in `public/data/index.json`, `mechs.json`, `equipment.json`, `loadouts.json`, and `omnipods.json`.
+- Use `tools/extract_mwo_data.py` for deliberate game-data updates. The generated browser data lives in `public/data/index.json`, `mechs.json`, `equipment.json`, `loadouts.json`, `omnipods.json`, `shake_damping_mechs.json`, and `skills.json`.
+- A full extraction must refresh `skills.json` from `Libs/MechPilotTalents/MechSkillTreeNodes.xml` and `MechSkillTreeNodesDisplay.xml`, publish it with the other generated datasets, and verify `index.json`'s `skill_nodes` count against the total nodes in every extracted skill category.
 - During a deliberate full extraction, detect stock-loadout components that are expected to carry an omnipod but whose source `OmniPod` value is missing or `NULL`. Exclude rear-armor pseudo-components, and list every unresolved mech variant and component in the extraction result report.
 - Apply missing-body resolution in this fixed order: exact same-name set; persistent user-confirmed numeric, `normal_body`, or `shared_body` resolution; trailing-character trimming to a normal mech and its exact or recorded resolution; non-normal candidate reporting for a still-unresolved normal mech; then exhaustive partitioning into the two unresolved report sections. Do not skip an earlier deterministic resolution.
 - For a missing omnipod, first normalize the mech or stock-loadout name and look for an omnipod whose normalized `set` name is exactly identical and whose `component` is the missing component. If exactly one record matches, assign its current ID automatically and exclude that component from the unresolved report. This exact same-name match is deterministic source data, not a heuristic.
