@@ -6005,7 +6005,7 @@ body.pointer-drag-active * {
   border-color: #6d7b80;
   background: #353d40;
   box-shadow: inset 4px 0 #96a2a7, inset 0 0 0 1px #1d2528;
-  color: #c0c8cb;
+  color: #7d878a;
   font-weight: 800;
   letter-spacing: 0.025em;
 }
@@ -6583,7 +6583,7 @@ body.pointer-drag-active * {
 }
 
 .equipment-panel .item-row {
-  min-height: 1.85rem;
+  min-height: 1.5rem;
   padding: 0;
   border-bottom-color: #1f2d32;
   color: #b8c8cd;

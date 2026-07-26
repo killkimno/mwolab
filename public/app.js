@@ -1477,9 +1477,7 @@ const state = {
   ])),
   mechHardpointFilterCountsCache: new Map(),
   activeMechFilterTab: "basic",
-  mechSpecialTraitAll: true,
   mechSpecialTraitSelections: new Set(),
-  mechSpecialEquipmentAll: true,
   mechSpecialEquipmentSelections: new Set(),
   mechSpecialFeatureCache: new Map(),
   shakeDampingMechIds: new Set(),
@@ -5912,11 +5910,14 @@ function mechSpecialFeatures(mech) {
 }
 
 function mechMatchesSpecialFeatureFilters(mech) {
-  if (state.mechSpecialTraitAll && state.mechSpecialEquipmentAll) return true;
+  if (
+    state.mechSpecialTraitSelections.size === 0
+    && state.mechSpecialEquipmentSelections.size === 0
+  ) return true;
   const features = mechSpecialFeatures(mech);
-  const matchesTraits = state.mechSpecialTraitAll
+  const matchesTraits = state.mechSpecialTraitSelections.size === 0
     || Array.from(state.mechSpecialTraitSelections).some((feature) => features.has(feature));
-  const matchesEquipment = state.mechSpecialEquipmentAll
+  const matchesEquipment = state.mechSpecialEquipmentSelections.size === 0
     || Array.from(state.mechSpecialEquipmentSelections).some((feature) => features.has(feature));
   return matchesTraits && matchesEquipment;
 }
@@ -6011,15 +6012,10 @@ function renderMechSpecialFeatureControls() {
   document.querySelectorAll("[data-mech-special-feature]").forEach((button) => {
     const feature = button.dataset.mechSpecialFeature;
     const group = button.dataset.mechSpecialFeatureGroup || mechSpecialFeatureGroup(feature);
-    const allSelected = group === "traits"
-      ? state.mechSpecialTraitAll
-      : state.mechSpecialEquipmentAll;
     const selections = group === "traits"
       ? state.mechSpecialTraitSelections
       : state.mechSpecialEquipmentSelections;
-    const active = feature === "all"
-      ? allSelected
-      : selections.has(feature);
+    const active = selections.has(feature);
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
@@ -6033,8 +6029,8 @@ function renderMechFilterControls() {
     || weightFilterActive
     || !state.mechFilterAllTypes
     || MECH_HARDPOINT_FILTER_ORDER.some((type) => state.mechHardpointFilters[type].enabled)
-    || !state.mechSpecialTraitAll
-    || !state.mechSpecialEquipmentAll;
+    || state.mechSpecialTraitSelections.size > 0
+    || state.mechSpecialEquipmentSelections.size > 0;
   document.querySelectorAll("[data-open-mech-filter]").forEach((button) => {
     button.classList.toggle("active", filterActive);
     button.setAttribute("aria-expanded", String(overlayOpen));
@@ -10030,7 +10026,6 @@ function mechSpecialFeatureGroup(feature) {
 function toggleMechSpecialFeature(feature, requestedGroup = "") {
   const group = requestedGroup || mechSpecialFeatureGroup(feature);
   if (group !== "traits" && group !== "equipment") return;
-  const allKey = group === "traits" ? "mechSpecialTraitAll" : "mechSpecialEquipmentAll";
   const selections = group === "traits"
     ? state.mechSpecialTraitSelections
     : state.mechSpecialEquipmentSelections;
@@ -10038,20 +10033,10 @@ function toggleMechSpecialFeature(feature, requestedGroup = "") {
     ? MECH_SPECIAL_TRAIT_ORDER
     : MECH_SPECIAL_EQUIPMENT_ORDER;
 
-  if (feature === "all") {
-    if (state[allKey]) return;
-    state[allKey] = true;
-    selections.clear();
-  } else {
-    state[allKey] = false;
-    if (selections.has(feature)) {
-      selections.delete(feature);
-      if (selections.size === 0) {
-        state[allKey] = true;
-      }
-    } else if (order.includes(feature)) {
-      selections.add(feature);
-    }
+  if (selections.has(feature)) {
+    selections.delete(feature);
+  } else if (order.includes(feature)) {
+    selections.add(feature);
   }
   renderMechList();
 }
