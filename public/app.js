@@ -3305,7 +3305,9 @@ function skillScopeMatches(scope, mech) {
     return normalizeLookupKey(mech.weight_class) === expected;
   }
   if (type === "tonnage") {
-    return number(currentDefinition(mech).stats?.MaxTons) === number(scope.name);
+    const expectedTonnage = Number(scope.name);
+    return Number.isFinite(expectedTonnage)
+      && number(currentDefinition(mech).stats?.MaxTons) === expectedTonnage;
   }
   if (type === "mech") {
     return [mech.name, mech.chassis, mech.display_name]
@@ -3500,6 +3502,13 @@ function quirkMultiplier(values, names) {
   return 1 + names.reduce((sum, name) => sum + number(values[name]), 0);
 }
 
+function durabilitySkillFinalValue(value, multiplier) {
+  const skillMultiplier = number(multiplier);
+  return skillMultiplier === 0
+    ? value
+    : Math.floor(value * (1 + skillMultiplier) + 1e-9);
+}
+
 function baseMaxArmor(componentName, mech = state.selectedMech) {
   if (componentName === "head") return 18;
   return number(currentDefinition(mech).components?.[componentName]?.hp) * 2;
@@ -3508,11 +3517,17 @@ function baseMaxArmor(componentName, mech = state.selectedMech) {
 function armorInfoRows(values, mech = state.selectedMech) {
   return INFO_COMPONENTS.map((component) => {
     const frontBase = baseMaxArmor(component.key, mech);
-    const front = frontBase + quirkAdd(values, "armorresist", component.suffix);
+    const frontWithoutSkill = frontBase + quirkAdd(values, "armorresist", component.suffix);
     const rearBase = 0;
     const rear = component.rearSuffix
       ? rearBase + number(values.armorresist_all_additive) + number(values[`armorresist_${component.rearSuffix}_additive`])
       : null;
+    const armorBeforeSkill = frontWithoutSkill + number(rear);
+    const armorAfterSkill = durabilitySkillFinalValue(
+      armorBeforeSkill,
+      values.increasedarmor_multiplier,
+    );
+    const front = frontWithoutSkill + armorAfterSkill - armorBeforeSkill;
     return {
       label: component.label,
       totalBase: frontBase + (component.rearSuffix ? rearBase : 0),
@@ -3528,10 +3543,14 @@ function armorInfoRows(values, mech = state.selectedMech) {
 function structureInfoRows(values, mech = state.selectedMech) {
   return INFO_COMPONENTS.map((component) => {
     const base = number(currentDefinition(mech).components?.[component.key]?.hp);
+    const structureWithoutSkill = base + quirkAdd(values, "internalresist", component.suffix);
     return {
       label: component.label,
       base,
-      total: base + quirkAdd(values, "internalresist", component.suffix),
+      total: durabilitySkillFinalValue(
+        structureWithoutSkill,
+        values.increasedstructure_multiplier,
+      ),
     };
   });
 }
@@ -9590,15 +9609,29 @@ function componentArmorCapacity(name, componentDefinition) {
   return Math.max(0, number(componentDefinition?.hp) * 2);
 }
 
-function componentDurabilityQuirkValues(name, values) {
+function componentDurabilityQuirkValues(name, values, componentDefinition) {
   const component = INFO_COMPONENTS.find((entry) => entry.key === name);
   if (!component) return { frontArmor: 0, rearArmor: 0, structure: 0 };
+  const frontArmor = quirkAdd(values, "armorresist", component.suffix);
+  const rearArmor = component.rearSuffix
+    ? number(values.armorresist_all_additive) + number(values[`armorresist_${component.rearSuffix}_additive`])
+    : 0;
+  const baseArmor = componentArmorCapacity(name, componentDefinition);
+  const armorBeforeSkill = baseArmor + frontArmor + rearArmor;
+  const structure = quirkAdd(values, "internalresist", component.suffix);
+  const structureBeforeSkill = number(componentDefinition?.hp) + structure;
+  const armorAfterSkill = durabilitySkillFinalValue(
+    armorBeforeSkill,
+    values.increasedarmor_multiplier,
+  );
+  const structureAfterSkill = durabilitySkillFinalValue(
+    structureBeforeSkill,
+    values.increasedstructure_multiplier,
+  );
   return {
-    frontArmor: quirkAdd(values, "armorresist", component.suffix),
-    rearArmor: component.rearSuffix
-      ? number(values.armorresist_all_additive) + number(values[`armorresist_${component.rearSuffix}_additive`])
-      : 0,
-    structure: quirkAdd(values, "internalresist", component.suffix),
+    frontArmor: frontArmor + armorAfterSkill - armorBeforeSkill,
+    rearArmor,
+    structure: structure + structureAfterSkill - structureBeforeSkill,
   };
 }
 
@@ -9659,7 +9692,7 @@ function renderComponent(name, calc, quirkValues, ghostHeatGroups = new Set()) {
   const frontArmor = Math.max(0, number(buildComp.armor));
   const rearArmor = Math.max(0, number(state.currentBuild.rearArmor?.[name]));
   const torso = Object.hasOwn(TORSO_REAR_COMPONENTS, name);
-  const durabilityQuirks = componentDurabilityQuirkValues(name, quirkValues);
+  const durabilityQuirks = componentDurabilityQuirkValues(name, quirkValues, compDef);
   const totalArmorQuirk = durabilityQuirks.frontArmor + durabilityQuirks.rearArmor;
   const finalArmorMax = armorCapacity + totalArmorQuirk;
   const structure = number(compDef.hp);
