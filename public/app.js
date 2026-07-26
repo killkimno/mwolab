@@ -7267,10 +7267,9 @@ function simulationHeatSystemFromSink(sink, heatSinkCount, heatDissipation = 0, 
   const externalCapacity = Math.abs(number(sink?.stats?.heatbase));
   const engineCapacityCount = Math.min(10, heatSinkCount);
   const externalCapacityCount = Math.max(0, heatSinkCount - 10);
-  const baseMaxHeat = 30
+  const maxHeat = 30 * (1 + heatCapacity)
     + engineCapacityCount * engineCapacity
-    + externalCapacityCount * externalCapacity;
-  const maxHeat = baseMaxHeat * (1 + heatCapacity);
+    + externalCapacityCount * externalCapacity * (1 + heatCapacity);
   const engineCooling = number(sink?.stats?.engineCooling);
   const externalCooling = number(sink?.stats?.cooling);
   return {
@@ -11290,11 +11289,10 @@ function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
     const dissipationBonus = quirkIncrease(quirks, "heatdissipation_multiplier");
     const capacityBonus = quirkIncrease(quirks, "maxheat_multiplier");
     const baseCapacity = Math.abs(number(stats.heatbase));
-    const baseEngineCapacity = Math.abs(number(stats.engineHeatbase));
     groups.push([
       ["HEAT CAPACITY", tooltipQuirkValue(baseCapacity, baseCapacity * (1 + capacityBonus), 2)],
       ["HEAT DISSIPATION", tooltipQuirkValue(stats.cooling, number(stats.cooling) * (1 + dissipationBonus), 2, "/s")],
-      ["ENGINE CAPACITY", tooltipQuirkValue(baseEngineCapacity, baseEngineCapacity * (1 + capacityBonus), 2)],
+      ["ENGINE CAPACITY", tooltipNumber(Math.abs(number(stats.engineHeatbase)), 2)],
       ["ENGINE DISSIPATION", tooltipQuirkValue(stats.engineCooling, number(stats.engineCooling) * (1 + dissipationBonus), 2, "/s")],
     ]);
   } else if (item.item_type === "engine") {
