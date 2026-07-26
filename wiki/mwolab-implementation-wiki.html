@@ -436,7 +436,7 @@
         <ul>
           <li>쿼크 이름과 무기 검색 키는 대소문자를 구분하지 않도록 정규화한다.</li>
           <li>요약 값은 일반 쿼크 + 무기 계열 쿼크 + 가장 잘 맞는 무기 전용 쿼크를 합친다.</li>
-          <li>쿨다운·발열·지속시간·산포처럼 감소가 이득인 multiplier는 음수로 저장되므로 <code>Math.max(0, -value)</code>로 요약한다.</li>
+          <li>쿨다운·발열·지속시간·산포처럼 감소가 이득인 multiplier는 음수로 저장되므로 이득 요약에는 <code>Math.max(0, -value)</code>를 사용한다. 단, 무기 듀레이션·스프래드 multiplier가 양수면 악영향이므로 무기 계산에서는 부호를 유지해 최종값을 증가시키며 0으로 버리지 않는다.</li>
           <li>사거리·탄속·열 방출·ROF처럼 증가가 이득인 multiplier는 <code>Math.max(0, value)</code>로 요약한다.</li>
           <li>무기 전용 쿼크는 통계 접미사를 제거한 이름을 장비의 이름·표시 이름·별칭과 매칭한다.</li>
           <li>무기 계열은 개별 이름 하드코딩보다 장비 데이터의 <code>hardpoint_type</code> 또는 <code>stats.type</code>을 우선한다.</li>
@@ -455,7 +455,7 @@
         <p><code>쿼크 서머리</code>는 <code>QUIRKS</code> 목록 안이 아니라 독립 정보 카드다.</p>
 
         <h3>값 색상</h3>
-        <p>기본값과 쿼크 기여도를 함께 표시하는 경우 최종값은 <span class="final-value">초록색</span>, 쿼크 기여도는 <span class="quirk-value">노란색</span>이다. 기본값, 괄호, 연산자는 주변 통계의 기본 색을 유지한다.</p>
+        <p>기본값과 쿼크 기여도를 함께 표시하는 경우 최종값은 <span class="final-value">초록색</span>, 쿼크 기여도는 <span class="quirk-value">노란색</span>이다. 무기 듀레이션·스프래드에 적용된 multiplier 합계가 양수인 악영향이면 최종값과 쿼크 기여도를 모두 빨간색으로 표시하고, 기본값·괄호·연산자는 주변 통계의 기본 색을 유지한다. 원본 쿼크 목록에서도 해당 양수 쿼크 값은 빨간색으로 표시한다.</p>
 
         <h3>DPH와 MASC 툴팁</h3>
         <ul>

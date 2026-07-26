@@ -1910,15 +1910,15 @@ function weaponSpreadValues(item, quirks = []) {
   const base = number(item?.stats?.spread);
   if (!(base > 0)) return null;
   const type = equipmentHardpointType(item);
-  const reduction = quirkReduction(quirks, "all_spread_multiplier")
-    + quirkReduction(quirks, `${type}_spread_multiplier`)
-    + simulationSpecificQuirkTotal(quirks, item, "_spread_multiplier");
+  const modifier = quirkSignedValue(quirks, "all_spread_multiplier")
+    + quirkSignedValue(quirks, `${type}_spread_multiplier`)
+    + simulationSpecificQuirkTotal(quirks, item, "_spread_multiplier", "signed");
   const artemisMultiplier = isArtemisWeapon(item) ? artemisSpreadMultiplier() : 1;
   return {
     base,
-    reduction,
+    modifier,
     artemisMultiplier,
-    final: base * Math.max(0, 1 - reduction) * artemisMultiplier,
+    final: base * Math.max(0, 1 + modifier) * artemisMultiplier,
   };
 }
 
@@ -3955,6 +3955,7 @@ function omnipodDisplayQuirkGroups(
 }
 
 function quirkToneClass(quirk) {
+  if (isHarmfulDurationOrSpreadQuirk(quirk)) return "quirk-tone-harmful";
   const category = quirkDisplayCategory(quirk);
   if (category === "globalHeat" || category === "weapon-all") return "quirk-tone-global";
   if (category === "weapon-energy") return "quirk-tone-energy";
@@ -3966,6 +3967,13 @@ function quirkToneClass(quirk) {
   return "quirk-tone-other";
 }
 
+function isHarmfulDurationOrSpreadQuirk(quirk) {
+  if (!(number(quirk?.value) > 0)) return false;
+  const name = String(quirk?.name || "").toLowerCase();
+  if (name.endsWith("_spread_multiplier")) return true;
+  return name.endsWith("_duration_multiplier") && !name.includes("narc");
+}
+
 function quirkReduction(quirks, name) {
   const quirk = quirks.find((entry) => entry.name.toLowerCase() === name);
   return Math.max(0, -number(quirk?.value));
@@ -3974,6 +3982,11 @@ function quirkReduction(quirks, name) {
 function quirkIncrease(quirks, name) {
   const quirk = quirks.find((entry) => entry.name.toLowerCase() === name);
   return Math.max(0, number(quirk?.value));
+}
+
+function quirkSignedValue(quirks, name) {
+  const quirk = quirks.find((entry) => entry.name.toLowerCase() === name);
+  return number(quirk?.value);
 }
 
 function weaponQuirkTargets() {
@@ -7012,6 +7025,7 @@ function simulationSpecificQuirkTotal(quirks, item, suffix, direction = "reducti
     const prefix = normalizeLookupKey(name.slice(0, -suffix.length));
     if (!prefix || !simulationSpecificQuirkMatchesItem(prefix, item)) return sum;
     const value = number(quirk.value);
+    if (direction === "signed") return sum + value;
     return sum + (direction === "reduction" ? Math.max(0, -value) : Math.max(0, value));
   }, 0);
 }
@@ -7055,24 +7069,39 @@ function simulationWeaponTiming(item, quirks) {
   const stats = item?.stats || {};
   const type = equipmentHardpointType(item);
   if (isSimulationContinuousDamagePerSecondWeapon(item)) {
-    return { duration: 0, cooldown: 0, cycle: 1 };
+    return {
+      duration: 0,
+      durationModifier: 0,
+      cooldown: 0,
+      cycle: 1,
+    };
   }
   const rof = number(stats.rof);
   if (rof > 0) {
     const rofBonus = simulationSpecificQuirkTotal(quirks, item, "_rof_multiplier", "increase");
     const cycle = Math.max(0.016, 1 / (rof * (1 + rofBonus)));
-    return { duration: 0, cooldown: cycle, cycle };
+    return {
+      duration: 0,
+      durationModifier: 0,
+      cooldown: cycle,
+      cycle,
+    };
   }
 
   const cooldownReduction = quirkReduction(quirks, "all_cooldown_multiplier")
     + quirkReduction(quirks, `${type}_cooldown_multiplier`)
     + simulationSpecificQuirkTotal(quirks, item, "_cooldown_multiplier");
-  const durationReduction = quirkReduction(quirks, "all_duration_multiplier")
-    + (type === "energy" ? quirkReduction(quirks, "energy_duration_multiplier") : 0)
-    + simulationSpecificQuirkTotal(quirks, item, "_duration_multiplier");
+  const durationModifier = quirkSignedValue(quirks, "all_duration_multiplier")
+    + (type === "energy" ? quirkSignedValue(quirks, "energy_duration_multiplier") : 0)
+    + simulationSpecificQuirkTotal(quirks, item, "_duration_multiplier", "signed");
   const cooldown = Math.max(0, number(stats.cooldown) * Math.max(0, 1 - cooldownReduction));
-  const duration = Math.max(0, number(stats.duration) * Math.max(0, 1 - durationReduction));
-  return { duration, cooldown, cycle: Math.max(0.016, cooldown + duration) };
+  const duration = Math.max(0, number(stats.duration) * Math.max(0, 1 + durationModifier));
+  return {
+    duration,
+    durationModifier,
+    cooldown,
+    cycle: Math.max(0.016, cooldown + duration),
+  };
 }
 
 function weaponVolleySize(item) {
@@ -10793,7 +10822,7 @@ function tooltipNumber(value, digits = 2, unit = "") {
   return `${formatInfoNumber(numeric, digits)}${unit}`;
 }
 
-function tooltipQuirkValue(base, final, digits = 2, unit = "") {
+function tooltipQuirkValue(base, final, digits = 2, unit = "", options = {}) {
   const baseNumber = Number(base);
   const finalNumber = Number(final);
   if (!Number.isFinite(baseNumber) || !Number.isFinite(finalNumber)) return "-";
@@ -10804,6 +10833,7 @@ function tooltipQuirkValue(base, final, digits = 2, unit = "") {
     base: formatInfoNumber(baseNumber, digits),
     operator: delta >= 0 ? "+" : "-",
     quirk: formatInfoNumber(Math.abs(delta), digits),
+    harmful: Boolean(options.harmful),
   };
 }
 
@@ -10851,12 +10881,12 @@ function tooltipValueHtml(value) {
     return `${finalValue}<span class="equipment-tooltip-quirk-detail">(<span class="equipment-tooltip-base">${escapeHtml(value.base)}</span> <span class="equipment-tooltip-operator">${escapeHtml(value.operator)}</span> <span class="equipment-tooltip-quirk-value">${escapeHtml(value.quirk)}</span>)</span>${ghostHeatValue}`;
   }
   if (state.quirkValueDisplayMode === "final") {
-    return `<span class="equipment-tooltip-final quirk-applied">${escapeHtml(value.final)}</span>`;
+    return `<span class="equipment-tooltip-final quirk-applied${value.harmful ? " quirk-harmful" : ""}">${escapeHtml(value.final)}</span>`;
   }
   if (state.quirkValueDisplayMode === "quirk") {
-    return `<span class="equipment-tooltip-final quirk-applied">${escapeHtml(value.final)}</span><span class="equipment-tooltip-quirk-detail">(<span class="equipment-tooltip-quirk-value">${escapeHtml(`${value.operator}${value.quirk}`)}</span>)</span>`;
+    return `<span class="equipment-tooltip-final quirk-applied${value.harmful ? " quirk-harmful" : ""}">${escapeHtml(value.final)}</span><span class="equipment-tooltip-quirk-detail">(<span class="equipment-tooltip-quirk-value${value.harmful ? " quirk-harmful" : ""}">${escapeHtml(`${value.operator}${value.quirk}`)}</span>)</span>`;
   }
-  return `<span class="equipment-tooltip-final quirk-applied">${escapeHtml(value.final)}</span><span class="equipment-tooltip-quirk-detail">(<span class="equipment-tooltip-base">${escapeHtml(value.base)}</span> <span class="equipment-tooltip-operator">${escapeHtml(value.operator)}</span> <span class="equipment-tooltip-quirk-value">${escapeHtml(value.quirk)}</span>)</span>`;
+  return `<span class="equipment-tooltip-final quirk-applied${value.harmful ? " quirk-harmful" : ""}">${escapeHtml(value.final)}</span><span class="equipment-tooltip-quirk-detail">(<span class="equipment-tooltip-base">${escapeHtml(value.base)}</span> <span class="equipment-tooltip-operator">${escapeHtml(value.operator)}</span> <span class="equipment-tooltip-quirk-value${value.harmful ? " quirk-harmful" : ""}">${escapeHtml(value.quirk)}</span>)</span>`;
 }
 
 function isRofDamageWeapon(item) {
@@ -10935,7 +10965,9 @@ function weaponTooltipRanges(item) {
 function weaponTooltipSpread(item, quirks) {
   const spread = weaponSpreadValues(item, quirks);
   if (!spread) return null;
-  return tooltipQuirkValue(spread.base, spread.final, 2);
+  return tooltipQuirkValue(spread.base, spread.final, 2, "", {
+    harmful: spread.modifier > 0,
+  });
 }
 
 function weaponTooltipCriticalChance(item, targetComputer = targetComputerWeaponModifiers(item)) {
@@ -11172,7 +11204,9 @@ function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
     }
     groups.push(timingRows);
     if (number(stats.duration) > 0) groups.push([
-      ["DURATION", tooltipQuirkValue(stats.duration, timing.duration, 2, " s")],
+      ["DURATION", tooltipQuirkValue(stats.duration, timing.duration, 2, " s", {
+        harmful: timing.durationModifier > 0,
+      })],
     ]);
     const rangeRows = [];
     if (Number.isFinite(ranges.minRange)) rangeRows.push([

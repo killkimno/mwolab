@@ -5330,6 +5330,12 @@ body.simulation-open {
   color: #ff9b42;
 }
 
+.quirk-tone-harmful .quirk-value,
+.mech-summary-quirk.quirk-tone-harmful strong,
+.omnipod-tooltip-quirk.quirk-tone-harmful strong {
+  color: var(--red);
+}
+
 .quirk.inactive,
 .quirk.inactive .quirk-value,
 .mech-summary-quirk.inactive,
@@ -6607,6 +6613,11 @@ body.pointer-drag-active * {
 .equipment-tooltip-stats strong .equipment-tooltip-quirk-value {
   color: var(--yellow);
   font-weight: 800;
+}
+
+.equipment-tooltip-stats strong .equipment-tooltip-final.quirk-harmful,
+.equipment-tooltip-stats strong .equipment-tooltip-quirk-value.quirk-harmful {
+  color: var(--red);
 }
 
 .equipment-tooltip-stats strong .equipment-tooltip-ghost-heat {
