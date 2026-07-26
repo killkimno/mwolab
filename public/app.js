@@ -205,6 +205,11 @@ const TEXT = {
     "filters.basicTab": "기본",
     "filters.tabs": "멕 필터 카테고리",
     "filters.specialFeaturesTab": "특수기능",
+    "filters.quirksTab": "쿼크",
+    "filters.quirkMatchMode": "쿼크 포함 방식",
+    "filters.quirkList": "쿼크 목록",
+    "filters.matchAllQuirks": "모두 포함",
+    "filters.matchAnyQuirk": "하나라도 포함",
     "filters.specialNotes": "특수 사항",
     "filters.specialEquipment": "특수 장비",
     "filters.noJumpShake": "점프젯 사용 시 흔들림 없음",
@@ -655,6 +660,11 @@ const TEXT = {
     "filters.basicTab": "Basic",
     "filters.tabs": "Mech filter categories",
     "filters.specialFeaturesTab": "Special features",
+    "filters.quirksTab": "Quirks",
+    "filters.quirkMatchMode": "Quirk matching",
+    "filters.quirkList": "Quirk list",
+    "filters.matchAllQuirks": "Include all",
+    "filters.matchAnyQuirk": "Include any",
     "filters.specialNotes": "Special traits",
     "filters.specialEquipment": "Special equipment",
     "filters.noJumpShake": "No jump-jet shake",
@@ -1480,6 +1490,10 @@ const state = {
   mechSpecialTraitSelections: new Set(),
   mechSpecialEquipmentSelections: new Set(),
   mechSpecialFeatureCache: new Map(),
+  mechQuirkFilterMode: "any",
+  mechQuirkFilterSelections: new Set(),
+  mechQuirkFilterOptions: [],
+  mechQuirkNamesCache: new Map(),
   shakeDampingMechIds: new Set(),
   shakeDampingMechNames: new Set(),
   improvedJumpJetChassis: null,
@@ -5727,6 +5741,44 @@ function initializeMechTypeFilters() {
   state.mechFilterSpecialTypes = new Set(state.mechSpecialTypeOptions.map((option) => option.key));
 }
 
+function initializeMechQuirkFilters() {
+  const options = new Map();
+  state.mechQuirkNamesCache.clear();
+  state.mechs.forEach((mech) => {
+    const quirks = effectiveQuirks(mech, buildFromLoadout(mech));
+    const names = new Set();
+    quirks.forEach((quirk) => {
+      const key = String(quirk.name || "").trim().toLowerCase();
+      if (!key) return;
+      names.add(key);
+      if (!options.has(key)) {
+        options.set(key, {
+          key,
+          label: String(quirk.display_name || quirk.name).trim() || quirk.name,
+          name: quirk.name,
+          display_name: quirk.display_name || quirk.name,
+        });
+      }
+    });
+    state.mechQuirkNamesCache.set(String(mech.id), names);
+  });
+  state.mechQuirkFilterOptions = sortQuirksForDisplay(Array.from(options.values()));
+}
+
+function mechQuirkNames(mech) {
+  const key = String(mech?.id || "");
+  if (!key) return new Set();
+  const cached = state.mechQuirkNamesCache.get(key);
+  if (cached) return cached;
+  const names = new Set(
+    effectiveQuirks(mech, buildFromLoadout(mech))
+      .map((quirk) => String(quirk.name || "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+  state.mechQuirkNamesCache.set(key, names);
+  return names;
+}
+
 function mechMatchesTypeFilter(mech) {
   if (state.mechFilterAllTypes) return true;
   const category = mechTypeFilterCategory(mech);
@@ -5910,16 +5962,22 @@ function mechSpecialFeatures(mech) {
 }
 
 function mechMatchesSpecialFeatureFilters(mech) {
-  if (
-    state.mechSpecialTraitSelections.size === 0
-    && state.mechSpecialEquipmentSelections.size === 0
-  ) return true;
+  const selectedFeatures = [
+    ...state.mechSpecialTraitSelections,
+    ...state.mechSpecialEquipmentSelections,
+  ];
+  if (selectedFeatures.length === 0) return true;
   const features = mechSpecialFeatures(mech);
-  const matchesTraits = state.mechSpecialTraitSelections.size === 0
-    || Array.from(state.mechSpecialTraitSelections).some((feature) => features.has(feature));
-  const matchesEquipment = state.mechSpecialEquipmentSelections.size === 0
-    || Array.from(state.mechSpecialEquipmentSelections).some((feature) => features.has(feature));
-  return matchesTraits && matchesEquipment;
+  return selectedFeatures.some((feature) => features.has(feature));
+}
+
+function mechMatchesQuirkFilters(mech) {
+  const selections = Array.from(state.mechQuirkFilterSelections);
+  if (selections.length === 0) return true;
+  const names = mechQuirkNames(mech);
+  return state.mechQuirkFilterMode === "all"
+    ? selections.every((quirk) => names.has(quirk))
+    : selections.some((quirk) => names.has(quirk));
 }
 
 function mechMatchesListFilters(mech, search = "") {
@@ -5934,7 +5992,8 @@ function mechMatchesListFilters(mech, search = "") {
     && matchesWeight
     && mechMatchesTypeFilter(mech)
     && mechMatchesHardpointFilters(mech)
-    && mechMatchesSpecialFeatureFilters(mech);
+    && mechMatchesSpecialFeatureFilters(mech)
+    && mechMatchesQuirkFilters(mech);
 }
 
 function renderMechHardpointFilterControls() {
@@ -6006,6 +6065,7 @@ function renderMechFilterTabs() {
   });
   $("mech-filter-basic-content").hidden = state.activeMechFilterTab !== "basic";
   $("mech-filter-special-content").hidden = state.activeMechFilterTab !== "special";
+  $("mech-filter-quirks-content").hidden = state.activeMechFilterTab !== "quirks";
 }
 
 function renderMechSpecialFeatureControls() {
@@ -6021,6 +6081,38 @@ function renderMechSpecialFeatureControls() {
   });
 }
 
+function renderMechQuirkFilterControls() {
+  document.querySelectorAll("[data-mech-quirk-mode]").forEach((button) => {
+    const active = button.dataset.mechQuirkMode === state.mechQuirkFilterMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  const options = $("mech-filter-quirk-options");
+  const renderedKeys = Array.from(
+    options.querySelectorAll("[data-mech-quirk-filter]"),
+    (button) => button.dataset.mechQuirkFilter,
+  );
+  const availableKeys = state.mechQuirkFilterOptions.map((option) => option.key);
+  if (
+    renderedKeys.length !== availableKeys.length
+    || renderedKeys.some((key, index) => key !== availableKeys[index])
+  ) {
+    options.innerHTML = state.mechQuirkFilterOptions.map((option) => `
+      <button
+        type="button"
+        data-mech-quirk-filter="${escapeHtml(option.key)}"
+        title="${escapeHtml(option.label)}"
+      ><span class="${quirkToneClass(option)}">${escapeHtml(option.label)}</span></button>
+    `).join("");
+  }
+  options.querySelectorAll("[data-mech-quirk-filter]").forEach((button) => {
+    const active = state.mechQuirkFilterSelections.has(button.dataset.mechQuirkFilter);
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
 function renderMechFilterControls() {
   const overlayOpen = !$("mech-filter-overlay").hidden;
   const weightFilterActive = state.mechFilterWeightClasses.size > 0
@@ -6030,7 +6122,8 @@ function renderMechFilterControls() {
     || !state.mechFilterAllTypes
     || MECH_HARDPOINT_FILTER_ORDER.some((type) => state.mechHardpointFilters[type].enabled)
     || state.mechSpecialTraitSelections.size > 0
-    || state.mechSpecialEquipmentSelections.size > 0;
+    || state.mechSpecialEquipmentSelections.size > 0
+    || state.mechQuirkFilterSelections.size > 0;
   document.querySelectorAll("[data-open-mech-filter]").forEach((button) => {
     button.classList.toggle("active", filterActive);
     button.setAttribute("aria-expanded", String(overlayOpen));
@@ -6090,6 +6183,7 @@ function renderMechFilterControls() {
   renderMechHardpointFilterControls();
   renderMechFilterTabs();
   renderMechSpecialFeatureControls();
+  renderMechQuirkFilterControls();
 }
 
 function renderMechlabCompactList() {
@@ -10012,9 +10106,25 @@ function setMechHardpointFilterMinimum(type, location, value) {
 }
 
 function setMechFilterTab(tab) {
-  if (tab !== "basic" && tab !== "special") return;
+  if (tab !== "basic" && tab !== "special" && tab !== "quirks") return;
   state.activeMechFilterTab = tab;
   renderMechFilterControls();
+}
+
+function setMechQuirkFilterMode(mode) {
+  if ((mode !== "all" && mode !== "any") || state.mechQuirkFilterMode === mode) return;
+  state.mechQuirkFilterMode = mode;
+  renderMechList();
+}
+
+function toggleMechQuirkFilter(quirk) {
+  if (!state.mechQuirkFilterOptions.some((option) => option.key === quirk)) return;
+  if (state.mechQuirkFilterSelections.has(quirk)) {
+    state.mechQuirkFilterSelections.delete(quirk);
+  } else {
+    state.mechQuirkFilterSelections.add(quirk);
+  }
+  renderMechList();
 }
 
 function mechSpecialFeatureGroup(feature) {
@@ -11932,6 +12042,16 @@ function bindEvents() {
       setMechFilterTab(tab.dataset.mechFilterTab);
       return;
     }
+    const quirkMode = event.target.closest("[data-mech-quirk-mode]");
+    if (quirkMode) {
+      setMechQuirkFilterMode(quirkMode.dataset.mechQuirkMode);
+      return;
+    }
+    const quirk = event.target.closest("[data-mech-quirk-filter]");
+    if (quirk) {
+      toggleMechQuirkFilter(quirk.dataset.mechQuirkFilter);
+      return;
+    }
     const faction = event.target.closest("[data-mech-filter-faction]");
     if (faction) {
       state.mechFilterFaction = faction.dataset.mechFilterFaction;
@@ -12477,6 +12597,7 @@ async function init() {
     state.equipmentInfoHtmlCache.clear();
     state.loadouts = loadouts;
     state.omnipods = omnipods;
+    initializeMechQuirkFilters();
     state.shakeDampingMechIds = new Set(
       (shakeDamping.mechs || []).map((mech) => String(mech.id)),
     );

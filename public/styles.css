@@ -3257,6 +3257,26 @@ body.ui-settings-open {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.mech-quirk-filter-mode {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mech-filter-options.mech-quirk-filter-options {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mech-filter-options.mech-quirk-filter-options button {
+  min-height: 2rem;
+  font-size: 0.72rem;
+}
+
+.mech-filter-options.mech-quirk-filter-options button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mech-filter-options button {
   display: flex;
   align-items: center;

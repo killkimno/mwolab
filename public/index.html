@@ -303,6 +303,7 @@
         <div class="mech-filter-tabs" role="tablist" aria-label="멕 필터 카테고리" data-i18n-aria-label="filters.tabs">
           <button id="mech-filter-basic-tab" class="active" type="button" role="tab" aria-selected="true" aria-controls="mech-filter-basic-content" data-mech-filter-tab="basic" data-i18n="filters.basicTab">기본</button>
           <button id="mech-filter-special-tab" type="button" role="tab" aria-selected="false" aria-controls="mech-filter-special-content" data-mech-filter-tab="special" data-i18n="filters.specialFeaturesTab">특수기능</button>
+          <button id="mech-filter-quirks-tab" type="button" role="tab" aria-selected="false" aria-controls="mech-filter-quirks-content" data-mech-filter-tab="quirks" data-i18n="filters.quirksTab">쿼크</button>
         </div>
         <div id="mech-filter-basic-content" class="mech-filter-content" role="tabpanel" aria-labelledby="mech-filter-basic-tab">
           <section class="mech-filter-panel" aria-labelledby="mech-filter-basic-title">
@@ -382,6 +383,19 @@
               <button type="button" data-mech-special-feature="partial-wing"><span class="mech-filter-option-copy"><strong data-i18n="filters.partialWing">Partial Wing 점프젯</strong><small data-i18n="filters.partialWingDescription">글라이딩 효과가 있는 점프젯</small></span></button>
               <button type="button" data-mech-special-feature="special-target-computer"><span class="mech-filter-option-copy"><strong data-i18n="filters.specialTargetComputer">특수 타겟컴</strong><small data-i18n="filters.specialTargetComputerDescription">무기 작동 방식 변경</small></span></button>
             </div>
+          </section>
+        </div>
+        <div id="mech-filter-quirks-content" class="mech-filter-content" role="tabpanel" aria-labelledby="mech-filter-quirks-tab" hidden>
+          <section class="mech-filter-panel" aria-labelledby="mech-filter-quirk-mode-title">
+            <h3 id="mech-filter-quirk-mode-title" data-i18n="filters.quirkMatchMode">쿼크 포함 방식</h3>
+            <div class="mech-filter-options mech-quirk-filter-mode" role="group" aria-labelledby="mech-filter-quirk-mode-title">
+              <button type="button" data-mech-quirk-mode="all" data-i18n="filters.matchAllQuirks">모두 포함</button>
+              <button type="button" data-mech-quirk-mode="any" data-i18n="filters.matchAnyQuirk">하나라도 포함</button>
+            </div>
+          </section>
+          <section class="mech-filter-panel" aria-labelledby="mech-filter-quirk-list-title">
+            <h3 id="mech-filter-quirk-list-title" data-i18n="filters.quirkList">쿼크 목록</h3>
+            <div id="mech-filter-quirk-options" class="mech-filter-options mech-quirk-filter-options" role="group" aria-labelledby="mech-filter-quirk-list-title"></div>
           </section>
         </div>
         <button id="close-mech-filter" class="build-actions-cancel" type="button" data-i18n="filters.close">닫기</button>
