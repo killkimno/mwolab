@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MWO Mechlab</title>
-    <link rel="stylesheet" href="styles.css?v=20260723-4">
+    <link rel="stylesheet" href="styles.css?v=20260728-2">
   </head>
   <body>
     <div id="app">
@@ -20,6 +20,7 @@
         <button class="tab-button" type="button" data-main-tab="compare" aria-controls="tab-compare" data-i18n="tabs.compare">비교하기</button>
         <button class="tab-button" type="button" data-main-tab="stats" aria-controls="tab-stats" data-i18n="tabs.stats">통계</button>
         <a id="donate-link" class="donate-link" href="https://ko-fi.com/killkimno" target="_blank" rel="noopener noreferrer" aria-label="후원 방법 열기" data-i18n="donate.label" data-i18n-aria-label="donate.aria" aria-haspopup="dialog" aria-controls="donate-overlay">후원하기</a>
+        <button id="help-link" class="help-link" type="button" aria-label="도움말 열기" data-i18n-aria-label="help.aria" aria-haspopup="dialog" aria-controls="help-overlay">?</button>
         <div class="language-switch" aria-label="언어 선택" data-i18n-aria-label="language.switcher">
           <a href="?lang=kr" data-lang-link="kr" data-i18n="language.kr">한국어</a>
           <a href="?lang=en" data-lang-link="en" data-i18n="language.en">English</a>
@@ -294,6 +295,57 @@
       </section>
     </div>
 
+    <div id="help-overlay" class="donate-overlay help-overlay" hidden>
+      <section class="donate-dialog help-dialog" role="dialog" aria-modal="true" aria-label="도움말" data-i18n-aria-label="help.dialogAria">
+        <button id="close-help" class="donate-dialog-close" type="button" aria-label="닫기" data-i18n-aria-label="help.close">×</button>
+
+        <section class="help-section">
+          <h3 data-i18n="help.tipsTitle">간략한 팁</h3>
+          <h4 data-i18n="help.mechlabTitle">멕랩</h4>
+          <ul>
+            <li data-i18n="help.tipAssign">장비 리스트에서 슬롯을 더블 클릭하면 자동 할당합니다.</li>
+            <li data-i18n="help.tipRemove">장착한 장비를 더블 클릭하면 해제합니다.</li>
+          </ul>
+        </section>
+
+        <section class="help-section">
+          <h3 data-i18n="help.termsTitle">용어 설명</h3>
+          <dl class="help-terms">
+            <div>
+              <dt>DPS</dt>
+              <span class="help-term-separator" aria-hidden="true">-</span>
+              <dd data-i18n="help.dps">Damage Per Second. 초당 피해량입니다.</dd>
+            </div>
+            <div>
+              <dt>DPH</dt>
+              <span class="help-term-separator" aria-hidden="true">-</span>
+              <dd data-i18n="help.dph">Damage Per Heat. 발열 1점당 피해량이며 피해량을 발열로 나눈 값입니다.</dd>
+            </div>
+            <div>
+              <dt>HPS</dt>
+              <span class="help-term-separator" aria-hidden="true">-</span>
+              <dd data-i18n="help.hps">Heat Per Second. 초당 발생하는 발열량입니다.</dd>
+            </div>
+            <div>
+              <dt>EXPECTED COOLDOWN</dt>
+              <span class="help-term-separator" aria-hidden="true">-</span>
+              <dd data-i18n="help.expectedCooldown">충전·연속 발사·지속 시간과 울트라 오토캐논의 잼 확률까지 반영한 예상 발사 간격입니다.</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="help-section">
+          <h3 data-i18n="help.blogTitle">블로그 주소</h3>
+          <a class="help-external-link" href="https://blog.naver.com/killkimno" target="_blank" rel="noopener noreferrer">https://blog.naver.com/killkimno</a>
+        </section>
+
+        <section class="help-section">
+          <h3 data-i18n="help.cloudflareTitle">Cloudflare 사용</h3>
+          <p data-i18n="help.cloudflareDescription">방문 통계 확인을 위해 개인정보를 식별하지 않는 Cloudflare Web Analytics를 사용합니다.</p>
+        </section>
+      </section>
+    </div>
+
     <div id="mech-filter-overlay" class="build-actions-overlay mech-filter-overlay" hidden>
       <section class="build-actions-dialog mech-filter-dialog" role="dialog" aria-modal="true" aria-labelledby="mech-filter-title">
         <header>
@@ -395,7 +447,21 @@
           </section>
           <section class="mech-filter-panel" aria-labelledby="mech-filter-quirk-list-title">
             <h3 id="mech-filter-quirk-list-title" data-i18n="filters.quirkList">쿼크 목록</h3>
+            <div class="mech-filter-quirk-toolbar">
+              <input
+                id="mech-filter-quirk-search"
+                class="mech-filter-quirk-search"
+                type="search"
+                autocomplete="off"
+                placeholder="쿼크 검색"
+                aria-label="쿼크 검색"
+                data-i18n-placeholder="filters.quirkSearch"
+                data-i18n-aria-label="filters.quirkSearch"
+              >
+              <button id="clear-mech-quirk-filters" class="mech-filter-quirk-clear" type="button" data-i18n="filters.clearQuirkSelections">선택 모두 해제</button>
+            </div>
             <div id="mech-filter-quirk-options" class="mech-filter-options mech-quirk-filter-options" role="group" aria-labelledby="mech-filter-quirk-list-title"></div>
+            <p id="mech-filter-quirk-empty" class="mech-filter-quirk-empty" role="status" hidden data-i18n="filters.noQuirkResults">일치하는 쿼크가 없습니다.</p>
           </section>
         </div>
         <button id="close-mech-filter" class="build-actions-cancel" type="button" data-i18n="filters.close">닫기</button>
@@ -629,6 +695,9 @@
     <div id="equipment-tooltip" class="equipment-tooltip" role="tooltip" hidden></div>
 
     <script src="mwo-codec.js"></script>
-    <script src="app.js?v=20260723-4"></script>
+    <script src="app.js?v=20260728-2"></script>
+    <!-- Cloudflare Web Analytics -->
+    <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
+    <!-- End Cloudflare Web Analytics -->
   </body>
 </html>

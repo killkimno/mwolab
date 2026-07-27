@@ -215,6 +215,21 @@ const TEXT = {
     "donate.qrAlt": "카카오페이 후원 QR 코드",
     "donate.kofi": "Ko-fi로 후원하기",
     "donate.close": "닫기",
+    "help.aria": "도움말 열기",
+    "help.dialogAria": "도움말",
+    "help.close": "닫기",
+    "help.tipsTitle": "간략한 팁",
+    "help.mechlabTitle": "멕랩",
+    "help.tipAssign": "장비 리스트에서 슬롯을 더블 클릭하면 자동 할당합니다.",
+    "help.tipRemove": "장착한 장비를 더블 클릭하면 해제합니다.",
+    "help.termsTitle": "용어 설명",
+    "help.dps": "Damage Per Second. 초당 피해량입니다.",
+    "help.dph": "Damage Per Heat. 발열 1점당 피해량이며 피해량을 발열로 나눈 값입니다.",
+    "help.hps": "Heat Per Second. 초당 발생하는 발열량입니다.",
+    "help.expectedCooldown": "충전·연속 발사·지속 시간과 울트라 오토캐논의 잼 확률까지 반영한 예상 발사 간격입니다.",
+    "help.blogTitle": "블로그 주소",
+    "help.cloudflareTitle": "Cloudflare 사용",
+    "help.cloudflareDescription": "방문 통계 확인을 위해 개인정보를 식별하지 않는 Cloudflare Web Analytics를 사용합니다.",
     "search.mechPlaceholder": "기종 또는 변형 검색",
     "search.itemPlaceholder": "장비 검색",
     "list.smallView": "작은 리스트 보기",
@@ -233,6 +248,9 @@ const TEXT = {
     "filters.quirksTab": "쿼크",
     "filters.quirkMatchMode": "쿼크 포함 방식",
     "filters.quirkList": "쿼크 목록",
+    "filters.quirkSearch": "쿼크 검색",
+    "filters.clearQuirkSelections": "선택 모두 해제",
+    "filters.noQuirkResults": "일치하는 쿼크가 없습니다.",
     "filters.matchAllQuirks": "모두 포함",
     "filters.matchAnyQuirk": "하나라도 포함",
     "filters.specialNotes": "특수 사항",
@@ -695,6 +713,21 @@ const TEXT = {
     "donate.qrAlt": "KakaoPay support QR code",
     "donate.kofi": "Support on Ko-fi",
     "donate.close": "Close",
+    "help.aria": "Open help",
+    "help.dialogAria": "Help",
+    "help.close": "Close",
+    "help.tipsTitle": "Quick tips",
+    "help.mechlabTitle": "MechLab",
+    "help.tipAssign": "Double-click a slot in the equipment list to assign it automatically.",
+    "help.tipRemove": "Double-click installed equipment to remove it.",
+    "help.termsTitle": "Glossary",
+    "help.dps": "Damage Per Second. The amount of damage dealt per second.",
+    "help.dph": "Damage Per Heat. Damage divided by heat generated.",
+    "help.hps": "Heat Per Second. The amount of heat generated per second.",
+    "help.expectedCooldown": "The expected firing interval including charge, burst firing, duration, and Ultra AutoCannon jam probability.",
+    "help.blogTitle": "Blog",
+    "help.cloudflareTitle": "Cloudflare usage",
+    "help.cloudflareDescription": "We use privacy-first Cloudflare Web Analytics to view visit statistics without identifying individuals.",
     "search.mechPlaceholder": "Search chassis or variant",
     "search.itemPlaceholder": "Search equipment",
     "list.smallView": "Small list view",
@@ -713,6 +746,9 @@ const TEXT = {
     "filters.quirksTab": "Quirks",
     "filters.quirkMatchMode": "Quirk matching",
     "filters.quirkList": "Quirk list",
+    "filters.quirkSearch": "Search quirks",
+    "filters.clearQuirkSelections": "Clear selection",
+    "filters.noQuirkResults": "No matching quirks.",
     "filters.matchAllQuirks": "Include all",
     "filters.matchAnyQuirk": "Include any",
     "filters.specialNotes": "Special traits",
@@ -1041,6 +1077,19 @@ function closeDonateDialog() {
   $("donate-overlay").hidden = true;
   document.body.classList.remove("donate-open");
   $("donate-link").focus();
+}
+
+function openHelpDialog() {
+  $("help-overlay").hidden = false;
+  document.body.classList.add("help-open");
+  $("close-help").focus();
+}
+
+function closeHelpDialog() {
+  if ($("help-overlay").hidden) return;
+  $("help-overlay").hidden = true;
+  document.body.classList.remove("help-open");
+  $("help-link").focus();
 }
 
 function mechNavigationUrl(mechId = "") {
@@ -1593,6 +1642,7 @@ const state = {
   mechQuirkFilterMode: "any",
   mechQuirkFilterSelections: new Set(),
   mechQuirkFilterOptions: [],
+  mechQuirkFilterSearch: "",
   mechQuirkNamesCache: new Map(),
   shakeDampingMechIds: new Set(),
   shakeDampingMechNames: new Set(),
@@ -3553,6 +3603,32 @@ function structureInfoRows(values, mech = state.selectedMech) {
       ),
     };
   });
+}
+
+function currentBuildArmorTotal(
+  values,
+  mech = state.selectedMech,
+  build = state.currentBuild,
+) {
+  const skillMultiplier = number(values.increasedarmor_multiplier);
+  return INFO_COMPONENTS.reduce((sum, component) => {
+    const frontArmor = number(build?.components?.[component.key]?.armor);
+    const frontQuirk = quirkAdd(values, "armorresist", component.suffix);
+    if (!component.rearSuffix) {
+      return sum + durabilitySkillFinalValue(
+        Math.max(0, frontArmor + frontQuirk),
+        skillMultiplier,
+      );
+    }
+
+    const rearArmor = number(build?.rearArmor?.[component.key]);
+    const rearQuirk = number(values.armorresist_all_additive)
+      + number(values[`armorresist_${component.rearSuffix}_additive`]);
+    return sum + durabilitySkillFinalValue(
+      Math.max(0, frontArmor + frontQuirk) + Math.max(0, rearArmor + rearQuirk),
+      skillMultiplier,
+    );
+  }, 0);
 }
 
 function combinedDurabilityRows(armorRows, structureRows) {
@@ -6405,16 +6481,30 @@ function renderMechQuirkFilterControls() {
   });
 
   const options = $("mech-filter-quirk-options");
+  const searchInput = $("mech-filter-quirk-search");
+  if (document.activeElement !== searchInput) {
+    searchInput.value = state.mechQuirkFilterSearch;
+  }
+  $("clear-mech-quirk-filters").disabled = state.mechQuirkFilterSelections.size === 0;
+  const search = state.mechQuirkFilterSearch.trim().toLowerCase();
+  const visibleOptions = search
+    ? state.mechQuirkFilterOptions.filter((option) => (
+      `${option.label} ${option.display_name} ${option.name} ${option.key}`
+        .toLowerCase()
+        .includes(search)
+    ))
+    : state.mechQuirkFilterOptions;
+  $("mech-filter-quirk-empty").hidden = !search || visibleOptions.length > 0;
   const renderedKeys = Array.from(
     options.querySelectorAll("[data-mech-quirk-filter]"),
     (button) => button.dataset.mechQuirkFilter,
   );
-  const availableKeys = state.mechQuirkFilterOptions.map((option) => option.key);
+  const availableKeys = visibleOptions.map((option) => option.key);
   if (
     renderedKeys.length !== availableKeys.length
     || renderedKeys.some((key, index) => key !== availableKeys[index])
   ) {
-    options.innerHTML = state.mechQuirkFilterOptions.map((option) => `
+    options.innerHTML = visibleOptions.map((option) => `
       <button
         type="button"
         data-mech-quirk-filter="${escapeHtml(option.key)}"
@@ -6920,6 +7010,7 @@ function renderMechSummary(calc = null) {
   const speed = calc.engine
     ? engineTooltipMaxSpeed(calc.engine) * quirkMultiplier(quirkValues, ["mechtopspeed_multiplier"])
     : 0;
+  const currentArmor = currentBuildArmorTotal(quirkValues, mech, state.currentBuild);
   const maxArmor = armorInfoRows(quirkValues, mech).reduce((sum, row) => sum + number(row.total), 0);
   const structure = structureInfoRows(quirkValues, mech).reduce((sum, row) => sum + number(row.total), 0);
   const jumpJets = installedMechItems("jumpjet");
@@ -6948,7 +7039,7 @@ function renderMechSummary(calc = null) {
       ["TURN SPEED", `${fmt(movement.turnSpeed)}°/s`],
       ["ACCELERATION", fmt(movement.acceleration)],
       ["DECELERATION", fmt(movement.deceleration)],
-      ["ARMOR", `${fmt(calc.armor, 0)} / ${fmt(maxArmor, 0)}`],
+      ["ARMOR", `${fmt(currentArmor, 0)} / ${fmt(maxArmor, 0)}`],
       ["STRUCTURE", fmt(structure, 0)],
       ["SENSOR", `${fmt(sensorRange, 0)}m`],
       ["JUMP JETS", `${jumpJetCount} / ${fmt(maxJumpJets, 0)} (${fmt(jumpJetHeight, 1)}m)`],
@@ -9642,28 +9733,47 @@ function componentArmorCapacity(name, componentDefinition) {
 
 function componentDurabilityQuirkValues(name, values, componentDefinition) {
   const component = INFO_COMPONENTS.find((entry) => entry.key === name);
-  if (!component) return { frontArmor: 0, rearArmor: 0, structure: 0 };
+  if (!component) {
+    return {
+      frontArmor: 0,
+      rearArmor: 0,
+      armorSkillMultiplier: 0,
+      structure: 0,
+    };
+  }
   const frontArmor = quirkAdd(values, "armorresist", component.suffix);
   const rearArmor = component.rearSuffix
     ? number(values.armorresist_all_additive) + number(values[`armorresist_${component.rearSuffix}_additive`])
     : 0;
-  const baseArmor = componentArmorCapacity(name, componentDefinition);
-  const armorBeforeSkill = baseArmor + frontArmor + rearArmor;
   const structure = quirkAdd(values, "internalresist", component.suffix);
   const structureBeforeSkill = number(componentDefinition?.hp) + structure;
-  const armorAfterSkill = durabilitySkillFinalValue(
-    armorBeforeSkill,
-    values.increasedarmor_multiplier,
-  );
   const structureAfterSkill = durabilitySkillFinalValue(
     structureBeforeSkill,
     values.increasedstructure_multiplier,
   );
   return {
-    frontArmor: frontArmor + armorAfterSkill - armorBeforeSkill,
+    frontArmor,
     rearArmor,
+    armorSkillMultiplier: number(values.increasedarmor_multiplier),
     structure: structure + structureAfterSkill - structureBeforeSkill,
   };
+}
+
+function finalArmorAllocation(
+  value,
+  quirkBonus,
+  skillMultiplier,
+  pairedValue = 0,
+  pairedQuirkBonus = 0,
+  includeSkillBonus = true,
+) {
+  const ownValue = Math.max(0, number(value) + number(quirkBonus));
+  if (!includeSkillBonus) return ownValue;
+
+  const pairedFinalValue = Math.max(0, number(pairedValue) + number(pairedQuirkBonus));
+  const armorBeforeSkill = ownValue + pairedFinalValue;
+  const armorAfterSkill = durabilitySkillFinalValue(armorBeforeSkill, skillMultiplier);
+  return ownValue + armorAfterSkill - armorBeforeSkill;
 }
 
 function renderArmorMaximum(finalMax, quirkBonus = 0, className = "component-armor-limit") {
@@ -9685,20 +9795,47 @@ function renderArmorStepper(
   quirkBonus = 0,
   finalMax = capacity,
   maxQuirkBonus = 0,
+  skillMultiplier = 0,
+  pairedQuirkBonus = 0,
+  includeSkillBonus = true,
 ) {
   const available = Math.max(0, capacity - value - pairedValue);
   const label = side === "rear" ? "REAR" : "FRONT";
-  const finalValue = value + quirkBonus;
+  const finalValue = finalArmorAllocation(
+    value,
+    quirkBonus,
+    skillMultiplier,
+    pairedValue,
+    pairedQuirkBonus,
+    includeSkillBonus,
+  );
   const valueTone = value <= 0
-    ? (quirkBonus !== 0 ? "quirk-only" : "empty")
-    : (quirkBonus !== 0 ? "quirk-applied" : "allocated");
-  const inputMin = Math.max(0, quirkBonus);
-  const inputMax = Math.max(inputMin, capacity - pairedValue + quirkBonus);
+    ? (finalValue !== 0 ? "quirk-only" : "empty")
+    : (finalValue !== value ? "quirk-applied" : "allocated");
+  const inputMin = finalArmorAllocation(
+    0,
+    quirkBonus,
+    skillMultiplier,
+    pairedValue,
+    pairedQuirkBonus,
+    includeSkillBonus,
+  );
+  const inputMax = Math.max(
+    inputMin,
+    finalArmorAllocation(
+      capacity - pairedValue,
+      quirkBonus,
+      skillMultiplier,
+      pairedValue,
+      pairedQuirkBonus,
+      includeSkillBonus,
+    ),
+  );
   return `
     <div class="component-armor-row">
       <div class="component-armor-allocation">
         <span class="component-armor-side">${showLabel ? label : ""}</span>
-        <input class="component-armor-value ${valueTone}" type="number" inputmode="numeric" step="1" min="${inputMin}" max="${inputMax}" value="${finalValue}" data-armor-input data-armor-component="${name}" data-armor-side="${side}" data-armor-quirk="${quirkBonus}" aria-label="${MECHLAB_COMPONENT_NAMES[name] || name} ${side} armor value">
+        <input class="component-armor-value ${valueTone}" type="number" inputmode="numeric" step="1" min="${inputMin}" max="${inputMax}" value="${finalValue}" data-armor-input data-armor-component="${name}" data-armor-side="${side}" data-armor-quirk="${quirkBonus}" data-armor-paired-quirk="${pairedQuirkBonus}" data-armor-skill-multiplier="${skillMultiplier}" data-armor-include-skill="${includeSkillBonus}" aria-label="${MECHLAB_COMPONENT_NAMES[name] || name} ${side} armor value">
         <div class="component-armor-stepper" aria-label="${MECHLAB_COMPONENT_NAMES[name] || name} ${side} armor">
           <button type="button" data-armor-component="${name}" data-armor-side="${side}" data-armor-delta="1" ${available <= 0 ? "disabled" : ""} aria-label="Increase ${side} armor">+</button>
           <button type="button" data-armor-component="${name}" data-armor-side="${side}" data-armor-delta="-1" ${value <= 0 ? "disabled" : ""} aria-label="Decrease ${side} armor">-</button>
@@ -9724,13 +9861,55 @@ function renderComponent(name, calc, quirkValues, ghostHeatGroups = new Set()) {
   const rearArmor = Math.max(0, number(state.currentBuild.rearArmor?.[name]));
   const torso = Object.hasOwn(TORSO_REAR_COMPONENTS, name);
   const durabilityQuirks = componentDurabilityQuirkValues(name, quirkValues, compDef);
-  const totalArmorQuirk = durabilityQuirks.frontArmor + durabilityQuirks.rearArmor;
-  const finalArmorMax = armorCapacity + totalArmorQuirk;
+  const finalArmorMax = durabilitySkillFinalValue(
+    armorCapacity + durabilityQuirks.frontArmor + durabilityQuirks.rearArmor,
+    durabilityQuirks.armorSkillMultiplier,
+  );
+  const totalArmorQuirk = finalArmorMax - armorCapacity;
   const structure = number(compDef.hp);
   const finalStructure = structure + durabilityQuirks.structure;
   const armorControls = torso
-    ? `${renderArmorStepper(name, "front", frontArmor, armorCapacity, rearArmor, true, durabilityQuirks.frontArmor)}${renderArmorStepper(name, "rear", rearArmor, armorCapacity, frontArmor, true, durabilityQuirks.rearArmor, finalArmorMax, totalArmorQuirk)}`
-    : `${renderArmorStepper(name, "front", frontArmor, armorCapacity, 0, false, durabilityQuirks.frontArmor)}
+    ? `${renderArmorStepper(
+      name,
+      "front",
+      frontArmor,
+      armorCapacity,
+      rearArmor,
+      true,
+      durabilityQuirks.frontArmor,
+      armorCapacity,
+      0,
+      durabilityQuirks.armorSkillMultiplier,
+      durabilityQuirks.rearArmor,
+      true,
+    )}${renderArmorStepper(
+      name,
+      "rear",
+      rearArmor,
+      armorCapacity,
+      frontArmor,
+      true,
+      durabilityQuirks.rearArmor,
+      finalArmorMax,
+      totalArmorQuirk,
+      durabilityQuirks.armorSkillMultiplier,
+      durabilityQuirks.frontArmor,
+      false,
+    )}`
+    : `${renderArmorStepper(
+      name,
+      "front",
+      frontArmor,
+      armorCapacity,
+      0,
+      false,
+      durabilityQuirks.frontArmor,
+      armorCapacity,
+      0,
+      durabilityQuirks.armorSkillMultiplier,
+      0,
+      true,
+    )}
       <div class="component-armor-max-row"><span></span><div><span>MAX</span>${renderArmorMaximum(finalArmorMax, totalArmorQuirk, "component-armor-max-value")}</div></div>`;
   const hardpointCapacity = hardpointCountsFromHardpoints(compDef.hardpoints || []);
   const remainingHardpoints = Object.fromEntries(Object.entries(hardpointCapacity).map(([type, capacity]) => [
@@ -10504,6 +10683,12 @@ function toggleMechQuirkFilter(quirk) {
   } else {
     state.mechQuirkFilterSelections.add(quirk);
   }
+  renderMechList();
+}
+
+function clearMechQuirkFilters() {
+  if (state.mechQuirkFilterSelections.size === 0) return;
+  state.mechQuirkFilterSelections.clear();
   renderMechList();
 }
 
@@ -12108,10 +12293,30 @@ function setArmorAllocation(input) {
     : number(state.currentBuild.rearArmor[component]);
   const max = Math.max(0, capacity - pairedValue);
   const quirkBonus = number(Number(input.dataset.armorQuirk));
+  const pairedQuirkBonus = number(Number(input.dataset.armorPairedQuirk));
+  const skillMultiplier = number(Number(input.dataset.armorSkillMultiplier));
+  const includeSkillBonus = input.dataset.armorIncludeSkill !== "false";
   const requestedFinalValue = Number(input.value);
-  const requestedBaseValue = Number.isFinite(requestedFinalValue)
-    ? Math.round(requestedFinalValue - quirkBonus)
-    : 0;
+  let requestedBaseValue = 0;
+  if (Number.isFinite(requestedFinalValue)) {
+    let closestDifference = Infinity;
+    for (let candidate = 0; candidate <= max; candidate += 1) {
+      const difference = Math.abs(
+        finalArmorAllocation(
+          candidate,
+          quirkBonus,
+          skillMultiplier,
+          pairedValue,
+          pairedQuirkBonus,
+          includeSkillBonus,
+        ) - requestedFinalValue,
+      );
+      if (difference < closestDifference) {
+        requestedBaseValue = candidate;
+        closestDifference = difference;
+      }
+    }
+  }
   const value = Math.min(max, Math.max(0, requestedBaseValue));
 
   if (side === "rear") state.currentBuild.rearArmor[component] = value;
@@ -12282,6 +12487,11 @@ function bindEvents() {
   $("donate-overlay").addEventListener("mousedown", (event) => {
     if (event.target === $("donate-overlay")) closeDonateDialog();
   });
+  $("help-link").addEventListener("click", openHelpDialog);
+  $("close-help").addEventListener("click", closeHelpDialog);
+  $("help-overlay").addEventListener("mousedown", (event) => {
+    if (event.target === $("help-overlay")) closeHelpDialog();
+  });
   $("close-loadout-code").addEventListener("click", closeLoadoutCodeDialog);
   $("apply-loadout-code").addEventListener("click", applyImportedMwoCode);
   $("copy-loadout-code").addEventListener("click", copyExportedMwoCode);
@@ -12402,6 +12612,13 @@ function bindEvents() {
     renderSimulationGroupStatus();
   });
   document.addEventListener("keydown", (event) => {
+    if (!$("help-overlay").hidden) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeHelpDialog();
+      }
+      return;
+    }
     if (!$("donate-overlay").hidden) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -12543,6 +12760,11 @@ function bindEvents() {
   });
   $("close-mech-filter-x").addEventListener("click", closeMechFilterDialog);
   $("close-mech-filter").addEventListener("click", closeMechFilterDialog);
+  $("mech-filter-quirk-search").addEventListener("input", (event) => {
+    state.mechQuirkFilterSearch = event.currentTarget.value;
+    renderMechQuirkFilterControls();
+  });
+  $("clear-mech-quirk-filters").addEventListener("click", clearMechQuirkFilters);
   $("mech-filter-overlay").addEventListener("click", (event) => {
     const tab = event.target.closest("[data-mech-filter-tab]");
     if (tab) {
