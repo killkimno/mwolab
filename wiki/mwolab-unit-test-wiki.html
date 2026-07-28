@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MwoLab 유닛 테스트 위키</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #fff;
+      --panel: #f6f7f8;
+      --line: #d9dde2;
+      --text: #202428;
+      --muted: #66707a;
+      --link: #245ea8;
+      --code: #eef1f4;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+    a { color: var(--link); }
+    code {
+      padding: 0.08rem 0.28rem;
+      border-radius: 3px;
+      background: var(--code);
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.92em;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 230px minmax(0, 900px);
+      gap: 48px;
+      max-width: 1230px;
+      margin: 0 auto;
+      padding: 48px 28px 80px;
+    }
+    nav {
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+    }
+    nav strong { display: block; margin-bottom: 12px; font-size: 14px; }
+    nav a {
+      display: block;
+      padding: 3px 0;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+    }
+    nav a:hover { color: var(--text); }
+    main { min-width: 0; }
+    header { padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+    h1, h2, h3 { line-height: 1.35; }
+    h1 { margin: 0 0 8px; font-size: 32px; }
+    h2 { margin: 52px 0 16px; font-size: 23px; }
+    h3 { margin: 28px 0 8px; font-size: 17px; }
+    p { margin: 8px 0 14px; }
+    ul, ol { margin: 8px 0 18px; padding-left: 23px; }
+    li + li { margin-top: 5px; }
+    .meta { color: var(--muted); }
+    .notice, .flow {
+      margin: 16px 0 22px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .flow {
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    table {
+      width: 100%;
+      margin: 14px 0 22px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--panel); }
+    .test-list strong { display: inline; }
+    footer {
+      margin-top: 64px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (max-width: 820px) {
+      .layout { display: block; padding: 24px 18px 56px; }
+      nav { position: static; max-height: none; margin-bottom: 36px; }
+      nav a { display: inline-block; margin-right: 12px; }
+      h1 { font-size: 27px; }
+      h2 { margin-top: 42px; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav aria-label="문서 목차">
+      <strong>MwoLab 유닛 테스트</strong>
+      <a href="mwolab-implementation-wiki.html">구현 위키로 돌아가기</a>
+      <a href="#purpose">목적과 적용 시점</a>
+      <a href="#commands">실행 명령</a>
+      <a href="#structure">테스트 구조</a>
+      <a href="#coverage">검증 범위</a>
+      <a href="#cases">개별 테스트 항목</a>
+      <a href="#maintenance">유지 규칙</a>
+    </nav>
+
+    <main>
+      <header>
+        <h1>MwoLab 유닛 테스트 위키</h1>
+        <p class="meta">기준일 2026-07-28 · <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>의 테스트 전용 문서</p>
+        <p><code>tests/mechlab-formulas.test.js</code>와 <code>tests/quirk-calculations.test.js</code>가 검증하는 멕랩 계산식, 실행법과 유지 규칙을 정리한다.</p>
+        <div class="notice">브라우저 화면이나 로컬 미리보기 서버를 사용하지 않고 Node 내장 테스트 러너에서 <code>public/app.js</code>와 <code>public/quirk-calculations.js</code>의 실제 계산 함수를 직접 호출한다. 화면용 복제 공식은 만들지 않는다.</div>
+      </header>
+
+      <section id="purpose">
+        <h2>목적과 적용 시점</h2>
+        <ul>
+          <li>공식 수정 전 기존 기대값을 확인하고 수정 후 관련 없는 계산이 바뀌지 않았는지 검사한다.</li>
+          <li>장갑, 구조, 톤수, 슬롯, 무기, 탄약, 쿼크, 기동, 센서, 점프젯, 발열, 시뮬레이션 결과에 영향을 주는 작업에서 전체 테스트를 실행한다.</li>
+          <li>게임 데이터 추출 규칙이나 원본 필드 해석이 계산 결과에 영향을 주는 경우에도 실행한다.</li>
+          <li>현재는 로컬 수동 검증용이며 커밋·푸시 때 자동 실행되는 CI에는 연결되어 있지 않다.</li>
+        </ul>
+      </section>
+
+      <section id="commands">
+        <h2>실행 명령</h2>
+        <table>
+          <thead><tr><th>명령</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>npm test</code></td><td>저장소 전체 테스트 실행</td></tr>
+            <tr><td><code>npm run test:formulas</code></td><td>멕랩 공식 테스트만 실행</td></tr>
+            <tr><td><code>npm run test:quirks</code></td><td>쿼크 이름·수치 공용 계산 테스트만 실행</td></tr>
+            <tr><td><code>node --test tests/mechlab-formulas.test.js</code></td><td>npm을 거치지 않고 Node 테스트 러너로 직접 실행</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="structure">
+        <h2>테스트 구조</h2>
+        <div class="flow">Node test runner → <code>quirk-calculations.js</code> 직접 테스트 + VM 샌드박스에서 <code>app.js</code> 통합 테스트 → 예상값 비교</div>
+        <ul>
+          <li><code>public/quirk-calculations.js</code>는 브라우저 전역과 Node <code>module.exports</code> 양쪽에서 같은 공용 API를 제공한다.</li>
+          <li>테스트 모드에서는 앱 초기화와 JSON 로딩을 생략하고 공식 테스트 API만 노출한다.</li>
+          <li>VM은 DOM, 저장소, 위치 정보의 최소 스텁만 제공하며 네트워크 요청을 허용하지 않는다.</li>
+          <li>테스트 API는 테스트 전용 진입점이며 앱 화면이나 배포 기능의 공개 API가 아니다.</li>
+          <li><code>calculateBuild()</code> 집계 테스트로 개별 공식과 최종 피팅 요약이 같은 기준을 쓰는지 확인한다.</li>
+        </ul>
+      </section>
+
+      <section id="coverage">
+        <h2>검증 범위</h2>
+        <table>
+          <thead><tr><th>분류</th><th>검증 내용</th></tr></thead>
+          <tbody>
+            <tr><td>기본 피팅</td><td>구조·장갑 톤수, 0.5톤 올림, 컴팩트 자이로, 엔진 히트싱크, 사이드 슬롯, 업그레이드 슬롯, 빌드 집계</td></tr>
+            <tr><td>쿼크 공용 계산</td><td>이름 정규화, 동일 이름 +수치 합산, 출처·기여도, 표시 문자열, additive, multiplier, 감소·증가·부호 보존, 유해 수치, 내구 스킬</td></tr>
+            <tr><td>내구도</td><td>최대 장갑, 전후면·구조 쿼크, Survival 스킬 내림, 현재 장갑과 컴포넌트 기여도</td></tr>
+            <tr><td>무기</td><td>펠릿·순차 발사, 모듈 추가 피해·발열, 스플래시, 쿨다운, 듀레이션, ROF, AMS, UAC 재밍</td></tr>
+            <tr><td>탄약·사거리</td><td>활성 탄종, Artemis, 탄약 소모·용량, 선형·step·지수 감쇠, ATM 거리별 피해</td></tr>
+            <tr><td>기동·보조</td><td>속도·후진·가감속·선회·몸통, 센서, 타깃 컴퓨터, 점프젯 최종 높이</td></tr>
+            <tr><td>발열·요약</td><td>히트싱크, 고스트 히트, HSL, DPS, DPH, HPS, 알파 발열, 열효율, 회복시간</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="cases">
+        <h2>개별 테스트 항목</h2>
+        <p>50개 실제 검증 사례와 일곱 개 상위 그룹 노드로 구성되어 현재 총 57개 테스트 노드가 통과한다.</p>
+
+        <h3>기본 숫자와 장비</h3>
+        <ol class="test-list">
+          <li><strong>유효하지 않은 숫자의 기본값</strong> — <code>NaN</code>이나 문자열을 안전한 기본값으로 대체한다.</li>
+          <li><strong>탄환형 발사 수·펠릿 수</strong> — <code>damage × numFiring × numPerShot</code> 직접 피해를 확인한다.</li>
+          <li><strong>비탄환형 펠릿 중복 방지</strong> — 미사일 등에 <code>numPerShot</code>을 중복 적용하지 않는다.</li>
+          <li><strong>항상 적용되는 무기 모듈</strong> — 호환 모듈의 additive 피해·발열을 허용 수량만큼 더한다.</li>
+          <li><strong>스플래시와 모듈 피해</strong> — 기본 양쪽 스플래시와 모듈 총 스플래시를 구분한다.</li>
+          <li><strong>구조·장갑 톤수</strong> — 구조 0.5톤 올림, 장갑 환산, 컴팩트 자이로 중량을 확인한다.</li>
+          <li><strong>엔진 히트싱크·사이드 슬롯</strong> — 포함 10개 제한, 추가 용량과 음수 슬롯 경계를 확인한다.</li>
+        </ol>
+
+        <h3>탄약·Artemis·하드포인트</h3>
+        <ol class="test-list">
+          <li><strong>활성 탄종</strong> — Artemis 장착과 <code>alwaysHasArtemis</code>에 맞는 탄종을 선택한다.</li>
+          <li><strong>발사당 탄약 소모</strong> — <code>ammoPerShot</code>과 순차 발사 수를 비교하고 LB-X 펠릿 중복을 막는다.</li>
+          <li><strong>탄약 용량 쿼크</strong> — 정규화한 탄종과 bin 톤수로 최종 발수를 계산한다.</li>
+          <li><strong>하드포인트 용량</strong> — <code>weapon_slots</code>를 합산하고 누락 시에만 1을 쓴다.</li>
+          <li><strong>업그레이드 슬롯 배치</strong> — 남은 슬롯에 순서대로 배치하고 부족분을 미할당 처리한다.</li>
+        </ol>
+
+        <h3>내구도</h3>
+        <ol class="test-list">
+          <li><strong>내구 스킬 내림</strong> — 장갑·구조 스킬 적용 합계를 게임 규칙대로 내림한다.</li>
+          <li><strong>컴포넌트 최대 장갑</strong> — 머리는 18, 나머지는 구조 HP의 두 배를 사용한다.</li>
+          <li><strong>장갑·후면·구조 합산</strong> — 전체·부위별 쿼크 후 스킬을 적용한다.</li>
+          <li><strong>현재 장갑 전후면 스킬</strong> — 실제 배분값과 쿼크를 합친 뒤 스킬 내림을 한 번 적용한다.</li>
+          <li><strong>컴포넌트 내구 기여도</strong> — 구조 additive와 스킬 증가분을 모두 포함한다.</li>
+        </ol>
+
+        <h3>기동·센서·점프젯</h3>
+        <ol class="test-list">
+          <li><strong>엔진/톤수와 기동 쿼크</strong> — 속도, 후진, 가감속, 선회, 몸통 수치를 계산한다.</li>
+          <li><strong>점프젯 최종 높이</strong> — 수직 추력과 쿼크 적용 burn-time·initial-thrust를 반영한다.</li>
+          <li><strong>센서 쿼크·장비</strong> — 기본 센서에 쿼크 후 장비 보너스를 곱한다.</li>
+          <li><strong>타깃 컴퓨터 필터</strong> — 호환 무기에만 사거리·탄속·치명타 보너스를 누적한다.</li>
+        </ol>
+
+        <h3>무기 쿼크·연사·사거리</h3>
+        <ol class="test-list">
+          <li><strong>감소·증가·부호 보존</strong> — 쿼크 성격에 맞는 값 방향을 사용한다.</li>
+          <li><strong>쿨다운·듀레이션 합산</strong> — 전체·계열·무기별 쿼크를 합산한다.</li>
+          <li><strong>ROF 무기</strong> — ROF 보너스로 발사 주기와 초당 피해를 갱신한다.</li>
+          <li><strong>volley 발사 이벤트</strong> — 이벤트 수와 이벤트 사이 시간을 계산한다.</li>
+          <li><strong>기대 쿨다운</strong> — 충전·순차 발사·듀레이션·쿨다운을 모두 더한다.</li>
+          <li><strong>발열·사거리 보너스</strong> — 전체·계열·무기별 값을 올바른 방향으로 합산한다.</li>
+          <li><strong>유해한 spread 양수</strong> — 양수 multiplier를 제거하지 않고 산포 증가로 적용한다.</li>
+          <li><strong>사거리 프로필 확장</strong> — 최소사거리는 고정하고 이후 구간만 늘린다.</li>
+          <li><strong>선형·step·지수 감쇠</strong> — 보간 방식과 유효 범위 밖 0 피해를 확인한다.</li>
+          <li><strong>ATM 거리대</strong> — 근·중·원거리 1.25/1/0.8 배율과 경계를 확인한다.</li>
+          <li><strong>UAC 재밍</strong> — 확률·지속시간 감소를 독립 적용하고 확률 범위를 제한한다.</li>
+          <li><strong>AMS additive·ROF 총 피해율</strong> — AMS 추가 피해와 스플래시 포함 초당 피해를 확인한다.</li>
+          <li><strong>시뮬레이션 피해 래퍼</strong> — 거리, 발사 수, 스플래시 옵션을 단발·초당 피해에 반영한다.</li>
+          <li><strong>툴팁 사거리</strong> — 원본 구간의 최소·최적·최대 경계를 찾는다.</li>
+        </ol>
+
+        <h3>히트싱크·고스트 히트·요약</h3>
+        <ol class="test-list">
+          <li><strong>엔진·외부 히트싱크</strong> — 첫 10개와 이후 장비의 열용량·냉각 공식을 구분한다.</li>
+          <li><strong>고스트 히트 활성화</strong> — HSL 전 0과 활성화 후 원래 단계부터의 누적을 확인한다.</li>
+          <li><strong>HSL 쿼크</strong> — 전체·계열·무기별 additive를 합산한다.</li>
+          <li><strong>DPS·DPH·HPS와 열 지표</strong> — 사이클, <code>damage / heat</code>, 효율과 회복시간을 계산한다.</li>
+          <li><strong>무발열·충분한 냉각</strong> — DPH 없음과 열효율 100% 경계를 확인한다.</li>
+        </ol>
+
+        <h3>빌드 집계</h3>
+        <ol class="test-list">
+          <li><strong>개별 공식과 최종 빌드 일치</strong> — <code>calculateBuild()</code>의 톤수·화력·발열·장갑·히트싱크·슬롯 집계를 확인한다.</li>
+        </ol>
+
+        <h3>쿼크 이름과 +수치 공용 계산</h3>
+        <ol class="test-list">
+          <li><strong>쿼크 이름 정규화</strong> — 앞뒤 공백과 대소문자를 제거해 같은 이름으로 비교한다.</li>
+          <li><strong>동일 이름 수치 합산</strong> — 대소문자가 다른 동일 쿼크의 값을 하나의 +수치로 합친다.</li>
+          <li><strong>출처·기여도 collector</strong> — 값, Variant·옵니포드 같은 출처와 개별 기여도를 함께 보존한다.</li>
+          <li><strong>수치 표시 문자열</strong> — multiplier를 퍼센트로, additive를 부호 있는 값으로 변환한다.</li>
+          <li><strong>전체·부위 additive</strong> — 전체 additive와 지정 부위 additive를 합산한다.</li>
+          <li><strong>여러 multiplier</strong> — 지정한 multiplier 합계를 기본 배율 1에 더한다.</li>
+          <li><strong>감소·증가·부호 보존</strong> — 쿼크 성격에 맞는 수치 방향과 동일 이름 합산을 적용한다.</li>
+          <li><strong>유해 duration·spread</strong> — 양수 악영향과 NARC duration 예외를 구분한다.</li>
+          <li><strong>내구 스킬 내림</strong> — 쿼크 적용 합계에 내구 스킬 배율을 적용하고 내림한다.</li>
+        </ol>
+      </section>
+
+      <section id="maintenance">
+        <h2>공식 변경 시 유지 규칙</h2>
+        <ol>
+          <li>변경 전에 기존 테스트와 현재 게임 데이터·구현을 확인한다.</li>
+          <li>정상값, 경계값, 0 또는 누락값 사례를 같은 작업에서 추가·수정한다.</li>
+          <li>전체 테스트, JavaScript 구문 검사, <code>git diff --check</code>를 실행한다.</li>
+          <li>실패가 구현 오류인지 의도된 변경인지 판별하고 근거 없이 예상값만 바꾸지 않는다.</li>
+          <li>새 계산 함수는 실제 앱 함수를 테스트 진입점에 노출하며 UI에 복제 공식을 만들지 않는다.</li>
+        </ol>
+      </section>
+
+      <footer>
+        마지막 문서 갱신: 2026-07-28 · 상위 문서: <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

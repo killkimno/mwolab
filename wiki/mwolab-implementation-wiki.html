@@ -181,6 +181,7 @@
       <a href="#state">상태와 캐시</a>
       <a href="#etc">ETC</a>
       <a href="#files">주요 파일</a>
+      <a href="mwolab-unit-test-wiki.html">유닛 테스트 위키 ↗</a>
       <a href="#verification">변경 검증</a>
       <a href="#history">구현 이력</a>
     </nav>
@@ -188,7 +189,7 @@
     <main>
       <header>
         <h1>MwoLab 구현 위키</h1>
-        <p class="meta">기준일 2026-07-24 · 현재 저장소 구현 기준</p>
+        <p class="meta">기준일 2026-07-28 · 현재 저장소 구현 기준</p>
         <p>이 문서는 MwoLab의 현재 구조, 계산 기준, UI 동작과 수정 시 주의사항을 한곳에 모은 내부 구현 가이드다.</p>
         <div class="notice" id="policy">
           <strong>문서 운용 원칙</strong><br>
@@ -433,6 +434,7 @@
 
       <section id="quirks">
         <h2>쿼크 규칙</h2>
+        <p>쿼크 이름 정규화와 <code>+수치</code> 합산, multiplier/additive, 감소·증가·부호 보존, 유해 수치 판정 같은 공용 계산은 <code>public/quirk-calculations.js</code>에 둔다. <code>app.js</code>의 화면·피팅·시뮬레이션은 이 모듈을 공유하며 같은 공식을 다시 구현하지 않는다.</p>
         <ul>
           <li>쿼크 이름과 무기 검색 키는 대소문자를 구분하지 않도록 정규화한다.</li>
           <li>요약 값은 일반 쿼크 + 무기 계열 쿼크 + 가장 잘 맞는 무기 전용 쿼크를 합친다.</li>
@@ -675,6 +677,11 @@
             <tr><td><code>public/styles.css</code></td><td>전체 UI, 반응형 레이아웃, 멕랩·표·시뮬레이션 표현</td></tr>
             <tr><td><code>public/app.js</code></td><td>번역, 상태, 계산, 필터, 렌더링, 이벤트, 로컬 저장, 시뮬레이션</td></tr>
             <tr><td><code>public/mwo-codec.js</code></td><td>MWO 로드아웃 문자열 encode/decode</td></tr>
+            <tr><td><code>public/quirk-calculations.js</code></td><td>쿼크 이름 정규화, 동일 이름 수치 합산, additive·multiplier·감소·증가·부호 보존 공용 계산</td></tr>
+            <tr><td><code>tests/mechlab-formulas.test.js</code></td><td>멕랩 공식의 Node 내장 테스트 러너 기반 단위·회귀 테스트</td></tr>
+            <tr><td><code>tests/quirk-calculations.test.js</code></td><td>분리된 쿼크 이름·수치 공용 계산의 전용 단위 테스트</td></tr>
+            <tr><td><code>package.json</code></td><td><code>npm test</code>와 공식 테스트 전용 실행 명령</td></tr>
+            <tr><td><code>wiki/mwolab-unit-test-wiki.html</code></td><td>멕랩 공식 테스트의 실행법, 구조, 검증 범위와 개별 사례를 분리한 전용 위키</td></tr>
             <tr><td><code>public/data/index.json</code></td><td>생성 데이터 개수와 파일 위치</td></tr>
             <tr><td><code>public/data/mechs.json</code></td><td>멕 정의, 기동성, 내구도, 하드포인트, 쿼크</td></tr>
             <tr><td><code>public/data/equipment.json</code></td><td>무기·탄약·엔진·모듈과 세부 통계</td></tr>
@@ -698,6 +705,7 @@
           <li><code>git diff --check</code>로 공백·패치 오류 검사.</li>
           <li>생성 JSON이 바뀐 경우 변경 파일 범위와 예상 밖 데이터 변경 확인.</li>
           <li>정보·비교·통계·멕랩이 동일한 계산 기준을 쓰는지 확인.</li>
+          <li>멕랩 계산식 관련 작업은 <a href="mwolab-unit-test-wiki.html#maintenance">유닛 테스트 위키</a>의 실행·유지 규칙을 따른다.</li>
           <li>선택만 바뀌는 작업에서 전체 목록을 불필요하게 다시 만들지 않는지 확인.</li>
           <li>기존 사용자의 관련 없는 변경은 유지하고 필요한 부분만 좁게 수정.</li>
         </ul>
@@ -734,7 +742,7 @@
             <tr><td>2026-07-24</td><td>NULL 옵니포드 동명 자동 할당, 사용자 확정 숫자·일반형 몸통·공유 몸통 기록, 이름 축약 상속, 비일반형 예상 후보와 두 미확정 보고 구역을 포함하는 고정 해석 순서 추가. 전체 JSON을 갱신해 362개 센터 옵니포드를 보완하고 미확정·누락 썸네일을 0건으로 해소. 차체 고정 무기와 옵니포드 고정 무기의 하드포인트 점유 구분 및 중복 내부 장비 보존. 구현 위키를 공통 규칙·정의·다섯 탭별 가이드·멕랩 룰·JSON 파서 법·ETC로 세분화하고 코드·게임 데이터 우선 참조 및 구현·수정 작업 후 필요 판단 시 별도 요청 없이 즉시 갱신하는 원칙을 추가</td></tr>
             <tr><td>2026-07-26</td><td>게임 원본에서 일곱 스킬 카테고리와 239개 노드를 추출하는 <code>skills.json</code> 파서, 카테고리별 전체 노드 적용 UI, 요구조건·중첩 범위 해석과 멕랩 계산 합산을 추가. FirePower를 쿨다운·레인지·힛 젠·벨로시티·그 외로, Operations를 히트싱크 강화·그 외로 세분화하고 지정된 여섯 그룹을 한 번에 선택하는 추천 스킬 적용 버튼을 추가. UI 설정에 왼쪽 패널 전용 탄약 쿼크 표시 간소화 ON/OFF를 추가</td></tr>
             <tr><td>2026-07-27</td><td>멕 필터의 쿼크 탭에 표시명과 원본 쿼크 이름을 대소문자 구분 없이 찾는 목록 검색을 추가하고, 검색 중에도 기존 쿼크 선택 상태를 유지하도록 분리</td></tr>
-            <tr><td>2026-07-28</td><td>Survival 아머 보너스를 컴포넌트 최대치에서 만든 고정 보너스가 아니라 전면·후면의 실제 아머 배분값과 해당 쿼크에 적용하도록 수정하고, 왼쪽 피팅 정보의 현재 아머도 같은 최종 표시값 합계로 통일해 스킬 적용 중 현재·최소·최대 아머를 모두 올바르게 표시. 상단 후원하기 옆에 멕랩 팁·용어·블로그·Cloudflare 방문 통계 안내를 제공하는 도움말 팝업 추가</td></tr>
+            <tr><td>2026-07-28</td><td>Survival 아머 보너스를 컴포넌트 최대치에서 만든 고정 보너스가 아니라 전면·후면의 실제 아머 배분값과 해당 쿼크에 적용하도록 수정하고, 왼쪽 피팅 정보의 현재 아머도 같은 최종 표시값 합계로 통일해 스킬 적용 중 현재·최소·최대 아머를 모두 올바르게 표시. 상단 후원하기 옆에 멕랩 팁·용어·블로그·Cloudflare 방문 통계 안내를 제공하는 도움말 팝업 추가. 톤수·슬롯·내구·기동·센서·점프젯·무기·탄약·Artemis·쿼크·사거리·재밍·히트싱크·고스트 히트·DPS/DPH/HPS 공식을 실제 계산 함수에 연결한 Node 단위 테스트 추가. 쿼크 이름과 +수치 공용 계산을 <code>quirk-calculations.js</code>로 분리하고 전용 테스트를 추가</td></tr>
           </tbody>
         </table>
       </section>

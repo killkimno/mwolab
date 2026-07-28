@@ -1,0 +1,9 @@
+{
+  "name": "mwolab-local",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:formulas": "node --test tests/mechlab-formulas.test.js",
+    "test:quirks": "node --test tests/quirk-calculations.test.js"
+  }
+}

@@ -1,3 +1,20 @@
+const QUIRK_CALCULATIONS = globalThis.MwoLabQuirkCalculations;
+if (!QUIRK_CALCULATIONS) {
+  throw new Error("quirk-calculations.js must be loaded before app.js");
+}
+const {
+  addQuirk,
+  quirkValueText,
+  quirkValues,
+  quirkAdd,
+  quirkMultiplier,
+  durabilitySkillFinalValue,
+  isHarmfulDurationOrSpreadQuirk,
+  quirkReduction,
+  quirkIncrease,
+  quirkSignedValue,
+} = QUIRK_CALCULATIONS;
+
 const SUPPORTED_LANGUAGES = new Set(["kr", "en"]);
 const DEFAULT_LANGUAGE = "kr";
 const MECHLAB_REFERENCE_WIDTH = 1920;
@@ -1802,6 +1819,16 @@ function jumpJetFinalStats(item, quirks = []) {
   };
 }
 
+function jumpJetHeight(items, maxTons, quirks = []) {
+  if (!items.length) return 0;
+  const finalStats = items.map((item) => jumpJetFinalStats(item, quirks));
+  const verticalLift = finalStats.reduce((sum, stats) => sum + stats.verticalThrust, 0);
+  const duration = finalStats.reduce((max, stats) => Math.max(max, stats.duration), 0);
+  const initialThrust = finalStats.reduce((max, stats) => Math.max(max, stats.initialThrust), 0);
+  return (7.5 * verticalLift + duration * 0.75 * initialThrust)
+    / Math.max(1, number(maxTons, 1));
+}
+
 function normalizeLookupKey(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -2099,6 +2126,17 @@ function itemTons(item) {
   return number(item?.stats?.tons ?? item?.stats?.weight);
 }
 
+function structureUpgradeTonnage(maxTons, upgrade) {
+  const rawTons = Math.max(0, number(maxTons))
+    * Math.max(0, number(upgrade?.stats?.weightPerTon, 0.1));
+  return Math.ceil(rawTons * 2) / 2;
+}
+
+function armorTonnage(armor, upgrade) {
+  const armorPerTon = number(upgrade?.stats?.armorPerTon, 32);
+  return armorPerTon > 0 ? Math.max(0, number(armor)) / armorPerTon : 0;
+}
+
 function internalItemTonnageModifier(item) {
   const tons = itemTons(item);
   const itemKey = normalizeLookupKey(item?.name);
@@ -2113,14 +2151,6 @@ function itemHeat(item) {
 
 function engineIncludedHeatSinkCount(engine) {
   return engine ? Math.min(10, number(engine.stats?.heatsinks)) : 0;
-}
-
-function quirkValueText(name, value) {
-  const numeric = number(value, null);
-  if (numeric === null) return `${value}`;
-  if (name.endsWith("_multiplier")) return `${numeric * 100 > 0 ? "+" : ""}${(numeric * 100).toFixed(1).replace(/\\.0$/, "")}%`;
-  if (name.endsWith("_additive")) return `${numeric > 0 ? "+" : ""}${numeric}`;
-  return `${numeric > 0 ? "+" : ""}${numeric}`;
 }
 
 function isHeatSink(item) {
@@ -3261,30 +3291,6 @@ function setupMechlabAutoScale() {
   scheduleMechlabScaleUpdate();
 }
 
-function addQuirk(collector, quirk, source, details = {}) {
-  if (!quirk?.name) return;
-  const key = quirk.name;
-  if (!collector.has(key)) {
-    collector.set(key, {
-      name: quirk.name,
-      display_name: quirk.display_name || quirk.name,
-      value: 0,
-      sources: new Set(),
-      contributions: [],
-    });
-  }
-  const entry = collector.get(key);
-  entry.value += number(quirk.value);
-  if (source) entry.sources.add(source);
-  entry.contributions.push({
-    name: quirk.name,
-    display_name: quirk.display_name || quirk.name,
-    value: number(quirk.value),
-    source,
-    ...details,
-  });
-}
-
 function effectiveQuirks(mech = state.selectedMech, build = state.currentBuild) {
   const collector = new Map();
   const definition = currentDefinition(mech);
@@ -3524,11 +3530,7 @@ function mechlabEffectiveQuirks(mech = state.selectedMech, build = state.current
 }
 
 function effectiveQuirkValues(mech = state.selectedMech, build = state.currentBuild) {
-  const values = {};
-  effectiveQuirks(mech, build).forEach((quirk) => {
-    values[quirk.name.toLowerCase()] = number(quirk.value);
-  });
-  return values;
+  return quirkValues(effectiveQuirks(mech, build));
 }
 
 function mechlabQuirkValues(mech = state.selectedMech, build = state.currentBuild) {
@@ -3536,27 +3538,9 @@ function mechlabQuirkValues(mech = state.selectedMech, build = state.currentBuil
   const skillKey = Array.from(state.selectedSkillGroups).sort().join(",");
   const key = `${mech?.id || ""}:${omnipodKey}:${skillKey}`;
   if (state.mechlabQuirkValuesCache.has(key)) return state.mechlabQuirkValuesCache.get(key);
-  const values = {};
-  mechlabEffectiveQuirks(mech, build).forEach((quirk) => {
-    values[quirk.name.toLowerCase()] = number(quirk.value);
-  });
+  const values = quirkValues(mechlabEffectiveQuirks(mech, build));
   state.mechlabQuirkValuesCache.set(key, values);
   return values;
-}
-
-function quirkAdd(values, prefix, suffix) {
-  return number(values[`${prefix}_all_additive`]) + number(values[`${prefix}_${suffix}_additive`]);
-}
-
-function quirkMultiplier(values, names) {
-  return 1 + names.reduce((sum, name) => sum + number(values[name]), 0);
-}
-
-function durabilitySkillFinalValue(value, multiplier) {
-  const skillMultiplier = number(multiplier);
-  return skillMultiplier === 0
-    ? value
-    : Math.floor(value * (1 + skillMultiplier) + 1e-9);
 }
 
 function baseMaxArmor(componentName, mech = state.selectedMech) {
@@ -4041,28 +4025,6 @@ function quirkToneClass(quirk) {
   if (category === "structure") return "quirk-tone-structure";
   if (category === "ammo") return "quirk-tone-ammo";
   return "quirk-tone-other";
-}
-
-function isHarmfulDurationOrSpreadQuirk(quirk) {
-  if (!(number(quirk?.value) > 0)) return false;
-  const name = String(quirk?.name || "").toLowerCase();
-  if (name.endsWith("_spread_multiplier")) return true;
-  return name.endsWith("_duration_multiplier") && !name.includes("narc");
-}
-
-function quirkReduction(quirks, name) {
-  const quirk = quirks.find((entry) => entry.name.toLowerCase() === name);
-  return Math.max(0, -number(quirk?.value));
-}
-
-function quirkIncrease(quirks, name) {
-  const quirk = quirks.find((entry) => entry.name.toLowerCase() === name);
-  return Math.max(0, number(quirk?.value));
-}
-
-function quirkSignedValue(quirks, name) {
-  const quirk = quirks.find((entry) => entry.name.toLowerCase() === name);
-  return number(quirk?.value);
 }
 
 function weaponQuirkTargets() {
@@ -6021,15 +5983,13 @@ function calculateBuild() {
   armor += Object.values(state.currentBuild.rearArmor || {}).reduce((sum, value) => sum + number(value), 0);
   const armorUpgradeId = state.currentBuild.upgrades?.armor?.ItemID;
   const armorUpgrade = itemById(armorUpgradeId);
-  const armorPerTon = number(armorUpgrade?.stats?.armorPerTon, 32);
   const engineIncludedHeatSinks = engineIncludedHeatSinkCount(engine);
   const fixedEngineHeatSinkCount = fixedEngineHeatSinkItems(mech, state.currentBuild).length;
   const engineHeatSinkCapacity = engineAdditionalHeatSinkCapacity(engine);
   const engineUserHeatSinkSlots = Math.max(0, engineHeatSinkCapacity - fixedEngineHeatSinkCount);
   const totalHeatSinkCount = installedHeatSinkCount + engineIncludedHeatSinks;
-  const rawStructureTons = maxTons * number(structureUpgrade?.stats?.weightPerTon, 0.1);
-  const structureTons = Math.ceil(rawStructureTons * 2) / 2;
-  const totalTons = structureTons + itemTonnage + armor / armorPerTon;
+  const structureTons = structureUpgradeTonnage(maxTons, structureUpgrade);
+  const totalTons = structureTons + itemTonnage + armorTonnage(armor, armorUpgrade);
   if (maxTons && totalTons > maxTons + 0.1) {
     warnings.push(`Tonnage ${fmt(totalTons)}/${fmt(maxTons)}`);
   }
@@ -6978,6 +6938,31 @@ function setMechBrowserPreviewHover(mechId = null) {
   renderMechBrowserPreview();
 }
 
+function mechSummaryWeaponMetrics(weapons, firepower, heatSystem) {
+  const alphaHeat = weapons.reduce((sum, weapon) => sum + number(weapon.heat), 0);
+  const dps = weapons.reduce(
+    (sum, weapon) => sum + number(weapon.damage) / Math.max(0.016, number(weapon.cycle, 0.016)),
+    0,
+  );
+  const hps = weapons.reduce(
+    (sum, weapon) => sum + number(weapon.heat) / Math.max(0.016, number(weapon.cycle, 0.016)),
+    0,
+  );
+  const coolingRate = Math.max(0, number(heatSystem?.coolingRate));
+  const maxHeat = Math.max(0, number(heatSystem?.maxHeat));
+  return {
+    alphaHeat,
+    dps,
+    hps,
+    dph: alphaHeat > 0 ? number(firepower) / alphaHeat : null,
+    heatEfficiency: hps <= coolingRate + 0.0001
+      ? 100
+      : Math.max(0, Math.min(100, coolingRate / hps * 100)),
+    alphaHeatRecovery: coolingRate > 0 ? alphaHeat / coolingRate : null,
+    alphaHeatPercent: maxHeat > 0 ? alphaHeat / maxHeat * 100 : 0,
+  };
+}
+
 function renderMechSummary(calc = null) {
   const mech = state.selectedMech;
   if (!mech || !calc) {
@@ -6996,16 +6981,7 @@ function renderMechSummary(calc = null) {
     quirkIncrease(quirks, "heatdissipation_multiplier"),
     quirkIncrease(quirks, "maxheat_multiplier"),
   );
-  const alphaHeat = weapons.reduce((sum, weapon) => sum + number(weapon.heat), 0);
-  const dps = weapons.reduce((sum, weapon) => sum + number(weapon.damage) / Math.max(0.016, number(weapon.cycle, 0.016)), 0);
-  const hps = weapons.reduce((sum, weapon) => sum + number(weapon.heat) / Math.max(0.016, number(weapon.cycle, 0.016)), 0);
-  const dph = alphaHeat > 0 ? calc.alpha / alphaHeat : null;
-  const heatEfficiency = hps <= heatSystem.coolingRate + 0.0001
-    ? 100
-    : Math.max(0, Math.min(100, heatSystem.coolingRate / hps * 100));
-  const alphaHeatRecovery = heatSystem.coolingRate > 0
-    ? alphaHeat / heatSystem.coolingRate
-    : null;
+  const weaponMetrics = mechSummaryWeaponMetrics(weapons, calc.alpha, heatSystem);
   const movement = movementInfo(quirkValues, mech);
   const speed = calc.engine
     ? engineTooltipMaxSpeed(calc.engine) * quirkMultiplier(quirkValues, ["mechtopspeed_multiplier"])
@@ -7016,18 +6992,11 @@ function renderMechSummary(calc = null) {
   const jumpJets = installedMechItems("jumpjet");
   const jumpJetCount = jumpJets.length;
   const maxJumpJets = maximumJumpJets(mech, state.currentBuild);
-  const jumpJetStats = jumpJets.map((item) => jumpJetFinalStats(item, quirks));
-  const jumpJetVerticalLift = jumpJetStats.reduce((sum, stats) => sum + stats.verticalThrust, 0);
-  const jumpJetDuration = jumpJetStats.reduce((max, stats) => Math.max(max, stats.duration), 0);
-  const jumpJetInitialThrust = jumpJetStats.reduce((max, stats) => Math.max(max, stats.initialThrust), 0);
   const mechMaxTons = Math.max(1, number(currentDefinition(mech).stats?.MaxTons, 1));
-  const jumpJetHeight = jumpJetCount > 0
-    ? (7.5 * jumpJetVerticalLift + jumpJetDuration * 0.75 * jumpJetInitialThrust) / mechMaxTons
-    : 0;
+  const finalJumpJetHeight = jumpJetHeight(jumpJets, mechMaxTons, quirks);
   const sensorRange = mechSensorRange(quirks, mech, state.currentBuild);
   const tonsOver = calc.totalTons > calc.maxTons + 0.0001;
   const slotsOver = calc.currentSlotUsage > calc.totalSlotCapacity;
-  const alphaHeatPercent = heatSystem.maxHeat > 0 ? alphaHeat / heatSystem.maxHeat * 100 : 0;
 
   $("mech-summary-content").innerHTML = `
     <div class="mech-summary-limits">
@@ -7042,21 +7011,21 @@ function renderMechSummary(calc = null) {
       ["ARMOR", `${fmt(currentArmor, 0)} / ${fmt(maxArmor, 0)}`],
       ["STRUCTURE", fmt(structure, 0)],
       ["SENSOR", `${fmt(sensorRange, 0)}m`],
-      ["JUMP JETS", `${jumpJetCount} / ${fmt(maxJumpJets, 0)} (${fmt(jumpJetHeight, 1)}m)`],
+      ["JUMP JETS", `${jumpJetCount} / ${fmt(maxJumpJets, 0)} (${fmt(finalJumpJetHeight, 1)}m)`],
     ])}
     ${mechSummarySection("HEAT", [
       ["HEAT SINKS", fmt(calc.totalHeatSinkCount, 0)],
       ["HEAT CAPACITY", fmt(heatSystem.maxHeat)],
       ["DISSIPATION", `${fmt(heatSystem.coolingRate, 2)}/s`],
-      ["HEAT EFFICIENCY", `${fmt(heatEfficiency, 1)}%`],
-      ["ALPHA HEAT RECOVERY", alphaHeatRecovery === null ? "-" : `${fmt(alphaHeatRecovery, 2)}s`],
+      ["HEAT EFFICIENCY", `${fmt(weaponMetrics.heatEfficiency, 1)}%`],
+      ["ALPHA HEAT RECOVERY", weaponMetrics.alphaHeatRecovery === null ? "-" : `${fmt(weaponMetrics.alphaHeatRecovery, 2)}s`],
     ])}
     ${mechSummarySection("WEAPON", [
       ["FIREPOWER", fmt(calc.alpha, 2)],
-      ["DPS", fmt(dps, 2)],
-      ["DPH", dph === null ? "-" : fmt(dph, 2)],
-      ["HPS", fmt(hps, 2)],
-      ["ALPHA HEAT", `${fmt(alphaHeat, 2)} (${fmt(alphaHeatPercent, 1)}%)`],
+      ["DPS", fmt(weaponMetrics.dps, 2)],
+      ["DPH", weaponMetrics.dph === null ? "-" : fmt(weaponMetrics.dph, 2)],
+      ["HPS", fmt(weaponMetrics.hps, 2)],
+      ["ALPHA HEAT", `${fmt(weaponMetrics.alphaHeat, 2)} (${fmt(weaponMetrics.alphaHeatPercent, 1)}%)`],
     ])}
     ${renderMechSummaryAmmo(weapons)}
     ${renderMechSummarySkillQuirks(quirks)}
@@ -13372,4 +13341,84 @@ async function init() {
   }
 }
 
-init();
+if (globalThis.__MWOLAB_TEST__) {
+  globalThis.__MWOLAB_TEST_API__ = Object.freeze({
+    state,
+    number,
+    weaponProjectilesPerFiring,
+    weaponBaseDirectDamage,
+    weaponBonusDirectDamage,
+    weaponDirectDamage,
+    weaponSplashDamage,
+    weaponTotalDamage,
+    jumpJetFinalStats,
+    jumpJetHeight,
+    itemSlots,
+    itemTons,
+    structureUpgradeSlots,
+    armorUpgradeSlots,
+    fixedArmorUpgradeSlots,
+    allocateUpgradeSlots,
+    allocateFixedUpgradeSlots,
+    structureUpgradeTonnage,
+    armorTonnage,
+    internalItemTonnageModifier,
+    itemHeat,
+    engineIncludedHeatSinkCount,
+    engineAdditionalHeatSinkCapacity,
+    engineSideSlots,
+    activeWeaponAmmoType,
+    weaponAmmoPerTrigger,
+    ammoCapacityQuirkKey,
+    ammoCapacityQuirkBonus,
+    effectiveAmmoShots,
+    hardpointSlots,
+    hardpointCountsFromDefinition,
+    durabilitySkillFinalValue,
+    baseMaxArmor,
+    armorInfoRows,
+    structureInfoRows,
+    currentBuildArmorTotal,
+    combinedDurabilityRows,
+    componentArmorCapacity,
+    componentDurabilityQuirkValues,
+    finalArmorAllocation,
+    quirkMultiplier,
+    quirkReduction,
+    quirkIncrease,
+    quirkSignedValue,
+    movementInfo,
+    targetEquipmentSensorRangeBonus,
+    mechSensorRange,
+    weaponSpreadValues,
+    simulationSpecificQuirkTotal,
+    targetComputerWeaponModifiers,
+    simulationWeaponTiming,
+    weaponVolleySize,
+    weaponFiringEventCount,
+    weaponFiringTime,
+    weaponExpectedCooldown,
+    simulationWeaponHeat,
+    simulationWeaponRangeBonus,
+    simulationWeaponRangeProfile,
+    simulationWeaponDamageMultiplier,
+    simulationWeaponDamage,
+    simulationWeaponDamagePerSecond,
+    simulationHeatSystemFromSink,
+    ghostHeatHslBonus,
+    ghostHeatWeaponExtra,
+    ghostHeatGroupKey,
+    weaponDamagePerSecond,
+    amsDamagePerSecond,
+    weaponDamageRate,
+    weaponTotalDamageRate,
+    weaponTooltipRanges,
+    atmRangeBoundary,
+    atmTooltipDamageBands,
+    ultraAutoCannonJamStats,
+    mechSummaryWeaponMetrics,
+    calculateBuild,
+  });
+} else {
+  init();
+}
