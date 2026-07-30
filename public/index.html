@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MWO Mechlab</title>
-    <link rel="stylesheet" href="styles.css?v=20260729-1">
+  <link rel="stylesheet" href="styles.css?v=20260731-8">
   </head>
   <body>
     <div id="app">
@@ -577,18 +577,42 @@
             <label for="weapon-detail-distance" data-i18n="weaponDetail.distance">적과의 거리</label>
             <strong id="weapon-detail-distance-value">180m</strong>
           </div>
-          <input id="weapon-detail-distance" type="range" min="1" max="1000" step="1" value="180">
-          <small data-i18n="weaponDetail.distanceHint">슬라이더를 움직이면 거리별 실제 데미지가 즉시 반영됩니다.</small>
+          <input id="weapon-detail-distance" type="range" min="1" max="1000" step="1" value="180" style="--weapon-distance-percent:17.9%" data-tone="normal">
+          <div id="weapon-detail-distance-scale" class="weapon-detail-distance-scale" aria-hidden="true"></div>
+          <div class="weapon-detail-distance-options">
+            <div class="weapon-detail-distance-legend" aria-hidden="true">
+              <span class="maximum" data-i18n="weaponDetail.maxDpsRange">최대 DPS 구간</span>
+              <span class="near-maximum" data-i18n="weaponDetail.nearMaxDamage">99% 데미지</span>
+              <span class="minimum" data-i18n="weaponDetail.minDamageRange">0% 데미지</span>
+              <span class="zero" data-i18n="weaponDetail.zeroDamageRange">권외</span>
+            </div>
+            <div class="weapon-detail-option-toggles">
+              <label class="weapon-detail-option-toggle weapon-detail-ghost-toggle">
+                <input id="weapon-detail-apply-ghost-heat" type="checkbox">
+                <span data-i18n="weaponDetail.applyGhostHeat">고스트 힛 적용</span>
+                <strong id="weapon-detail-ghost-status">OFF</strong>
+              </label>
+              <label class="weapon-detail-option-toggle weapon-detail-available-only-toggle">
+                <input id="weapon-detail-available-only" type="checkbox" checked>
+                <span data-i18n="weaponDetail.availableWeaponsOnly">사거리가 가능한 무기만 반영</span>
+                <strong id="weapon-detail-available-only-status">OFF</strong>
+              </label>
+            </div>
+          </div>
         </section>
-        <div id="weapon-detail-metrics" class="weapon-detail-metrics" aria-live="polite"></div>
+        <div id="weapon-detail-metric-tabs" class="weapon-detail-metric-tabs" role="tablist" aria-label="무장 지표 보기" data-i18n-aria-label="weaponDetail.metricTabs">
+          <button id="weapon-detail-tab-basic" class="active" type="button" role="tab" aria-selected="true" aria-controls="weapon-detail-metrics" data-weapon-detail-tab="basic" data-i18n="weaponDetail.tabBasic">기본</button>
+          <button id="weapon-detail-tab-range" type="button" role="tab" aria-selected="false" aria-controls="weapon-detail-metrics" data-weapon-detail-tab="range" data-i18n="weaponDetail.tabRange">사거리 타입</button>
+        </div>
+        <div id="weapon-detail-metrics" class="weapon-detail-metrics" role="tabpanel" aria-labelledby="weapon-detail-tab-basic" aria-live="polite"></div>
         <p id="weapon-detail-empty" class="weapon-detail-empty" data-i18n="weaponDetail.allDisabled" hidden>사용할 무기를 하나 이상 켜세요.</p>
         <div class="weapon-detail-table">
           <div class="weapon-detail-list-header" aria-hidden="true">
-            <span>ON/OFF</span>
-            <span data-i18n="simulation.weapon">무기</span>
+            <span><span data-i18n="simulation.weapon">무기</span> / <span data-i18n="weaponDetail.frequency">발사 빈도</span></span>
             <span data-i18n="weaponDetail.location">장착 위치</span>
             <span><span data-i18n="weaponDetail.actualDamage">실제 데미지</span> / <span data-i18n="weaponDetail.baseDamage">기본 데미지</span></span>
             <span>DPS</span>
+            <span data-i18n="weaponDetail.effectiveCooldown">적용 쿨타임</span>
             <span data-i18n="weaponDetail.range">사거리 (최소/적정/최대)</span>
           </div>
           <div id="weapon-detail-list" class="weapon-detail-list"></div>
@@ -726,7 +750,7 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-    <script src="app.js?v=20260729-1"></script>
+  <script src="app.js?v=20260731-8"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->

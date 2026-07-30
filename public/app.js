@@ -183,13 +183,27 @@ const TEXT = {
     "weaponDetail.title": "무장 상세 정보",
     "weaponDetail.close": "무장 상세 정보 닫기",
     "weaponDetail.distance": "적과의 거리",
-    "weaponDetail.distanceHint": "슬라이더를 움직이면 거리별 실제 데미지가 즉시 반영됩니다.",
-    "weaponDetail.enabled": "사용",
+    "weaponDetail.frequency": "발사 빈도",
+    "weaponDetail.effectiveCooldown": "적용 쿨타임",
+    "weaponDetail.applyGhostHeat": "고스트 힛 적용",
+    "weaponDetail.availableWeaponsOnly": "사거리가 가능한 무기만 반영",
+    "weaponDetail.metricTabs": "무장 지표 보기",
+    "weaponDetail.tabBasic": "기본",
+    "weaponDetail.tabRange": "사거리 타입",
+    "weaponDetail.metricDamage": "데미지",
+    "weaponDetail.rangeTypeShort": "근거리",
+    "weaponDetail.rangeTypeMedium": "중거리",
+    "weaponDetail.rangeTypeLong": "장거리",
+    "weaponDetail.metricHeat": "발열",
+    "weaponDetail.maxDpsRange": "최대 DPS 구간",
+    "weaponDetail.nearMaxDamage": "99% 데미지",
+    "weaponDetail.minDamageRange": "0% 데미지",
+    "weaponDetail.zeroDamageRange": "권외",
     "weaponDetail.location": "장착 위치",
     "weaponDetail.actualDamage": "실제 데미지",
     "weaponDetail.baseDamage": "기본 데미지",
     "weaponDetail.range": "사거리 (최소/적정/최대)",
-    "weaponDetail.allDisabled": "사용할 무기를 하나 이상 켜세요.",
+    "weaponDetail.allDisabled": "발사 빈도가 1% 이상인 무기가 없습니다.",
     "simulation.open": "시뮬레이션",
     "simulation.title": "DPS 시뮬레이션",
     "simulation.hint": "버튼 또는 숫자 키 1~4를 누르고 있는 동안 해당 그룹을 발사합니다.",
@@ -692,13 +706,27 @@ const TEXT = {
     "weaponDetail.title": "Weapon Details",
     "weaponDetail.close": "Close weapon details",
     "weaponDetail.distance": "Target distance",
-    "weaponDetail.distanceHint": "Move the slider to see actual damage at that distance.",
-    "weaponDetail.enabled": "Enabled",
+    "weaponDetail.frequency": "Fire frequency",
+    "weaponDetail.effectiveCooldown": "Effective cooldown",
+    "weaponDetail.applyGhostHeat": "Apply ghost heat",
+    "weaponDetail.availableWeaponsOnly": "In-range weapons only",
+    "weaponDetail.metricTabs": "Weapon metric view",
+    "weaponDetail.tabBasic": "Basic",
+    "weaponDetail.tabRange": "Range type",
+    "weaponDetail.metricDamage": "Damage",
+    "weaponDetail.rangeTypeShort": "Short range",
+    "weaponDetail.rangeTypeMedium": "Medium range",
+    "weaponDetail.rangeTypeLong": "Long range",
+    "weaponDetail.metricHeat": "Heat",
+    "weaponDetail.maxDpsRange": "Maximum DPS range",
+    "weaponDetail.nearMaxDamage": "99% damage",
+    "weaponDetail.minDamageRange": "0% damage",
+    "weaponDetail.zeroDamageRange": "Out of range",
     "weaponDetail.location": "Location",
     "weaponDetail.actualDamage": "Actual damage",
     "weaponDetail.baseDamage": "Base damage",
     "weaponDetail.range": "Range (min/optimal/max)",
-    "weaponDetail.allDisabled": "Enable at least one weapon.",
+    "weaponDetail.allDisabled": "No weapon has a fire frequency above 0%.",
     "simulation.open": "Simulation",
     "simulation.title": "DPS Simulation",
     "simulation.hint": "Hold buttons or number keys 1-4 to fire the assigned weapon groups.",
@@ -1752,7 +1780,10 @@ const state = {
     open: false,
     distance: 180,
     weapons: [],
-    disabledWeaponKeys: new Set(),
+    frequencyByWeaponKey: new Map(),
+    applyGhostHeat: false,
+    availableWeaponsOnly: true,
+    metricTab: "basic",
   },
 };
 
@@ -7303,12 +7334,12 @@ function simulationWeaponDamageMultiplier(weapon, distance = state.simulation.ta
     if (targetDistance < atmRangeBoundary(650, multiplier)) return 1;
     return 0.8;
   }
-  if (targetDistance < profile.minimumRange || targetDistance > profile.maximumRange) return 0;
-  if (targetDistance <= profile.optimalRange) return 1;
-
+  if (targetDistance > profile.maximumRange) return 0;
   const ranges = profile.ranges;
+  if (!ranges.length || targetDistance < ranges[0].start) return 0;
   const index = ranges.findIndex((range) => range.start > targetDistance);
-  if (index <= 0) return Math.max(0, Math.min(1, ranges.at(-1).modifier));
+  if (index < 0) return Math.max(0, Math.min(1, ranges.at(-1).modifier));
+  if (index === 0) return Math.max(0, Math.min(1, ranges[0].modifier));
   const previous = ranges[index - 1];
   const next = ranges[index];
   if (previous.interpolation === "step" || next.start <= previous.start) {
@@ -7498,58 +7529,542 @@ function weaponDetailRangeText(weapon) {
   return `${fmt(profile.minimumRange, 0)} / ${fmt(profile.optimalRange, 0)} / ${fmt(profile.maximumRange, 0)}m`;
 }
 
+function weaponDetailRangeType(item) {
+  const profile = simulationWeaponRangeProfile(item, 0, 0);
+  if (!profile) return null;
+  const maximumDamageRange = Math.max(0, number(profile.optimalRange));
+  if (maximumDamageRange <= 350) {
+    return { type: "short", maximumDamageRange };
+  }
+  if (maximumDamageRange <= 700) {
+    return { type: "medium", maximumDamageRange };
+  }
+  return { type: "long", maximumDamageRange };
+}
+
+function weaponDetailVisibleRangeTypes(
+  weapons,
+  frequencyByWeaponKey = state.weaponDetail.frequencyByWeaponKey,
+) {
+  return ["short", "medium", "long"].filter((type) => weapons.some((weapon) => {
+    if (weaponDetailRangeType(weapon.item)?.type !== type) return false;
+    const saved = frequencyByWeaponKey.get(weapon.key);
+    return Math.max(0, Math.min(100, number(saved, 100))) > 0;
+  }));
+}
+
+function weaponDetailMaximumFiringRange(weapon) {
+  const profile = weapon?.rangeProfile;
+  if (!profile) return Number.POSITIVE_INFINITY;
+  if (isAtmWeapon(weapon.item)) {
+    return atmRangeBoundary(1100, Math.max(0, number(profile.rangeMultiplier, 1)));
+  }
+  return Math.max(0, number(profile.maximumRange));
+}
+
+function weaponDetailEffectiveFrequency(
+  weapon,
+  distance,
+  availableWeaponsOnly = state.weaponDetail.availableWeaponsOnly,
+) {
+  const frequency = weaponDetailFrequency(weapon.key);
+  if (
+    availableWeaponsOnly
+    && number(distance) > weaponDetailMaximumFiringRange(weapon) + 0.0001
+  ) {
+    return 0;
+  }
+  return frequency;
+}
+
+function weaponDetailFrequency(weaponKey) {
+  const saved = state.weaponDetail.frequencyByWeaponKey.get(weaponKey);
+  return Math.max(0, Math.min(100, number(saved, 100)));
+}
+
+function weaponDetailFrequencyRatio(frequency) {
+  return Math.max(0, Math.min(100, number(frequency))) / 100;
+}
+
+function weaponDetailAdjustedRate(rate, frequency) {
+  return number(rate) * weaponDetailFrequencyRatio(frequency);
+}
+
+function weaponDetailEffectiveCooldown(cycle, frequency) {
+  const ratio = weaponDetailFrequencyRatio(frequency);
+  return ratio > 0 ? number(cycle) / ratio : null;
+}
+
+function weaponDetailDpsAtDistance(
+  weapons,
+  distance,
+  frequencyByWeaponKey = new Map(),
+) {
+  return weapons.reduce((sum, weapon) => {
+    const frequency = frequencyByWeaponKey.has(weapon.key)
+      ? frequencyByWeaponKey.get(weapon.key)
+      : 100;
+    return sum + weaponDetailAdjustedRate(
+      number(weapon.damagePerSecond) * simulationWeaponDamageMultiplier(weapon, distance),
+      frequency,
+    );
+  }, 0);
+}
+
+function weaponDetailDistanceSegments(
+  weapons,
+  frequencyByWeaponKey = new Map(),
+  minimumDistance = 1,
+  maximumDistance = 1000,
+  availableWeaponsOnly = false,
+) {
+  const start = Math.max(0, Math.trunc(number(minimumDistance, 1)));
+  const end = Math.max(start, Math.trunc(number(maximumDistance, 1000)));
+  const values = [];
+  const availabilitySignatures = [];
+  const maximumDpsBySignature = new Map();
+  let maximumDps = 0;
+  for (let distance = start; distance <= end; distance += 1) {
+    const distanceWeapons = availableWeaponsOnly
+      ? weapons.filter((weapon) => (
+        (frequencyByWeaponKey.has(weapon.key)
+          ? number(frequencyByWeaponKey.get(weapon.key), 100)
+          : 100) > 0
+        && distance <= weaponDetailMaximumFiringRange(weapon) + 0.0001
+      ))
+      : weapons;
+    const signature = availableWeaponsOnly
+      ? distanceWeapons.map((weapon) => weapon.key).join("\u001f")
+      : "all";
+    const dps = weaponDetailDpsAtDistance(
+      distanceWeapons,
+      distance,
+      frequencyByWeaponKey,
+    );
+    values.push(dps);
+    availabilitySignatures.push(signature);
+    maximumDps = Math.max(maximumDps, dps);
+    maximumDpsBySignature.set(
+      signature,
+      Math.max(number(maximumDpsBySignature.get(signature)), dps),
+    );
+  }
+  const maximumTolerance = Math.max(0.000001, maximumDps * 0.000001);
+  const damageRatios = values.map((value, index) => {
+    const localMaximum = number(maximumDpsBySignature.get(availabilitySignatures[index]));
+    return localMaximum > 0.000001 ? value / localMaximum : 0;
+  });
+  const collect = (sourceValues, matches) => {
+    const segments = [];
+    let segmentStart = null;
+    sourceValues.forEach((value, index) => {
+      const distance = start + index;
+      if (matches(value)) {
+        if (segmentStart === null) segmentStart = distance;
+      } else if (segmentStart !== null) {
+        segments.push({ start: segmentStart, end: distance - 1 });
+        segmentStart = null;
+      }
+    });
+    if (segmentStart !== null) segments.push({ start: segmentStart, end });
+    return segments;
+  };
+  return {
+    minimumDistance: start,
+    maximumDistance: end,
+    maximumDps,
+    dpsValues: values,
+    damageRatios,
+    maximumSegments: maximumDps > maximumTolerance
+      ? collect(damageRatios, (value) => value >= 1 - 0.000001)
+      : [],
+    zeroSegments: collect(values, (value) => value <= 0.000001),
+  };
+}
+
+function alphasToOverheat(maxHeat, alphaHeat, coolingRate, alphaCycle) {
+  const capacity = Math.max(0, number(maxHeat));
+  const heat = Math.max(0, number(alphaHeat));
+  if (!(capacity > 0) || !(heat > 0)) return null;
+  if (heat >= capacity) return capacity / heat;
+  const coolingBetweenAlphas = Math.max(0, number(coolingRate)) * Math.max(0, number(alphaCycle));
+  const netHeat = heat - coolingBetweenAlphas;
+  if (netHeat <= 0) return Number.POSITIVE_INFINITY;
+  return 1 + (capacity - heat) / netHeat;
+}
+
+function weaponDetailHeatEfficiency(hps, coolingRate) {
+  const heatPerSecond = Math.max(0, number(hps));
+  const cooling = Math.max(0, number(coolingRate));
+  return heatPerSecond <= cooling + 0.0001
+    ? 100
+    : Math.max(0, Math.min(100, cooling / heatPerSecond * 100));
+}
+
+function weaponDetailHeatEfficiencyColor(efficiency) {
+  const value = Math.max(0, Math.min(100, number(efficiency)));
+  const redColor = [223, 101, 79];
+  const greenColor = [154, 201, 95];
+  const blend = Math.max(0, Math.min(1, (value - 25) / 50));
+  const channels = redColor.map(
+    (channel, index) => Math.round(channel + (greenColor[index] - channel) * blend),
+  );
+  return `rgb(${channels.join(", ")})`;
+}
+
+function weaponDetailTotals() {
+  const detail = state.weaponDetail;
+  const calc = calculateBuild();
+  const distance = Math.max(1, Math.min(1000, number(detail.distance, 180)));
+  const effectiveFrequencyByWeaponKey = new Map(detail.weapons.map((weapon) => [
+    weapon.key,
+    weaponDetailEffectiveFrequency(weapon, distance),
+  ]));
+  const activeWeapons = detail.weapons.filter(
+    (weapon) => number(effectiveFrequencyByWeaponKey.get(weapon.key)) > 0,
+  );
+  const heatSystem = simulationHeatSystem();
+  const distanceSegments = weaponDetailDistanceSegments(
+    detail.weapons.filter((weapon) => weaponDetailFrequency(weapon.key) > 0),
+    detail.frequencyByWeaponKey,
+    1,
+    1000,
+    detail.availableWeaponsOnly,
+  );
+  const metricRowsForWeapons = (weapons, labelKey, rangeType = null) => {
+    const alpha = weapons.reduce(
+      (sum, weapon) => sum
+        + number(weapon.damage) * simulationWeaponDamageMultiplier(weapon, distance),
+      0,
+    );
+    const dps = weaponDetailDpsAtDistance(
+      weapons,
+      distance,
+      effectiveFrequencyByWeaponKey,
+    );
+    const rowGhostHeat = detail.applyGhostHeat
+      ? ghostHeatForSimulationWeapons(weapons)
+      : 0;
+    const rowAlphaHeat = weapons.reduce(
+      (sum, weapon) => sum + number(weapon.heat),
+      rowGhostHeat,
+    );
+    const rowAlphaCycle = weapons.reduce((longest, weapon) => Math.max(
+      longest,
+      number(weaponDetailEffectiveCooldown(
+        weapon.cycle,
+        effectiveFrequencyByWeaponKey.get(weapon.key),
+      )),
+    ), 0);
+    let rowHps = weapons.reduce(
+      (sum, weapon) => sum
+        + number(weapon.heat)
+          / Math.max(0.016, number(weapon.cycle, 0.016))
+          * weaponDetailFrequencyRatio(effectiveFrequencyByWeaponKey.get(weapon.key)),
+      0,
+    );
+    if (rowGhostHeat > 0 && rowAlphaCycle > 0) rowHps += rowGhostHeat / rowAlphaCycle;
+    const rowAto = alphasToOverheat(
+      heatSystem.maxHeat,
+      rowAlphaHeat,
+      heatSystem.coolingRate,
+      rowAlphaCycle,
+    );
+    const rowHeatEfficiency = weaponDetailHeatEfficiency(rowHps, heatSystem.coolingRate);
+    return [
+      {
+        type: "damage",
+        labelKey,
+        rangeType,
+        metricKey: "weaponDetail.metricDamage",
+        metrics: [
+          ["FIREPOWER", fmt(alpha, 2)],
+          ["DPS", fmt(dps, 2)],
+          ["DPH", rowAlphaHeat > 0 ? fmt(alpha / rowAlphaHeat, 2) : "-"],
+          ["DPT", calc.totalTons > 0 ? fmt(alpha / calc.totalTons, 2) : "-"],
+        ],
+      },
+      {
+        type: "heat",
+        labelKey,
+        rangeType,
+        metricKey: "weaponDetail.metricHeat",
+        metrics: [
+          ["ATO", rowAto === null ? "-" : Number.isFinite(rowAto) ? fmt(rowAto, 2) : "∞"],
+          ["HPS", fmt(rowHps, 2)],
+          ["ALPHA HEAT", `${fmt(rowAlphaHeat, 2)} (${fmt(heatSystem.maxHeat > 0 ? rowAlphaHeat / heatSystem.maxHeat * 100 : 0, 1)}%)`],
+          [
+            "HEAT EFFICIENCY",
+            `${fmt(rowHeatEfficiency, 1)}%`,
+            weaponDetailHeatEfficiencyColor(rowHeatEfficiency),
+          ],
+        ],
+      },
+    ];
+  };
+  const rangeMetricRows = weaponDetailVisibleRangeTypes(
+    detail.weapons,
+    detail.frequencyByWeaponKey,
+  ).flatMap((type) => {
+    const configuredTypeWeapons = detail.weapons.filter(
+      (weapon) => weaponDetailRangeType(weapon.item)?.type === type,
+    );
+    const activeTypeWeapons = configuredTypeWeapons.filter(
+      (weapon) => number(effectiveFrequencyByWeaponKey.get(weapon.key)) > 0,
+    );
+    return metricRowsForWeapons(
+      activeTypeWeapons,
+      `weaponDetail.rangeType${type[0].toUpperCase()}${type.slice(1)}`,
+      type,
+    );
+  });
+  return {
+    activeWeapons,
+    distance,
+    distanceSegments,
+    metricRows: metricRowsForWeapons(activeWeapons, "weaponDetail.metricDamage"),
+    rangeMetricRows,
+  };
+}
+
+function weaponDetailSegmentPercent(distance, segments) {
+  const span = Math.max(1, segments.maximumDistance - segments.minimumDistance);
+  return Math.max(0, Math.min(100, (distance - segments.minimumDistance) / span * 100));
+}
+
+function weaponDetailDistanceTone(distance, segments) {
+  const within = (segment) => distance >= segment.start && distance <= segment.end;
+  if (segments.zeroSegments.some(within)) return "zero";
+  if (segments.maximumSegments.some(within)) return "maximum";
+  return "normal";
+}
+
+function weaponDetailDamageRatio(distance, segments) {
+  if (!(segments.maximumDps > 0) || !segments.dpsValues?.length) return null;
+  const index = Math.max(
+    0,
+    Math.min(
+      segments.dpsValues.length - 1,
+      Math.round(number(distance) - segments.minimumDistance),
+    ),
+  );
+  const dps = number(segments.dpsValues[index]);
+  if (dps <= 0.000001) return null;
+  return Math.max(0, Math.min(1, number(segments.damageRatios?.[index])));
+}
+
+function weaponDetailDamageColor(ratio) {
+  if (ratio === null || ratio === undefined) return "rgb(38, 52, 58)";
+  const amount = Math.max(0, Math.min(1, number(ratio)));
+  const redColor = [223, 101, 79];
+  const greenColor = [154, 201, 95];
+  const blueColor = [73, 166, 200];
+  const startColor = amount >= 0.99 ? greenColor : redColor;
+  const endColor = amount >= 0.99 ? blueColor : greenColor;
+  const blend = amount >= 0.99 ? (amount - 0.99) / 0.01 : amount / 0.99;
+  const channels = startColor.map(
+    (channel, index) => Math.round(channel + (endColor[index] - channel) * blend),
+  );
+  return `rgb(${channels.join(", ")})`;
+}
+
+function weaponDetailDistanceGradient(segments) {
+  const sampleCount = Math.min(100, Math.max(1, segments.dpsValues?.length - 1 || 1));
+  const stops = [];
+  for (let sample = 0; sample <= sampleCount; sample += 1) {
+    const percent = sample / sampleCount * 100;
+    const distance = segments.minimumDistance
+      + (segments.maximumDistance - segments.minimumDistance) * sample / sampleCount;
+    stops.push(`${weaponDetailDamageColor(weaponDetailDamageRatio(distance, segments))} ${fmt(percent, 2)}%`);
+  }
+  return `linear-gradient(to right, ${stops.join(", ")})`;
+}
+
+function weaponDetailDistanceBoundaries(segments) {
+  if (!segments.dpsValues?.length) {
+    return [segments.minimumDistance, segments.maximumDistance];
+  }
+  const bandAt = (index) => {
+    const dps = number(segments.dpsValues[index]);
+    if (dps <= 0.000001 || !(segments.maximumDps > 0)) return "out-of-range";
+    const ratio = Math.max(0, Math.min(1, number(segments.damageRatios?.[index])));
+    if (ratio >= 1 - 0.000001) return "maximum";
+    if (ratio >= 0.99) return "near-maximum";
+    return "reduced";
+  };
+  const boundaries = [segments.minimumDistance];
+  let previousBand = bandAt(0);
+  for (let index = 1; index < segments.dpsValues.length; index += 1) {
+    const band = bandAt(index);
+    if (band !== previousBand) {
+      boundaries.push(segments.minimumDistance + index - 0.5);
+      previousBand = band;
+    }
+  }
+  boundaries.push(segments.maximumDistance);
+  return boundaries;
+}
+
+function weaponDetailBoundaryLayers(segments) {
+  const marker = "rgba(233, 248, 252, 0.9)";
+  return weaponDetailDistanceBoundaries(segments).map((boundary) => {
+    const percent = weaponDetailSegmentPercent(boundary, segments);
+    if (percent <= 0) {
+      return `linear-gradient(to right, ${marker} 0 1px, transparent 1px 100%)`;
+    }
+    if (percent >= 100) {
+      return `linear-gradient(to right, transparent 0 calc(100% - 1px), ${marker} calc(100% - 1px) 100%)`;
+    }
+    return `linear-gradient(to right, transparent 0 calc(${percent}% - 1px), ${marker} calc(${percent}% - 1px) calc(${percent}% + 1px), transparent calc(${percent}% + 1px) 100%)`;
+  }).join(", ");
+}
+
+function renderWeaponDetailDistanceScale(totals) {
+  const { distance, distanceSegments } = totals;
+  const tone = weaponDetailDistanceTone(distance, distanceSegments);
+  const damageColor = weaponDetailDamageColor(
+    weaponDetailDamageRatio(distance, distanceSegments),
+  );
+  const distancePercent = weaponDetailSegmentPercent(distance, distanceSegments);
+  const input = $("weapon-detail-distance");
+  input.style.setProperty("--weapon-distance-percent", `${distancePercent}%`);
+  input.style.setProperty("--weapon-distance-tone", damageColor);
+  input.style.setProperty(
+    "--weapon-distance-boundaries",
+    weaponDetailBoundaryLayers(distanceSegments),
+  );
+  input.dataset.tone = tone;
+  const distanceValue = $("weapon-detail-distance-value");
+  distanceValue.dataset.tone = tone;
+  distanceValue.style.color = damageColor;
+  const scale = $("weapon-detail-distance-scale");
+  scale.style.background = weaponDetailDistanceGradient(distanceSegments);
+  const renderSegments = (segments, type, label) => segments.map((segment) => {
+    const left = weaponDetailSegmentPercent(segment.start, distanceSegments);
+    const right = weaponDetailSegmentPercent(segment.end, distanceSegments);
+    const width = Math.max(0.35, right - left);
+    return `<i class="${type}" style="left:${left}%;width:${width}%" title="${escapeHtml(`${label}: ${segment.start}~${segment.end}m`)}"></i>`;
+  }).join("");
+  scale.innerHTML = `
+    ${renderSegments(distanceSegments.zeroSegments, "zero", t("weaponDetail.zeroDamageRange"))}
+    ${renderSegments(distanceSegments.maximumSegments, "maximum", t("weaponDetail.maxDpsRange"))}
+  `;
+}
+
+function renderWeaponDetailMetrics(totals = weaponDetailTotals()) {
+  $("weapon-detail-distance-value").textContent = `${fmt(totals.distance, 0)}m`;
+  renderWeaponDetailDistanceScale(totals);
+  $("weapon-detail-ghost-status").textContent = t(
+    state.weaponDetail.applyGhostHeat ? "ui.on" : "ui.off",
+  );
+  $("weapon-detail-apply-ghost-heat").closest(".weapon-detail-ghost-toggle")
+    ?.classList.toggle("active", state.weaponDetail.applyGhostHeat);
+  $("weapon-detail-available-only-status").textContent = t(
+    state.weaponDetail.availableWeaponsOnly ? "ui.on" : "ui.off",
+  );
+  $("weapon-detail-available-only").closest(".weapon-detail-available-only-toggle")
+    ?.classList.toggle("active", state.weaponDetail.availableWeaponsOnly);
+  const metricTab = state.weaponDetail.metricTab === "range" ? "range" : "basic";
+  document.querySelectorAll("[data-weapon-detail-tab]").forEach((button) => {
+    const active = button.dataset.weaponDetailTab === metricTab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", `${active}`);
+  });
+  const metrics = $("weapon-detail-metrics");
+  metrics.setAttribute(
+    "aria-labelledby",
+    metricTab === "range" ? "weapon-detail-tab-range" : "weapon-detail-tab-basic",
+  );
+  const metricRows = metricTab === "range" ? totals.rangeMetricRows : totals.metricRows;
+  metrics.innerHTML = metricRows.map((row) => `
+    <div class="weapon-detail-metric-row ${row.type}">
+      <strong class="weapon-detail-metric-row-label">
+        ${row.rangeType ? `<span>${t(row.labelKey)}</span>` : ""}
+        <span>${t(row.metricKey || row.labelKey)}</span>
+      </strong>
+      ${row.metrics.map(([label, value, color]) => `
+        <div>
+          <span>${label}</span>
+          <strong${color ? ` style="color:${color}"` : ""}>${value}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `).join("");
+  $("weapon-detail-empty").hidden = totals.activeWeapons.length > 0 || state.weaponDetail.weapons.length === 0;
+}
+
+const weaponDetailMaximumMultiplierCache = new WeakMap();
+
+function weaponDetailWeaponDamageRatio(weapon, distance) {
+  let maximumMultiplier = weaponDetailMaximumMultiplierCache.get(weapon);
+  if (maximumMultiplier === undefined) {
+    maximumMultiplier = 0;
+    for (let sampleDistance = 1; sampleDistance <= 1000; sampleDistance += 1) {
+      maximumMultiplier = Math.max(
+        maximumMultiplier,
+        simulationWeaponDamageMultiplier(weapon, sampleDistance),
+      );
+    }
+    weaponDetailMaximumMultiplierCache.set(weapon, maximumMultiplier);
+  }
+  if (!(maximumMultiplier > 0.000001)) return 0;
+  return Math.max(
+    0,
+    Math.min(1, simulationWeaponDamageMultiplier(weapon, distance) / maximumMultiplier),
+  );
+}
+
+function weaponDetailWeaponRangeTone(ratio) {
+  const value = Math.max(0, Math.min(1, number(ratio)));
+  if (value >= 0.99) return "range-high";
+  if (value >= 0.5) return "range-medium";
+  return "range-low";
+}
+
 function renderWeaponDetail() {
   const detail = state.weaponDetail;
   if (!detail.open) return;
-  const calc = calculateBuild();
-  const activeWeapons = detail.weapons.filter((weapon) => !detail.disabledWeaponKeys.has(weapon.key));
-  const distance = Math.max(1, Math.min(1000, number(detail.distance, 180)));
-  const alpha = activeWeapons.reduce(
-    (sum, weapon) => sum + number(weapon.damage) * simulationWeaponDamageMultiplier(weapon, distance),
-    0,
-  );
-  const dps = activeWeapons.reduce(
-    (sum, weapon) => sum + number(weapon.damagePerSecond) * simulationWeaponDamageMultiplier(weapon, distance),
-    0,
-  );
-  const alphaHeat = activeWeapons.reduce((sum, weapon) => sum + number(weapon.heat), 0);
-  const hps = activeWeapons.reduce(
-    (sum, weapon) => sum + number(weapon.heat) / Math.max(0.016, number(weapon.cycle, 0.016)),
-    0,
-  );
-  const maxHeat = simulationHeatSystem().maxHeat;
-  const metricRows = [
-    ["FIREPOWER", fmt(alpha, 2)],
-    ["DPS", fmt(dps, 2)],
-    ["DPH", alphaHeat > 0 ? fmt(alpha / alphaHeat, 2) : "-"],
-    ["DPT", calc.totalTons > 0 ? fmt(alpha / calc.totalTons, 2) : "-"],
-    ["HPS", fmt(hps, 2)],
-    ["ALPHA HEAT", `${fmt(alphaHeat, 2)} (${fmt(maxHeat > 0 ? alphaHeat / maxHeat * 100 : 0, 1)}%)`],
-  ];
-
+  const totals = weaponDetailTotals();
+  const { distance } = totals;
   $("weapon-detail-distance").value = String(distance);
-  $("weapon-detail-distance-value").textContent = `${fmt(distance, 0)}m`;
-  $("weapon-detail-metrics").innerHTML = metricRows.map(([label, value]) => `
-    <div><span>${label}</span><strong>${value}</strong></div>
-  `).join("");
-  $("weapon-detail-empty").hidden = activeWeapons.length > 0 || detail.weapons.length === 0;
+  $("weapon-detail-apply-ghost-heat").checked = detail.applyGhostHeat;
+  $("weapon-detail-available-only").checked = detail.availableWeaponsOnly;
+  renderWeaponDetailMetrics(totals);
   $("weapon-detail-list").innerHTML = detail.weapons.length ? detail.weapons.map((weapon) => {
-    const enabled = !detail.disabledWeaponKeys.has(weapon.key);
+    const frequency = weaponDetailFrequency(weapon.key);
+    const enabled = frequency > 0;
+    const calculationFrequency = weaponDetailEffectiveFrequency(weapon, distance);
     const multiplier = simulationWeaponDamageMultiplier(weapon, distance);
     const actualDamage = number(weapon.damage) * multiplier;
-    const actualDps = number(weapon.damagePerSecond) * multiplier;
+    const actualDps = weaponDetailAdjustedRate(
+      number(weapon.damagePerSecond) * multiplier,
+      calculationFrequency,
+    );
+    const effectiveCooldown = weaponDetailEffectiveCooldown(
+      weapon.cycle,
+      calculationFrequency,
+    );
+    const rangeTone = weaponDetailWeaponRangeTone(
+      weaponDetailWeaponDamageRatio(weapon, distance),
+    );
     return `
-      <label class="weapon-detail-row ${equipmentHardpointType(weapon.item)}${enabled ? "" : " disabled"}">
-        <span class="weapon-detail-toggle">
-          <input type="checkbox" data-weapon-detail-toggle="${weapon.key}" ${enabled ? "checked" : ""}>
-          <span>${t("weaponDetail.enabled")}</span>
-        </span>
-        <strong title="${escapeHtml(weapon.item.display_name || weapon.item.name)}">${escapeHtml(weapon.item.display_name || weapon.item.name)}</strong>
+      <div class="weapon-detail-row ${equipmentHardpointType(weapon.item)} ${rangeTone}${enabled ? "" : " disabled"}">
+        <div class="weapon-detail-weapon">
+          <div class="weapon-detail-name">
+            <strong title="${escapeHtml(weapon.item.display_name || weapon.item.name)}">${escapeHtml(weapon.item.display_name || weapon.item.name)}</strong>
+          </div>
+          <label>
+            <span class="sr-only">${escapeHtml(weapon.item.display_name || weapon.item.name)} ${t("weaponDetail.frequency")}</span>
+            <input type="range" min="0" max="100" step="1" value="${frequency}" style="--weapon-frequency-percent:${frequency}%" data-weapon-detail-frequency="${weapon.key}">
+          </label>
+          <output data-weapon-detail-frequency-value="${weapon.key}">${fmt(frequency, 0)}%</output>
+        </div>
         <span>${MECHLAB_COMPONENT_NAMES[weapon.component] || weapon.component}</span>
         <span>${fmt(actualDamage, 2)} <small>/ ${fmt(weapon.damage, 2)}</small></span>
-        <span>${fmt(actualDps, 2)}</span>
+        <span data-weapon-detail-dps="${weapon.key}">${fmt(actualDps, 2)}</span>
+        <span data-weapon-detail-cooldown="${weapon.key}">${effectiveCooldown === null ? "-" : `${fmt(effectiveCooldown, 2)}s`}</span>
         <span>${weaponDetailRangeText(weapon)}</span>
-      </label>
+      </div>
     `;
   }).join("") : `<div class="empty">${t("simulation.noWeapons")}</div>`;
 }
@@ -7559,8 +8074,8 @@ function openWeaponDetail() {
   const detail = state.weaponDetail;
   detail.weapons = collectSimulationWeapons();
   const currentKeys = new Set(detail.weapons.map((weapon) => weapon.key));
-  detail.disabledWeaponKeys = new Set(
-    Array.from(detail.disabledWeaponKeys).filter((key) => currentKeys.has(key)),
+  detail.frequencyByWeaponKey = new Map(
+    Array.from(detail.frequencyByWeaponKey).filter(([key]) => currentKeys.has(key)),
   );
   detail.open = true;
   $("weapon-detail-overlay").hidden = false;
@@ -7754,6 +8269,30 @@ function ghostHeatGroupKey(item) {
   if (ghostHeatWeaponExtra(item, 12) <= 0) return "";
   const weaponKey = normalizeLookupKey(item?.name).replace(/artemis$/, "");
   return weaponKey ? `singleton:${weaponKey}` : "";
+}
+
+function ghostHeatForSimulationWeapons(weapons) {
+  const groups = new Map();
+  weapons.forEach((weapon) => {
+    const groupKey = ghostHeatGroupKey(weapon.item);
+    if (!groupKey) return;
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(weapon);
+  });
+  let total = 0;
+  for (const groupWeapons of groups.values()) {
+    const weaponCount = groupWeapons.length;
+    total += groupWeapons.reduce((highest, weapon) => Math.max(
+      highest,
+      ghostHeatWeaponExtra(
+        weapon.item,
+        weaponCount,
+        weapon.ghostHeatBase ?? itemHeat(weapon.item),
+        weapon.ghostHeatHslBonus ?? ghostHeatHslBonus(weapon.item),
+      ),
+    ), 0);
+  }
+  return total;
 }
 
 function mechlabGhostHeatWarnings() {
@@ -12621,12 +13160,51 @@ function bindEvents() {
     state.weaponDetail.distance = Math.max(1, Math.min(1000, number(Number(event.target.value), 180)));
     renderWeaponDetail();
   });
-  $("weapon-detail-list").addEventListener("change", (event) => {
-    const input = event.target.closest("[data-weapon-detail-toggle]");
-    if (!input) return;
-    if (input.checked) state.weaponDetail.disabledWeaponKeys.delete(input.dataset.weaponDetailToggle);
-    else state.weaponDetail.disabledWeaponKeys.add(input.dataset.weaponDetailToggle);
+  $("weapon-detail-apply-ghost-heat").addEventListener("change", (event) => {
+    state.weaponDetail.applyGhostHeat = event.target.checked;
+    renderWeaponDetailMetrics();
+  });
+  $("weapon-detail-available-only").addEventListener("change", (event) => {
+    state.weaponDetail.availableWeaponsOnly = event.target.checked;
     renderWeaponDetail();
+  });
+  $("weapon-detail-metric-tabs").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-weapon-detail-tab]");
+    if (!button) return;
+    state.weaponDetail.metricTab = button.dataset.weaponDetailTab === "range"
+      ? "range"
+      : "basic";
+    renderWeaponDetailMetrics();
+  });
+  $("weapon-detail-list").addEventListener("input", (event) => {
+    const input = event.target.closest("[data-weapon-detail-frequency]");
+    if (!input) return;
+    const frequency = Math.max(0, Math.min(100, number(Number(input.value), 100)));
+    const weaponKey = input.dataset.weaponDetailFrequency;
+    state.weaponDetail.frequencyByWeaponKey.set(weaponKey, frequency);
+    input.style.setProperty("--weapon-frequency-percent", `${frequency}%`);
+    const weapon = state.weaponDetail.weapons.find((entry) => entry.key === weaponKey);
+    const row = input.closest(".weapon-detail-row");
+    row?.classList.toggle("disabled", frequency <= 0);
+    const value = row?.querySelector("[data-weapon-detail-frequency-value]");
+    if (value) value.textContent = `${fmt(frequency, 0)}%`;
+    if (weapon) {
+      const calculationFrequency = weaponDetailEffectiveFrequency(
+        weapon,
+        state.weaponDetail.distance,
+      );
+      const multiplier = simulationWeaponDamageMultiplier(weapon, state.weaponDetail.distance);
+      const dps = weaponDetailAdjustedRate(
+        number(weapon.damagePerSecond) * multiplier,
+        calculationFrequency,
+      );
+      const cooldown = weaponDetailEffectiveCooldown(weapon.cycle, calculationFrequency);
+      const dpsValue = row?.querySelector("[data-weapon-detail-dps]");
+      const cooldownValue = row?.querySelector("[data-weapon-detail-cooldown]");
+      if (dpsValue) dpsValue.textContent = fmt(dps, 2);
+      if (cooldownValue) cooldownValue.textContent = cooldown === null ? "-" : `${fmt(cooldown, 2)}s`;
+    }
+    renderWeaponDetailMetrics();
   });
   $("close-simulation").addEventListener("click", closeSimulation);
   $("reset-simulation").addEventListener("click", resetSimulationRun);
@@ -13547,10 +14125,28 @@ if (globalThis.__MWOLAB_TEST__) {
     simulationWeaponDamageMultiplier,
     simulationWeaponDamage,
     simulationWeaponDamagePerSecond,
+    weaponDetailFrequencyRatio,
+    weaponDetailAdjustedRate,
+    weaponDetailEffectiveCooldown,
+    weaponDetailDpsAtDistance,
+    weaponDetailDistanceSegments,
+    weaponDetailDamageRatio,
+    weaponDetailDamageColor,
+    weaponDetailDistanceBoundaries,
+    weaponDetailHeatEfficiency,
+    weaponDetailHeatEfficiencyColor,
+    weaponDetailWeaponDamageRatio,
+    weaponDetailWeaponRangeTone,
+    weaponDetailRangeType,
+    weaponDetailVisibleRangeTypes,
+    weaponDetailMaximumFiringRange,
+    weaponDetailEffectiveFrequency,
+    alphasToOverheat,
     simulationHeatSystemFromSink,
     ghostHeatHslBonus,
     ghostHeatWeaponExtra,
     ghostHeatGroupKey,
+    ghostHeatForSimulationWeapons,
     weaponDamagePerSecond,
     amsDamagePerSecond,
     weaponDamageRate,

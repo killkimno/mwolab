@@ -541,6 +541,29 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     linear.rangeProfile.ranges[0].interpolation = "exponential";
     linear.rangeProfile.ranges[0].exponent = 2;
     closeTo(api.simulationWeaponDamageMultiplier(linear, 150), 0.75);
+
+    const clanLrmItem = weapon({ name: "ClanLRM20", ranges: [
+      { start: 0, damageModifier: 0, interpolationToNextRange: "exponential", exponent: 2 },
+      { start: 180, damageModifier: 1, interpolationToNextRange: "linear" },
+      { start: 900, damageModifier: 1, interpolationToNextRange: "linear" },
+    ] });
+    const clanLrm = {
+      item: clanLrmItem,
+      rangeProfile: api.simulationWeaponRangeProfile(clanLrmItem, 0, 0),
+    };
+    closeTo(api.simulationWeaponDamageMultiplier(clanLrm, 90), 0.25);
+    assert.equal(api.simulationWeaponDamageMultiplier(clanLrm, 180), 1);
+
+    const innerSphereLrmItem = weapon({ name: "LRM20", ranges: [
+      { start: 0, damageModifier: 0, interpolationToNextRange: "step" },
+      { start: 180, damageModifier: 1, interpolationToNextRange: "linear" },
+      { start: 900, damageModifier: 1, interpolationToNextRange: "linear" },
+    ] });
+    const innerSphereLrm = {
+      item: innerSphereLrmItem,
+      rangeProfile: api.simulationWeaponRangeProfile(innerSphereLrmItem, 0, 0),
+    };
+    assert.equal(api.simulationWeaponDamageMultiplier(innerSphereLrm, 90), 0);
   });
 
   await t.test("ATM은 거리대별 1.25/1/0.8 배율과 경계를 적용한다", () => {
@@ -601,6 +624,193 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     api.state.simulation.applySplashDamage = false;
     assert.equal(api.simulationWeaponDamage(wrapped, 3), 30);
     assert.equal(api.simulationWeaponDamagePerSecond(wrapped), 5);
+  });
+
+  await t.test("무장 상세 빈도는 0% 미사용, 50% 쿨타임 2배, 100% 원래 쿨타임으로 계산한다", () => {
+    assert.equal(api.state.weaponDetail.availableWeaponsOnly, true);
+    assert.equal(api.weaponDetailFrequencyRatio(0), 0);
+    assert.equal(api.weaponDetailFrequencyRatio(50), 0.5);
+    assert.equal(api.weaponDetailFrequencyRatio(100), 1);
+    assert.equal(api.weaponDetailAdjustedRate(12, 0), 0);
+    assert.equal(api.weaponDetailAdjustedRate(12, 50), 6);
+    assert.equal(api.weaponDetailAdjustedRate(12, 100), 12);
+    assert.equal(api.weaponDetailEffectiveCooldown(3, 0), null);
+    assert.equal(api.weaponDetailEffectiveCooldown(3, 50), 6);
+    assert.equal(api.weaponDetailEffectiveCooldown(3, 100), 3);
+  });
+
+  await t.test("무장 상세 거리 눈금은 최대 DPS와 데미지 0 구간을 분리한다", () => {
+    const rangedWeapon = {
+      key: "range-test",
+      item: weapon(),
+      damagePerSecond: 10,
+      rangeProfile: {
+        minimumRange: 0,
+        optimalRange: 100,
+        maximumRange: 200,
+        ranges: [
+          { start: 0, modifier: 1, interpolation: "linear", exponent: 1 },
+          { start: 100, modifier: 1, interpolation: "linear", exponent: 1 },
+          { start: 200, modifier: 0, interpolation: "linear", exponent: 1 },
+        ],
+      },
+    };
+    const segments = api.weaponDetailDistanceSegments(
+      [rangedWeapon],
+      new Map([["range-test", 100]]),
+      1,
+      300,
+    );
+    assert.equal(segments.maximumDps, 10);
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(segments.maximumSegments)),
+      [{ start: 1, end: 100 }],
+    );
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(segments.zeroSegments)),
+      [{ start: 200, end: 300 }],
+    );
+    closeTo(api.weaponDetailDamageRatio(100, segments), 1);
+    closeTo(api.weaponDetailDamageRatio(150, segments), 0.5);
+    closeTo(api.weaponDetailDamageRatio(199, segments), 0.01);
+    assert.equal(api.weaponDetailDamageRatio(200, segments), null);
+    assert.equal(api.weaponDetailDamageColor(1), "rgb(73, 166, 200)");
+    assert.equal(api.weaponDetailDamageColor(0.99), "rgb(154, 201, 95)");
+    assert.equal(api.weaponDetailDamageColor(0.5), "rgb(188, 152, 87)");
+    assert.equal(api.weaponDetailDamageColor(0), "rgb(223, 101, 79)");
+    assert.equal(api.weaponDetailDamageColor(null), "rgb(38, 52, 58)");
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(api.weaponDetailDistanceBoundaries(segments))),
+      [1, 100.5, 101.5, 199.5, 300],
+    );
+    closeTo(api.weaponDetailWeaponDamageRatio(rangedWeapon, 100), 1);
+    closeTo(api.weaponDetailWeaponDamageRatio(rangedWeapon, 150), 0.5);
+    closeTo(api.weaponDetailWeaponDamageRatio(rangedWeapon, 200), 0);
+    assert.equal(api.weaponDetailWeaponRangeTone(0.99), "range-high");
+    assert.equal(api.weaponDetailWeaponRangeTone(0.5), "range-medium");
+    assert.equal(api.weaponDetailWeaponRangeTone(0.499), "range-low");
+
+    const rangeTypeAt = (optimalRange) => JSON.parse(JSON.stringify(
+      api.weaponDetailRangeType(weapon({ ranges: [
+        { start: 0, damageModifier: 1 },
+        { start: optimalRange, damageModifier: 1 },
+        { start: optimalRange * 2, damageModifier: 0 },
+      ] })),
+    ));
+    assert.deepEqual(rangeTypeAt(350), { type: "short", maximumDamageRange: 350 });
+    assert.deepEqual(rangeTypeAt(351), { type: "medium", maximumDamageRange: 351 });
+    assert.deepEqual(rangeTypeAt(700), { type: "medium", maximumDamageRange: 700 });
+    assert.deepEqual(rangeTypeAt(701), { type: "long", maximumDamageRange: 701 });
+
+    const visibleRangeWeapons = [
+      {
+        key: "visible-short",
+        item: weapon({ ranges: [
+          { start: 0, damageModifier: 1 },
+          { start: 200, damageModifier: 1 },
+        ] }),
+      },
+      {
+        key: "hidden-medium",
+        item: weapon({ ranges: [
+          { start: 0, damageModifier: 1 },
+          { start: 500, damageModifier: 1 },
+        ] }),
+      },
+      {
+        key: "visible-long",
+        item: weapon({ ranges: [
+          { start: 0, damageModifier: 1 },
+          { start: 800, damageModifier: 1 },
+        ] }),
+      },
+    ];
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(api.weaponDetailVisibleRangeTypes(
+        visibleRangeWeapons,
+        new Map([
+          ["visible-short", 50],
+          ["hidden-medium", 0],
+          ["visible-long", 1],
+        ]),
+      ))),
+      ["short", "long"],
+    );
+
+    const availabilityWeapon = {
+      key: "availability-test",
+      item: weapon(),
+      rangeProfile: { maximumRange: 200 },
+    };
+    api.state.weaponDetail.frequencyByWeaponKey.set("availability-test", 75);
+    assert.equal(api.weaponDetailEffectiveFrequency(availabilityWeapon, 200, true), 75);
+    assert.equal(api.weaponDetailEffectiveFrequency(availabilityWeapon, 201, true), 0);
+    assert.equal(api.weaponDetailEffectiveFrequency(availabilityWeapon, 201, false), 75);
+    assert.equal(api.state.weaponDetail.frequencyByWeaponKey.get("availability-test"), 75);
+
+    const shortItem = weapon({ name: "ShortAvailability", ranges: [
+      { start: 0, damageModifier: 1 },
+      { start: 100, damageModifier: 1 },
+      { start: 200, damageModifier: 0 },
+    ] });
+    const longItem = weapon({ name: "LongAvailability", ranges: [
+      { start: 0, damageModifier: 1 },
+      { start: 900, damageModifier: 1 },
+    ] });
+    const availabilitySegments = api.weaponDetailDistanceSegments(
+      [
+        {
+          key: "short-availability",
+          item: shortItem,
+          damagePerSecond: 10,
+          rangeProfile: api.simulationWeaponRangeProfile(shortItem, 0, 0),
+        },
+        {
+          key: "long-availability",
+          item: longItem,
+          damagePerSecond: 10,
+          rangeProfile: api.simulationWeaponRangeProfile(longItem, 0, 0),
+        },
+      ],
+      new Map(),
+      1,
+      1000,
+      true,
+    );
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(availabilitySegments.maximumSegments)),
+      [{ start: 1, end: 100 }, { start: 201, end: 900 }],
+    );
+  });
+
+  await t.test("무장 상세 열효율은 75%부터 25%까지 초록색에서 빨간색으로 변한다", () => {
+    assert.equal(api.weaponDetailHeatEfficiency(2, 5), 100);
+    closeTo(api.weaponDetailHeatEfficiency(5, 2), 40);
+    assert.equal(api.weaponDetailHeatEfficiencyColor(75), "rgb(154, 201, 95)");
+    assert.equal(api.weaponDetailHeatEfficiencyColor(50), "rgb(189, 151, 87)");
+    assert.equal(api.weaponDetailHeatEfficiencyColor(25), "rgb(223, 101, 79)");
+    assert.equal(api.weaponDetailHeatEfficiencyColor(10), "rgb(223, 101, 79)");
+  });
+
+  await t.test("ATO는 알파 사이 냉각과 고스트 힛 추가 발열을 반영한다", () => {
+    closeTo(api.alphasToOverheat(100, 30, 5, 2), 4.5);
+    closeTo(api.alphasToOverheat(100, 120, 5, 2), 100 / 120);
+    assert.equal(api.alphasToOverheat(100, 10, 5, 2), Infinity);
+    assert.equal(api.alphasToOverheat(100, 0, 5, 2), null);
+
+    const ghostItem = weapon({ stats: {
+      heat: 5,
+      heatPenaltyID: 9,
+      minheatpenaltylevel: 2,
+      heatpenalty: 24,
+    } });
+    const ghostWeapons = [0, 1].map((index) => ({
+      key: `ghost-${index}`,
+      item: ghostItem,
+      ghostHeatBase: 5,
+      ghostHeatHslBonus: 0,
+    }));
+    closeTo(api.ghostHeatForSimulationWeapons(ghostWeapons), 9.6);
   });
 
   await t.test("툴팁 사거리는 최소·최적·최대 경계를 소스 구간에서 찾는다", () => {
