@@ -179,6 +179,17 @@ const TEXT = {
     "mechlab.ghostHeatWarning": "고스트 힛 발생 가능",
     "mechlab.ghostHeatWarningTitle": "GHOST HEAT WARNING",
     "mechlab.ghostHeatWarningLine": "{weapons} : 발열 {percent} (최종: {totalHeat}, 고스트 힛: {ghostHeat})",
+    "weaponDetail.open": "자세히",
+    "weaponDetail.title": "무장 상세 정보",
+    "weaponDetail.close": "무장 상세 정보 닫기",
+    "weaponDetail.distance": "적과의 거리",
+    "weaponDetail.distanceHint": "슬라이더를 움직이면 거리별 실제 데미지가 즉시 반영됩니다.",
+    "weaponDetail.enabled": "사용",
+    "weaponDetail.location": "장착 위치",
+    "weaponDetail.actualDamage": "실제 데미지",
+    "weaponDetail.baseDamage": "기본 데미지",
+    "weaponDetail.range": "사거리 (최소/적정/최대)",
+    "weaponDetail.allDisabled": "사용할 무기를 하나 이상 켜세요.",
     "simulation.open": "시뮬레이션",
     "simulation.title": "DPS 시뮬레이션",
     "simulation.hint": "버튼 또는 숫자 키 1~4를 누르고 있는 동안 해당 그룹을 발사합니다.",
@@ -677,6 +688,17 @@ const TEXT = {
     "mechlab.ghostHeatWarning": "Ghost heat possible",
     "mechlab.ghostHeatWarningTitle": "GHOST HEAT WARNING",
     "mechlab.ghostHeatWarningLine": "{weapons}: heat {percent} (final: {totalHeat}, ghost heat: {ghostHeat})",
+    "weaponDetail.open": "Details",
+    "weaponDetail.title": "Weapon Details",
+    "weaponDetail.close": "Close weapon details",
+    "weaponDetail.distance": "Target distance",
+    "weaponDetail.distanceHint": "Move the slider to see actual damage at that distance.",
+    "weaponDetail.enabled": "Enabled",
+    "weaponDetail.location": "Location",
+    "weaponDetail.actualDamage": "Actual damage",
+    "weaponDetail.baseDamage": "Base damage",
+    "weaponDetail.range": "Range (min/optimal/max)",
+    "weaponDetail.allDisabled": "Enable at least one weapon.",
     "simulation.open": "Simulation",
     "simulation.title": "DPS Simulation",
     "simulation.hint": "Hold buttons or number keys 1-4 to fire the assigned weapon groups.",
@@ -1725,6 +1747,12 @@ const state = {
     overheated: false,
     startedAt: null,
     frameId: null,
+  },
+  weaponDetail: {
+    open: false,
+    distance: 180,
+    weapons: [],
+    disabledWeaponKeys: new Set(),
   },
 };
 
@@ -6675,10 +6703,13 @@ function installedMechItems(itemType) {
   return items;
 }
 
-function mechSummarySection(title, rows, className = "") {
+function mechSummarySection(title, rows, className = "", headerAction = "") {
   return `
     <section class="mech-summary-section ${className}">
-      <h3>${title}</h3>
+      <div class="mech-summary-section-heading">
+        <h3>${title}</h3>
+        ${headerAction}
+      </div>
       <div class="mech-summary-metrics">
         ${rows.map(([label, value, tone = ""]) => `
           <div class="mech-summary-metric ${tone}">
@@ -7026,7 +7057,9 @@ function renderMechSummary(calc = null) {
       ["DPH", weaponMetrics.dph === null ? "-" : fmt(weaponMetrics.dph, 2)],
       ["HPS", fmt(weaponMetrics.hps, 2)],
       ["ALPHA HEAT", `${fmt(weaponMetrics.alphaHeat, 2)} (${fmt(weaponMetrics.alphaHeatPercent, 1)}%)`],
-    ])}
+    ], "mech-summary-weapon-section", `
+      <button id="open-weapon-detail" class="mech-summary-detail-button" type="button" aria-haspopup="dialog" aria-controls="weapon-detail-overlay">${t("weaponDetail.open")}</button>
+    `)}
     ${renderMechSummaryAmmo(weapons)}
     ${renderMechSummarySkillQuirks(quirks)}
     ${renderMechSummaryQuirks(baseQuirks)}
@@ -7457,6 +7490,91 @@ function collectSimulationWeapons() {
     });
   }
   return weapons;
+}
+
+function weaponDetailRangeText(weapon) {
+  const profile = weapon.rangeProfile;
+  if (!profile) return "-";
+  return `${fmt(profile.minimumRange, 0)} / ${fmt(profile.optimalRange, 0)} / ${fmt(profile.maximumRange, 0)}m`;
+}
+
+function renderWeaponDetail() {
+  const detail = state.weaponDetail;
+  if (!detail.open) return;
+  const calc = calculateBuild();
+  const activeWeapons = detail.weapons.filter((weapon) => !detail.disabledWeaponKeys.has(weapon.key));
+  const distance = Math.max(1, Math.min(1000, number(detail.distance, 180)));
+  const alpha = activeWeapons.reduce(
+    (sum, weapon) => sum + number(weapon.damage) * simulationWeaponDamageMultiplier(weapon, distance),
+    0,
+  );
+  const dps = activeWeapons.reduce(
+    (sum, weapon) => sum + number(weapon.damagePerSecond) * simulationWeaponDamageMultiplier(weapon, distance),
+    0,
+  );
+  const alphaHeat = activeWeapons.reduce((sum, weapon) => sum + number(weapon.heat), 0);
+  const hps = activeWeapons.reduce(
+    (sum, weapon) => sum + number(weapon.heat) / Math.max(0.016, number(weapon.cycle, 0.016)),
+    0,
+  );
+  const maxHeat = simulationHeatSystem().maxHeat;
+  const metricRows = [
+    ["FIREPOWER", fmt(alpha, 2)],
+    ["DPS", fmt(dps, 2)],
+    ["DPH", alphaHeat > 0 ? fmt(alpha / alphaHeat, 2) : "-"],
+    ["DPT", calc.totalTons > 0 ? fmt(alpha / calc.totalTons, 2) : "-"],
+    ["HPS", fmt(hps, 2)],
+    ["ALPHA HEAT", `${fmt(alphaHeat, 2)} (${fmt(maxHeat > 0 ? alphaHeat / maxHeat * 100 : 0, 1)}%)`],
+  ];
+
+  $("weapon-detail-distance").value = String(distance);
+  $("weapon-detail-distance-value").textContent = `${fmt(distance, 0)}m`;
+  $("weapon-detail-metrics").innerHTML = metricRows.map(([label, value]) => `
+    <div><span>${label}</span><strong>${value}</strong></div>
+  `).join("");
+  $("weapon-detail-empty").hidden = activeWeapons.length > 0 || detail.weapons.length === 0;
+  $("weapon-detail-list").innerHTML = detail.weapons.length ? detail.weapons.map((weapon) => {
+    const enabled = !detail.disabledWeaponKeys.has(weapon.key);
+    const multiplier = simulationWeaponDamageMultiplier(weapon, distance);
+    const actualDamage = number(weapon.damage) * multiplier;
+    const actualDps = number(weapon.damagePerSecond) * multiplier;
+    return `
+      <label class="weapon-detail-row ${equipmentHardpointType(weapon.item)}${enabled ? "" : " disabled"}">
+        <span class="weapon-detail-toggle">
+          <input type="checkbox" data-weapon-detail-toggle="${weapon.key}" ${enabled ? "checked" : ""}>
+          <span>${t("weaponDetail.enabled")}</span>
+        </span>
+        <strong title="${escapeHtml(weapon.item.display_name || weapon.item.name)}">${escapeHtml(weapon.item.display_name || weapon.item.name)}</strong>
+        <span>${MECHLAB_COMPONENT_NAMES[weapon.component] || weapon.component}</span>
+        <span>${fmt(actualDamage, 2)} <small>/ ${fmt(weapon.damage, 2)}</small></span>
+        <span>${fmt(actualDps, 2)}</span>
+        <span>${weaponDetailRangeText(weapon)}</span>
+      </label>
+    `;
+  }).join("") : `<div class="empty">${t("simulation.noWeapons")}</div>`;
+}
+
+function openWeaponDetail() {
+  if (!state.selectedMech || !state.currentBuild) return;
+  const detail = state.weaponDetail;
+  detail.weapons = collectSimulationWeapons();
+  const currentKeys = new Set(detail.weapons.map((weapon) => weapon.key));
+  detail.disabledWeaponKeys = new Set(
+    Array.from(detail.disabledWeaponKeys).filter((key) => currentKeys.has(key)),
+  );
+  detail.open = true;
+  $("weapon-detail-overlay").hidden = false;
+  document.body.classList.add("weapon-detail-open");
+  renderWeaponDetail();
+  $("close-weapon-detail").focus();
+}
+
+function closeWeaponDetail() {
+  if (!state.weaponDetail.open) return;
+  state.weaponDetail.open = false;
+  $("weapon-detail-overlay").hidden = true;
+  document.body.classList.remove("weapon-detail-open");
+  $("open-weapon-detail")?.focus();
 }
 
 function simulationScenarioDefinition() {
@@ -12492,6 +12610,24 @@ function bindEvents() {
   $("local-build-overlay").addEventListener("mousedown", (event) => {
     if (event.target === $("local-build-overlay")) closeLocalBuildDialog();
   });
+  $("mech-summary-content").addEventListener("click", (event) => {
+    if (event.target.closest("#open-weapon-detail")) openWeaponDetail();
+  });
+  $("close-weapon-detail").addEventListener("click", closeWeaponDetail);
+  $("weapon-detail-overlay").addEventListener("mousedown", (event) => {
+    if (event.target === $("weapon-detail-overlay")) closeWeaponDetail();
+  });
+  $("weapon-detail-distance").addEventListener("input", (event) => {
+    state.weaponDetail.distance = Math.max(1, Math.min(1000, number(Number(event.target.value), 180)));
+    renderWeaponDetail();
+  });
+  $("weapon-detail-list").addEventListener("change", (event) => {
+    const input = event.target.closest("[data-weapon-detail-toggle]");
+    if (!input) return;
+    if (input.checked) state.weaponDetail.disabledWeaponKeys.delete(input.dataset.weaponDetailToggle);
+    else state.weaponDetail.disabledWeaponKeys.add(input.dataset.weaponDetailToggle);
+    renderWeaponDetail();
+  });
   $("close-simulation").addEventListener("click", closeSimulation);
   $("reset-simulation").addEventListener("click", resetSimulationRun);
   $("simulation-scenario-options").addEventListener("change", (event) => {
@@ -12581,6 +12717,13 @@ function bindEvents() {
     renderSimulationGroupStatus();
   });
   document.addEventListener("keydown", (event) => {
+    if (state.weaponDetail.open) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeWeaponDetail();
+      }
+      return;
+    }
     if (!$("help-overlay").hidden) {
       if (event.key === "Escape") {
         event.preventDefault();

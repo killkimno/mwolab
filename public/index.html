@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MWO Mechlab</title>
-    <link rel="stylesheet" href="styles.css?v=20260728-2">
+    <link rel="stylesheet" href="styles.css?v=20260729-1">
   </head>
   <body>
     <div id="app">
@@ -566,6 +566,36 @@
       </section>
     </div>
 
+    <div id="weapon-detail-overlay" class="weapon-detail-overlay" hidden>
+      <section class="weapon-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-detail-title">
+        <header class="weapon-detail-header">
+          <h2 id="weapon-detail-title" data-i18n="weaponDetail.title">무장 상세 정보</h2>
+          <button id="close-weapon-detail" class="simulation-close-button" type="button" aria-label="무장 상세 정보 닫기" data-i18n-aria-label="weaponDetail.close">×</button>
+        </header>
+        <section class="weapon-detail-distance">
+          <div>
+            <label for="weapon-detail-distance" data-i18n="weaponDetail.distance">적과의 거리</label>
+            <strong id="weapon-detail-distance-value">180m</strong>
+          </div>
+          <input id="weapon-detail-distance" type="range" min="1" max="1000" step="1" value="180">
+          <small data-i18n="weaponDetail.distanceHint">슬라이더를 움직이면 거리별 실제 데미지가 즉시 반영됩니다.</small>
+        </section>
+        <div id="weapon-detail-metrics" class="weapon-detail-metrics" aria-live="polite"></div>
+        <p id="weapon-detail-empty" class="weapon-detail-empty" data-i18n="weaponDetail.allDisabled" hidden>사용할 무기를 하나 이상 켜세요.</p>
+        <div class="weapon-detail-table">
+          <div class="weapon-detail-list-header" aria-hidden="true">
+            <span>ON/OFF</span>
+            <span data-i18n="simulation.weapon">무기</span>
+            <span data-i18n="weaponDetail.location">장착 위치</span>
+            <span><span data-i18n="weaponDetail.actualDamage">실제 데미지</span> / <span data-i18n="weaponDetail.baseDamage">기본 데미지</span></span>
+            <span>DPS</span>
+            <span data-i18n="weaponDetail.range">사거리 (최소/적정/최대)</span>
+          </div>
+          <div id="weapon-detail-list" class="weapon-detail-list"></div>
+        </div>
+      </section>
+    </div>
+
     <div id="simulation-overlay" class="simulation-overlay" hidden>
       <section class="simulation-dialog" role="dialog" aria-modal="true" aria-labelledby="simulation-title">
         <header class="simulation-header">
@@ -696,7 +726,7 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-    <script src="app.js?v=20260728-3"></script>
+    <script src="app.js?v=20260729-1"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->
