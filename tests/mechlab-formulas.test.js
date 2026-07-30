@@ -627,7 +627,7 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
   });
 
   await t.test("무장 상세 빈도는 0% 미사용, 50% 쿨타임 2배, 100% 원래 쿨타임으로 계산한다", () => {
-    assert.equal(api.state.weaponDetail.availableWeaponsOnly, true);
+    assert.equal(api.state.weaponDetail.rangeCombinationDps, true);
     assert.equal(api.weaponDetailFrequencyRatio(0), 0);
     assert.equal(api.weaponDetailFrequencyRatio(50), 0.5);
     assert.equal(api.weaponDetailFrequencyRatio(100), 1);
@@ -743,9 +743,8 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
       rangeProfile: { maximumRange: 200 },
     };
     api.state.weaponDetail.frequencyByWeaponKey.set("availability-test", 75);
-    assert.equal(api.weaponDetailEffectiveFrequency(availabilityWeapon, 200, true), 75);
-    assert.equal(api.weaponDetailEffectiveFrequency(availabilityWeapon, 201, true), 0);
-    assert.equal(api.weaponDetailEffectiveFrequency(availabilityWeapon, 201, false), 75);
+    assert.equal(api.weaponDetailEffectiveFrequency(availabilityWeapon, 200), 75);
+    assert.equal(api.weaponDetailEffectiveFrequency(availabilityWeapon, 201), 0);
     assert.equal(api.state.weaponDetail.frequencyByWeaponKey.get("availability-test"), 75);
 
     const shortItem = weapon({ name: "ShortAvailability", ranges: [
@@ -757,21 +756,33 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
       { start: 0, damageModifier: 1 },
       { start: 900, damageModifier: 1 },
     ] });
+    const mixedRangeWeapons = [
+      {
+        key: "short-availability",
+        item: shortItem,
+        damagePerSecond: 10,
+        rangeProfile: api.simulationWeaponRangeProfile(shortItem, 0, 0),
+      },
+      {
+        key: "long-availability",
+        item: longItem,
+        damagePerSecond: 10,
+        rangeProfile: api.simulationWeaponRangeProfile(longItem, 0, 0),
+      },
+    ];
+    const globalDpsSegments = api.weaponDetailDistanceSegments(
+      mixedRangeWeapons,
+      new Map(),
+      1,
+      1000,
+      false,
+    );
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(globalDpsSegments.maximumSegments)),
+      [{ start: 1, end: 100 }],
+    );
     const availabilitySegments = api.weaponDetailDistanceSegments(
-      [
-        {
-          key: "short-availability",
-          item: shortItem,
-          damagePerSecond: 10,
-          rangeProfile: api.simulationWeaponRangeProfile(shortItem, 0, 0),
-        },
-        {
-          key: "long-availability",
-          item: longItem,
-          damagePerSecond: 10,
-          rangeProfile: api.simulationWeaponRangeProfile(longItem, 0, 0),
-        },
-      ],
+      mixedRangeWeapons,
       new Map(),
       1,
       1000,

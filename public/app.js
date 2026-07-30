@@ -186,7 +186,7 @@ const TEXT = {
     "weaponDetail.frequency": "발사 빈도",
     "weaponDetail.effectiveCooldown": "적용 쿨타임",
     "weaponDetail.applyGhostHeat": "고스트 힛 적용",
-    "weaponDetail.availableWeaponsOnly": "사거리가 가능한 무기만 반영",
+    "weaponDetail.rangeCombinationDps": "무기 조합별 최대 DPS",
     "weaponDetail.metricTabs": "무장 지표 보기",
     "weaponDetail.tabBasic": "기본",
     "weaponDetail.tabRange": "사거리 타입",
@@ -203,7 +203,6 @@ const TEXT = {
     "weaponDetail.actualDamage": "실제 데미지",
     "weaponDetail.baseDamage": "기본 데미지",
     "weaponDetail.range": "사거리 (최소/적정/최대)",
-    "weaponDetail.allDisabled": "발사 빈도가 1% 이상인 무기가 없습니다.",
     "simulation.open": "시뮬레이션",
     "simulation.title": "DPS 시뮬레이션",
     "simulation.hint": "버튼 또는 숫자 키 1~4를 누르고 있는 동안 해당 그룹을 발사합니다.",
@@ -709,7 +708,7 @@ const TEXT = {
     "weaponDetail.frequency": "Fire frequency",
     "weaponDetail.effectiveCooldown": "Effective cooldown",
     "weaponDetail.applyGhostHeat": "Apply ghost heat",
-    "weaponDetail.availableWeaponsOnly": "In-range weapons only",
+    "weaponDetail.rangeCombinationDps": "Max DPS by weapon set",
     "weaponDetail.metricTabs": "Weapon metric view",
     "weaponDetail.tabBasic": "Basic",
     "weaponDetail.tabRange": "Range type",
@@ -726,7 +725,6 @@ const TEXT = {
     "weaponDetail.actualDamage": "Actual damage",
     "weaponDetail.baseDamage": "Base damage",
     "weaponDetail.range": "Range (min/optimal/max)",
-    "weaponDetail.allDisabled": "No weapon has a fire frequency above 0%.",
     "simulation.open": "Simulation",
     "simulation.title": "DPS Simulation",
     "simulation.hint": "Hold buttons or number keys 1-4 to fire the assigned weapon groups.",
@@ -1782,7 +1780,7 @@ const state = {
     weapons: [],
     frequencyByWeaponKey: new Map(),
     applyGhostHeat: false,
-    availableWeaponsOnly: true,
+    rangeCombinationDps: true,
     metricTab: "basic",
   },
 };
@@ -7562,16 +7560,9 @@ function weaponDetailMaximumFiringRange(weapon) {
   return Math.max(0, number(profile.maximumRange));
 }
 
-function weaponDetailEffectiveFrequency(
-  weapon,
-  distance,
-  availableWeaponsOnly = state.weaponDetail.availableWeaponsOnly,
-) {
+function weaponDetailEffectiveFrequency(weapon, distance) {
   const frequency = weaponDetailFrequency(weapon.key);
-  if (
-    availableWeaponsOnly
-    && number(distance) > weaponDetailMaximumFiringRange(weapon) + 0.0001
-  ) {
+  if (number(distance) > weaponDetailMaximumFiringRange(weapon) + 0.0001) {
     return 0;
   }
   return frequency;
@@ -7616,7 +7607,7 @@ function weaponDetailDistanceSegments(
   frequencyByWeaponKey = new Map(),
   minimumDistance = 1,
   maximumDistance = 1000,
-  availableWeaponsOnly = false,
+  rangeCombinationDps = false,
 ) {
   const start = Math.max(0, Math.trunc(number(minimumDistance, 1)));
   const end = Math.max(start, Math.trunc(number(maximumDistance, 1000)));
@@ -7625,7 +7616,7 @@ function weaponDetailDistanceSegments(
   const maximumDpsBySignature = new Map();
   let maximumDps = 0;
   for (let distance = start; distance <= end; distance += 1) {
-    const distanceWeapons = availableWeaponsOnly
+    const distanceWeapons = rangeCombinationDps
       ? weapons.filter((weapon) => (
         (frequencyByWeaponKey.has(weapon.key)
           ? number(frequencyByWeaponKey.get(weapon.key), 100)
@@ -7633,7 +7624,7 @@ function weaponDetailDistanceSegments(
         && distance <= weaponDetailMaximumFiringRange(weapon) + 0.0001
       ))
       : weapons;
-    const signature = availableWeaponsOnly
+    const signature = rangeCombinationDps
       ? distanceWeapons.map((weapon) => weapon.key).join("\u001f")
       : "all";
     const dps = weaponDetailDpsAtDistance(
@@ -7729,7 +7720,7 @@ function weaponDetailTotals() {
     detail.frequencyByWeaponKey,
     1,
     1000,
-    detail.availableWeaponsOnly,
+    detail.rangeCombinationDps,
   );
   const metricRowsForWeapons = (weapons, labelKey, rangeType = null) => {
     const alpha = weapons.reduce(
@@ -7959,11 +7950,11 @@ function renderWeaponDetailMetrics(totals = weaponDetailTotals()) {
   );
   $("weapon-detail-apply-ghost-heat").closest(".weapon-detail-ghost-toggle")
     ?.classList.toggle("active", state.weaponDetail.applyGhostHeat);
-  $("weapon-detail-available-only-status").textContent = t(
-    state.weaponDetail.availableWeaponsOnly ? "ui.on" : "ui.off",
+  $("weapon-detail-range-combination-dps-status").textContent = t(
+    state.weaponDetail.rangeCombinationDps ? "ui.on" : "ui.off",
   );
-  $("weapon-detail-available-only").closest(".weapon-detail-available-only-toggle")
-    ?.classList.toggle("active", state.weaponDetail.availableWeaponsOnly);
+  $("weapon-detail-range-combination-dps").closest(".weapon-detail-range-combination-toggle")
+    ?.classList.toggle("active", state.weaponDetail.rangeCombinationDps);
   const metricTab = state.weaponDetail.metricTab === "range" ? "range" : "basic";
   document.querySelectorAll("[data-weapon-detail-tab]").forEach((button) => {
     const active = button.dataset.weaponDetailTab === metricTab;
@@ -7990,7 +7981,6 @@ function renderWeaponDetailMetrics(totals = weaponDetailTotals()) {
       `).join("")}
     </div>
   `).join("");
-  $("weapon-detail-empty").hidden = totals.activeWeapons.length > 0 || state.weaponDetail.weapons.length === 0;
 }
 
 const weaponDetailMaximumMultiplierCache = new WeakMap();
@@ -8028,7 +8018,7 @@ function renderWeaponDetail() {
   const { distance } = totals;
   $("weapon-detail-distance").value = String(distance);
   $("weapon-detail-apply-ghost-heat").checked = detail.applyGhostHeat;
-  $("weapon-detail-available-only").checked = detail.availableWeaponsOnly;
+  $("weapon-detail-range-combination-dps").checked = detail.rangeCombinationDps;
   renderWeaponDetailMetrics(totals);
   $("weapon-detail-list").innerHTML = detail.weapons.length ? detail.weapons.map((weapon) => {
     const frequency = weaponDetailFrequency(weapon.key);
@@ -13164,8 +13154,8 @@ function bindEvents() {
     state.weaponDetail.applyGhostHeat = event.target.checked;
     renderWeaponDetailMetrics();
   });
-  $("weapon-detail-available-only").addEventListener("change", (event) => {
-    state.weaponDetail.availableWeaponsOnly = event.target.checked;
+  $("weapon-detail-range-combination-dps").addEventListener("change", (event) => {
+    state.weaponDetail.rangeCombinationDps = event.target.checked;
     renderWeaponDetail();
   });
   $("weapon-detail-metric-tabs").addEventListener("click", (event) => {

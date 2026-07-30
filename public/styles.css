@@ -4475,11 +4475,11 @@ body.weapon-detail-open {
   color: var(--red);
 }
 
-.weapon-detail-available-only-toggle input {
+.weapon-detail-range-combination-toggle input {
   accent-color: var(--blue);
 }
 
-.weapon-detail-available-only-toggle.active strong {
+.weapon-detail-range-combination-toggle.active strong {
   color: var(--blue);
 }
 
@@ -4487,7 +4487,7 @@ body.weapon-detail-open {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
-  padding: 0 0.85rem;
+  padding: 0.4rem 0.85rem 0;
   background: #26383f;
 }
 
@@ -4515,7 +4515,7 @@ body.weapon-detail-open {
 .weapon-detail-metrics {
   display: grid;
   gap: 1px;
-  padding: 0.7rem 0.85rem;
+  padding: 0.35rem 0.85rem 0.2rem;
   background: #26383f;
 }
 
@@ -4578,14 +4578,6 @@ body.weapon-detail-open {
   color: var(--green);
   font-size: 1.15rem;
   font-variant-numeric: tabular-nums;
-}
-
-.weapon-detail-empty {
-  margin: 0;
-  padding: 0.45rem 0.85rem;
-  border-bottom: 1px solid #5e4931;
-  background: #332718;
-  color: #ffd28f;
 }
 
 .weapon-detail-list-header,
