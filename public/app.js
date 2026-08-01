@@ -191,7 +191,9 @@ const TEXT = {
     "weaponDetail.tabBasic": "기본",
     "weaponDetail.tabRange": "사거리 타입",
     "weaponDetail.metricDamage": "데미지",
-    "weaponDetail.rangeTypeShort": "근거리",
+    "weaponDetail.totalDamage": "총 데미지",
+    "weaponDetail.rangeTypes": "사거리 타입",
+    "weaponDetail.rangeTypeShort": "단거리",
     "weaponDetail.rangeTypeMedium": "중거리",
     "weaponDetail.rangeTypeLong": "장거리",
     "weaponDetail.metricHeat": "발열",
@@ -261,8 +263,8 @@ const TEXT = {
     "help.close": "닫기",
     "help.tipsTitle": "간략한 팁",
     "help.mechlabTitle": "멕랩",
-    "help.tipAssign": "장비 리스트에서 슬롯을 더블 클릭하면 자동 할당합니다.",
-    "help.tipRemove": "장착한 장비를 더블 클릭하면 해제합니다.",
+    "help.tipAssign": "장비 리스트를 클릭하거나 장착한 장비를 더블 클릭하면 같은 장비를 자동 할당합니다.",
+    "help.tipRemove": "장착한 장비를 마우스 오른쪽 버튼으로 한 번 클릭하면 해제합니다.",
     "help.termsTitle": "용어 설명",
     "help.dps": "Damage Per Second. 초당 피해량입니다.",
     "help.dph": "Damage Per Heat. 발열 1점당 피해량이며 피해량을 발열로 나눈 값입니다.",
@@ -713,6 +715,8 @@ const TEXT = {
     "weaponDetail.tabBasic": "Basic",
     "weaponDetail.tabRange": "Range type",
     "weaponDetail.metricDamage": "Damage",
+    "weaponDetail.totalDamage": "Total damage",
+    "weaponDetail.rangeTypes": "Range types",
     "weaponDetail.rangeTypeShort": "Short range",
     "weaponDetail.rangeTypeMedium": "Medium range",
     "weaponDetail.rangeTypeLong": "Long range",
@@ -783,8 +787,8 @@ const TEXT = {
     "help.close": "Close",
     "help.tipsTitle": "Quick tips",
     "help.mechlabTitle": "MechLab",
-    "help.tipAssign": "Double-click a slot in the equipment list to assign it automatically.",
-    "help.tipRemove": "Double-click installed equipment to remove it.",
+    "help.tipAssign": "Click the equipment list, or double-click installed equipment, to assign another copy automatically.",
+    "help.tipRemove": "Right-click installed equipment once to remove it.",
     "help.termsTitle": "Glossary",
     "help.dps": "Damage Per Second. The amount of damage dealt per second.",
     "help.dph": "Damage Per Heat. Damage divided by heat generated.",
@@ -1779,8 +1783,10 @@ const state = {
     distance: 180,
     weapons: [],
     frequencyByWeaponKey: new Map(),
+    enabledByWeaponKey: new Map(),
+    enabledRangeTypes: new Set(["short", "medium", "long"]),
     applyGhostHeat: false,
-    rangeCombinationDps: true,
+    rangeCombinationDps: false,
     metricTab: "basic",
   },
 };
@@ -7543,12 +7549,35 @@ function weaponDetailRangeType(item) {
 function weaponDetailVisibleRangeTypes(
   weapons,
   frequencyByWeaponKey = state.weaponDetail.frequencyByWeaponKey,
+  enabledByWeaponKey = state.weaponDetail.enabledByWeaponKey,
+  enabledRangeTypes = state.weaponDetail.enabledRangeTypes,
 ) {
-  return ["short", "medium", "long"].filter((type) => weapons.some((weapon) => {
+  return ["short", "medium", "long"].filter((type) => {
+    if (!enabledRangeTypes.has(type)) return false;
+    return weapons.some((weapon) => {
     if (weaponDetailRangeType(weapon.item)?.type !== type) return false;
+    if (!weaponDetailWeaponEnabled(weapon.key, enabledByWeaponKey)) return false;
     const saved = frequencyByWeaponKey.get(weapon.key);
     return Math.max(0, Math.min(100, number(saved, 100))) > 0;
-  }));
+    });
+  });
+}
+
+function weaponDetailWeaponEnabled(
+  weaponKey,
+  enabledByWeaponKey = state.weaponDetail.enabledByWeaponKey,
+) {
+  return !enabledByWeaponKey.has(weaponKey) || enabledByWeaponKey.get(weaponKey) !== false;
+}
+
+function weaponDetailRangeTypeEnabled(
+  itemOrType,
+  enabledRangeTypes = state.weaponDetail.enabledRangeTypes,
+) {
+  const type = typeof itemOrType === "string"
+    ? itemOrType
+    : weaponDetailRangeType(itemOrType)?.type;
+  return !type || enabledRangeTypes.has(type);
 }
 
 function weaponDetailMaximumFiringRange(weapon) {
@@ -7561,6 +7590,9 @@ function weaponDetailMaximumFiringRange(weapon) {
 }
 
 function weaponDetailEffectiveFrequency(weapon, distance) {
+  if (!weaponDetailWeaponEnabled(weapon.key) || !weaponDetailRangeTypeEnabled(weapon.item)) {
+    return 0;
+  }
   const frequency = weaponDetailFrequency(weapon.key);
   if (number(distance) > weaponDetailMaximumFiringRange(weapon) + 0.0001) {
     return 0;
@@ -7716,7 +7748,11 @@ function weaponDetailTotals() {
   );
   const heatSystem = simulationHeatSystem();
   const distanceSegments = weaponDetailDistanceSegments(
-    detail.weapons.filter((weapon) => weaponDetailFrequency(weapon.key) > 0),
+    detail.weapons.filter((weapon) => (
+      weaponDetailFrequency(weapon.key) > 0
+      && weaponDetailWeaponEnabled(weapon.key)
+      && weaponDetailRangeTypeEnabled(weapon.item)
+    )),
     detail.frequencyByWeaponKey,
     1,
     1000,
@@ -7762,34 +7798,48 @@ function weaponDetailTotals() {
       rowAlphaCycle,
     );
     const rowHeatEfficiency = weaponDetailHeatEfficiency(rowHps, heatSystem.coolingRate);
+    const damageMetrics = rangeType
+      ? [
+          [t("weaponDetail.totalDamage"), fmt(alpha, 2)],
+          ["DPS", fmt(dps, 2)],
+        ]
+      : [
+          ["FIREPOWER", fmt(alpha, 2)],
+          ["DPS", fmt(dps, 2)],
+          ["DPH", rowAlphaHeat > 0 ? fmt(alpha / rowAlphaHeat, 2) : "-"],
+          ["DPT", calc.totalTons > 0 ? fmt(alpha / calc.totalTons, 2) : "-"],
+        ];
+    const heatEfficiencyMetric = [
+      "HEAT EFFICIENCY",
+      `${fmt(rowHeatEfficiency, 1)}%`,
+      weaponDetailHeatEfficiencyColor(rowHeatEfficiency),
+    ];
+    const heatMetrics = rangeType
+      ? [
+          ["HPS", fmt(rowHps, 2)],
+          ["ALPHA HEAT", `${fmt(rowAlphaHeat, 2)} (${fmt(heatSystem.maxHeat > 0 ? rowAlphaHeat / heatSystem.maxHeat * 100 : 0, 1)}%)`],
+          heatEfficiencyMetric,
+        ]
+      : [
+          ["ATO", rowAto === null ? "-" : Number.isFinite(rowAto) ? fmt(rowAto, 2) : "∞"],
+          ["HPS", fmt(rowHps, 2)],
+          ["ALPHA HEAT", `${fmt(rowAlphaHeat, 2)} (${fmt(heatSystem.maxHeat > 0 ? rowAlphaHeat / heatSystem.maxHeat * 100 : 0, 1)}%)`],
+          heatEfficiencyMetric,
+        ];
     return [
       {
         type: "damage",
         labelKey,
         rangeType,
         metricKey: "weaponDetail.metricDamage",
-        metrics: [
-          ["FIREPOWER", fmt(alpha, 2)],
-          ["DPS", fmt(dps, 2)],
-          ["DPH", rowAlphaHeat > 0 ? fmt(alpha / rowAlphaHeat, 2) : "-"],
-          ["DPT", calc.totalTons > 0 ? fmt(alpha / calc.totalTons, 2) : "-"],
-        ],
+        metrics: damageMetrics,
       },
       {
         type: "heat",
         labelKey,
         rangeType,
         metricKey: "weaponDetail.metricHeat",
-        metrics: [
-          ["ATO", rowAto === null ? "-" : Number.isFinite(rowAto) ? fmt(rowAto, 2) : "∞"],
-          ["HPS", fmt(rowHps, 2)],
-          ["ALPHA HEAT", `${fmt(rowAlphaHeat, 2)} (${fmt(heatSystem.maxHeat > 0 ? rowAlphaHeat / heatSystem.maxHeat * 100 : 0, 1)}%)`],
-          [
-            "HEAT EFFICIENCY",
-            `${fmt(rowHeatEfficiency, 1)}%`,
-            weaponDetailHeatEfficiencyColor(rowHeatEfficiency),
-          ],
-        ],
+        metrics: heatMetrics,
       },
     ];
   };
@@ -7967,10 +8017,9 @@ function renderWeaponDetailMetrics(totals = weaponDetailTotals()) {
     metricTab === "range" ? "weapon-detail-tab-range" : "weapon-detail-tab-basic",
   );
   const metricRows = metricTab === "range" ? totals.rangeMetricRows : totals.metricRows;
-  metrics.innerHTML = metricRows.map((row) => `
-    <div class="weapon-detail-metric-row ${row.type}">
+  const renderMetricRow = (row) => `
+    <div class="weapon-detail-metric-row ${row.type}" style="--weapon-detail-metric-count:${row.metrics.length}">
       <strong class="weapon-detail-metric-row-label">
-        ${row.rangeType ? `<span>${t(row.labelKey)}</span>` : ""}
         <span>${t(row.metricKey || row.labelKey)}</span>
       </strong>
       ${row.metrics.map(([label, value, color]) => `
@@ -7980,7 +8029,42 @@ function renderWeaponDetailMetrics(totals = weaponDetailTotals()) {
         </div>
       `).join("")}
     </div>
-  `).join("");
+  `;
+  const renderRangeTypeToggles = () => `
+    <div class="weapon-detail-range-type-toggles" aria-label="${t("weaponDetail.rangeTypes")}">
+      ${["short", "medium", "long"].map((type) => {
+        const enabled = weaponDetailRangeTypeEnabled(type);
+        const labelKey = `weaponDetail.rangeType${type[0].toUpperCase()}${type.slice(1)}`;
+        return `
+          <label class="weapon-detail-range-type-toggle range-${type}">
+            <input type="checkbox" data-weapon-detail-range-type-enabled="${type}" ${enabled ? "checked" : ""}>
+            <span>${t(labelKey)}</span>
+            <strong>${t(enabled ? "ui.on" : "ui.off")}</strong>
+          </label>
+        `;
+      }).join("")}
+    </div>
+  `;
+  if (metricTab === "range") {
+    metrics.innerHTML = metricRows
+      .filter((row) => row.type === "damage")
+      .map((damageRow) => {
+        const heatRow = metricRows.find(
+          (row) => row.type === "heat" && row.rangeType === damageRow.rangeType,
+        );
+        return `
+          <section class="weapon-detail-range-metric-group range-${damageRow.rangeType}">
+            <strong class="weapon-detail-range-type-label">${t(damageRow.labelKey)}</strong>
+            <div class="weapon-detail-range-metric-columns">
+              ${renderMetricRow(damageRow)}
+              ${heatRow ? renderMetricRow(heatRow) : ""}
+            </div>
+          </section>
+        `;
+      }).join("");
+  } else {
+    metrics.innerHTML = `${renderRangeTypeToggles()}${metricRows.map(renderMetricRow).join("")}`;
+  }
 }
 
 const weaponDetailMaximumMultiplierCache = new WeakMap();
@@ -8022,7 +8106,8 @@ function renderWeaponDetail() {
   renderWeaponDetailMetrics(totals);
   $("weapon-detail-list").innerHTML = detail.weapons.length ? detail.weapons.map((weapon) => {
     const frequency = weaponDetailFrequency(weapon.key);
-    const enabled = frequency > 0;
+    const enabled = weaponDetailWeaponEnabled(weapon.key);
+    const rangeTypeEnabled = weaponDetailRangeTypeEnabled(weapon.item);
     const calculationFrequency = weaponDetailEffectiveFrequency(weapon, distance);
     const multiplier = simulationWeaponDamageMultiplier(weapon, distance);
     const actualDamage = number(weapon.damage) * multiplier;
@@ -8038,12 +8123,17 @@ function renderWeaponDetail() {
       weaponDetailWeaponDamageRatio(weapon, distance),
     );
     return `
-      <div class="weapon-detail-row ${equipmentHardpointType(weapon.item)} ${rangeTone}${enabled ? "" : " disabled"}">
+      <div class="weapon-detail-row ${equipmentHardpointType(weapon.item)} ${rangeTone}${enabled ? "" : " disabled"}${rangeTypeEnabled ? "" : " range-type-disabled"}">
         <div class="weapon-detail-weapon">
           <div class="weapon-detail-name">
+            <label class="weapon-detail-weapon-toggle">
+              <input type="checkbox" data-weapon-detail-enabled="${weapon.key}" ${enabled ? "checked" : ""}>
+              <span>${t(enabled ? "ui.on" : "ui.off")}</span>
+              <span class="sr-only">${escapeHtml(weapon.item.display_name || weapon.item.name)}</span>
+            </label>
             <strong title="${escapeHtml(weapon.item.display_name || weapon.item.name)}">${escapeHtml(weapon.item.display_name || weapon.item.name)}</strong>
           </div>
-          <label>
+          <label class="weapon-detail-frequency-control">
             <span class="sr-only">${escapeHtml(weapon.item.display_name || weapon.item.name)} ${t("weaponDetail.frequency")}</span>
             <input type="range" min="0" max="100" step="1" value="${frequency}" style="--weapon-frequency-percent:${frequency}%" data-weapon-detail-frequency="${weapon.key}">
           </label>
@@ -8066,6 +8156,9 @@ function openWeaponDetail() {
   const currentKeys = new Set(detail.weapons.map((weapon) => weapon.key));
   detail.frequencyByWeaponKey = new Map(
     Array.from(detail.frequencyByWeaponKey).filter(([key]) => currentKeys.has(key)),
+  );
+  detail.enabledByWeaponKey = new Map(
+    Array.from(detail.enabledByWeaponKey).filter(([key]) => currentKeys.has(key)),
   );
   detail.open = true;
   $("weapon-detail-overlay").hidden = false;
@@ -12444,6 +12537,19 @@ function removeInstalledEngineHeatSink(index) {
   return true;
 }
 
+function duplicateInstalledItem(itemId, preferredComponent = null) {
+  const item = itemById(itemId);
+  if (!item) return false;
+  if (
+    preferredComponent
+    && item.item_type !== "engine"
+    && installWarehouseItemInComponent(item, preferredComponent)
+  ) {
+    return true;
+  }
+  return autoInstallWarehouseItem(item);
+}
+
 function buildEntryForItem(item) {
   return {
     type: item.item_type === "weapon" ? "weapon" : item.item_type === "ammo" ? "ammo" : "module",
@@ -13166,6 +13272,24 @@ function bindEvents() {
       : "basic";
     renderWeaponDetailMetrics();
   });
+  $("weapon-detail-metrics").addEventListener("change", (event) => {
+    const input = event.target.closest("[data-weapon-detail-range-type-enabled]");
+    if (!input) return;
+    const type = input.dataset.weaponDetailRangeTypeEnabled;
+    if (!["short", "medium", "long"].includes(type)) return;
+    if (input.checked) state.weaponDetail.enabledRangeTypes.add(type);
+    else state.weaponDetail.enabledRangeTypes.delete(type);
+    renderWeaponDetail();
+  });
+  $("weapon-detail-list").addEventListener("change", (event) => {
+    const input = event.target.closest("[data-weapon-detail-enabled]");
+    if (!input) return;
+    state.weaponDetail.enabledByWeaponKey.set(
+      input.dataset.weaponDetailEnabled,
+      input.checked,
+    );
+    renderWeaponDetail();
+  });
   $("weapon-detail-list").addEventListener("input", (event) => {
     const input = event.target.closest("[data-weapon-detail-frequency]");
     if (!input) return;
@@ -13175,7 +13299,6 @@ function bindEvents() {
     input.style.setProperty("--weapon-frequency-percent", `${frequency}%`);
     const weapon = state.weaponDetail.weapons.find((entry) => entry.key === weaponKey);
     const row = input.closest(".weapon-detail-row");
-    row?.classList.toggle("disabled", frequency <= 0);
     const value = row?.querySelector("[data-weapon-detail-frequency-value]");
     if (value) value.textContent = `${fmt(frequency, 0)}%`;
     if (weapon) {
@@ -13900,7 +14023,8 @@ function bindEvents() {
     if (engineSinkRow) {
       if (event.detail <= 0 || event.detail % 2 !== 0) return;
       event.preventDefault();
-      removeInstalledEngineHeatSink(Number(engineSinkRow.dataset.engineHeatSinkItem));
+      const entry = engineHeatSinkEntries()[Number(engineSinkRow.dataset.engineHeatSinkItem)];
+      duplicateInstalledItem(entry?.item_id);
       return;
     }
     if (event.target.closest("[data-engine-heat-sink-drop]")) return;
@@ -13909,7 +14033,8 @@ function bindEvents() {
       if (event.detail <= 0 || event.detail % 2 !== 0) return;
       const [component, indexText] = installedRow.dataset.loadoutItem.split(":");
       event.preventDefault();
-      removeInstalledItem(component, Number(indexText));
+      const entry = state.currentBuild?.components?.[component]?.items?.[Number(indexText)];
+      duplicateInstalledItem(entry?.item_id, component);
       return;
     }
     const button = event.target.closest("[data-armor-delta]");
@@ -13919,6 +14044,18 @@ function bindEvents() {
       return;
     }
     adjustArmorAllocation(button);
+  });
+  $("components").addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    const engineSinkRow = event.target.closest("[data-engine-heat-sink-item]");
+    if (engineSinkRow) {
+      removeInstalledEngineHeatSink(Number(engineSinkRow.dataset.engineHeatSinkItem));
+      return;
+    }
+    const installedRow = event.target.closest("[data-loadout-item]");
+    if (!installedRow) return;
+    const [component, indexText] = installedRow.dataset.loadoutItem.split(":");
+    removeInstalledItem(component, Number(indexText));
   });
   $("components").addEventListener("keydown", (event) => {
     const armorInput = event.target.closest("[data-armor-input]");
@@ -14129,6 +14266,8 @@ if (globalThis.__MWOLAB_TEST__) {
     weaponDetailWeaponRangeTone,
     weaponDetailRangeType,
     weaponDetailVisibleRangeTypes,
+    weaponDetailWeaponEnabled,
+    weaponDetailRangeTypeEnabled,
     weaponDetailMaximumFiringRange,
     weaponDetailEffectiveFrequency,
     alphasToOverheat,

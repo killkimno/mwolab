@@ -627,7 +627,7 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
   });
 
   await t.test("무장 상세 빈도는 0% 미사용, 50% 쿨타임 2배, 100% 원래 쿨타임으로 계산한다", () => {
-    assert.equal(api.state.weaponDetail.rangeCombinationDps, true);
+    assert.equal(api.state.weaponDetail.rangeCombinationDps, false);
     assert.equal(api.weaponDetailFrequencyRatio(0), 0);
     assert.equal(api.weaponDetailFrequencyRatio(50), 0.5);
     assert.equal(api.weaponDetailFrequencyRatio(100), 1);
@@ -637,6 +637,32 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.equal(api.weaponDetailEffectiveCooldown(3, 0), null);
     assert.equal(api.weaponDetailEffectiveCooldown(3, 50), 6);
     assert.equal(api.weaponDetailEffectiveCooldown(3, 100), 3);
+  });
+
+  await t.test("무장별·사거리 타입 ON/OFF는 저장한 발사 빈도와 독립적으로 계산을 제외한다", () => {
+    const toggledWeapon = {
+      key: "toggle-test",
+      item: weapon({ ranges: [
+        { start: 0, damageModifier: 1 },
+        { start: 200, damageModifier: 1 },
+      ] }),
+      rangeProfile: { maximumRange: 400 },
+    };
+    api.state.weaponDetail.frequencyByWeaponKey.set(toggledWeapon.key, 75);
+    assert.equal(api.weaponDetailWeaponEnabled(toggledWeapon.key), true);
+    assert.equal(api.weaponDetailRangeTypeEnabled(toggledWeapon.item), true);
+    assert.equal(api.weaponDetailEffectiveFrequency(toggledWeapon, 100), 75);
+
+    api.state.weaponDetail.enabledByWeaponKey.set(toggledWeapon.key, false);
+    assert.equal(api.weaponDetailEffectiveFrequency(toggledWeapon, 100), 0);
+    assert.equal(api.state.weaponDetail.frequencyByWeaponKey.get(toggledWeapon.key), 75);
+    api.state.weaponDetail.enabledByWeaponKey.set(toggledWeapon.key, true);
+
+    api.state.weaponDetail.enabledRangeTypes.delete("short");
+    assert.equal(api.weaponDetailEffectiveFrequency(toggledWeapon, 100), 0);
+    assert.equal(api.state.weaponDetail.frequencyByWeaponKey.get(toggledWeapon.key), 75);
+    api.state.weaponDetail.enabledRangeTypes.add("short");
+    assert.equal(api.weaponDetailEffectiveFrequency(toggledWeapon, 100), 75);
   });
 
   await t.test("무장 상세 거리 눈금은 최대 DPS와 데미지 0 구간을 분리한다", () => {
