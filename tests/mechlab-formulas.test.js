@@ -66,6 +66,17 @@ function loadMechLab() {
 
 const api = loadMechLab();
 
+test("shared loadout URL preserves the exact MWO code", () => {
+  const code = "A12?@[\\]^_`abc|def";
+  const sharedUrl = new URL(api.sharedLoadoutUrl(code));
+
+  assert.equal(sharedUrl.origin, "http://localhost");
+  assert.equal(sharedUrl.searchParams.get("lang"), "en");
+  assert.equal(sharedUrl.searchParams.get("loadout"), code);
+  assert.equal(sharedUrl.searchParams.has("tab"), false);
+  assert.equal(sharedUrl.searchParams.has("mech"), false);
+});
+
 function closeTo(actual, expected, epsilon = 1e-9) {
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 }

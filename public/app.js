@@ -26,6 +26,7 @@ let mechlabScaleFrame = 0;
 let mechNavigationReady = false;
 let mechFilterTrigger = null;
 const LOCAL_BUILDS_STORAGE_KEY = "mwolab:local-builds:v1";
+const SHARED_LOADOUT_QUERY_PARAM = "loadout";
 const MAIN_TAB_NAMES = new Set(["mechlab", "equipment-info", "info", "compare", "stats"]);
 const SINGLE_MECH_SELECTION_TABS = new Set(["mechlab", "info"]);
 // Fixed MWO escalation curve. Weapon-specific heat, penalty, threshold, and group values come from equipment.json.
@@ -163,6 +164,9 @@ const TEXT = {
     "loadout.close": "로드아웃 코드 창 닫기",
     "loadout.apply": "불러오기",
     "loadout.copy": "코드 복사",
+    "loadout.copyUrl": "URL 복사",
+    "loadout.codeLabel": "EXPORT 코드",
+    "loadout.urlLabel": "공유 URL",
     "loadout.importTitle": "MWO 코드 불러오기",
     "loadout.exportTitle": "MWO 코드 내보내기",
     "loadout.importDescription": "MWO MechLab에서 복사한 로드아웃 코드를 붙여 넣으세요.",
@@ -170,6 +174,7 @@ const TEXT = {
     "loadout.importPlaceholder": "MWO 로드아웃 코드를 붙여 넣으세요",
     "loadout.imported": "{mech} 로드아웃을 불러왔습니다.",
     "loadout.copied": "코드를 클립보드에 복사했습니다.",
+    "loadout.urlCopied": "공유 URL을 클립보드에 복사했습니다.",
     "loadout.copyFailed": "클립보드 복사에 실패했습니다. 코드를 직접 선택해 복사하세요.",
     "loadout.invalidMech": "코드의 멕 ID {id}를 현재 데이터에서 찾을 수 없습니다.",
     "loadout.invalidItem": "코드에 현재 데이터에 없는 장비 ID가 있습니다: {id}",
@@ -687,6 +692,9 @@ const TEXT = {
     "loadout.close": "Close loadout code dialog",
     "loadout.apply": "Import",
     "loadout.copy": "Copy code",
+    "loadout.copyUrl": "Copy URL",
+    "loadout.codeLabel": "EXPORT CODE",
+    "loadout.urlLabel": "SHARE URL",
     "loadout.importTitle": "Import MWO code",
     "loadout.exportTitle": "Export MWO code",
     "loadout.importDescription": "Paste a loadout code copied from the MWO MechLab.",
@@ -694,6 +702,7 @@ const TEXT = {
     "loadout.importPlaceholder": "Paste an MWO loadout code",
     "loadout.imported": "Imported the {mech} loadout.",
     "loadout.copied": "Copied the code to the clipboard.",
+    "loadout.urlCopied": "Copied the share URL to the clipboard.",
     "loadout.copyFailed": "Clipboard access failed. Select and copy the code manually.",
     "loadout.invalidMech": "Mech ID {id} from the code is not present in the current data.",
     "loadout.invalidItem": "The code contains an equipment ID not present in the current data: {id}",
@@ -1163,6 +1172,7 @@ function closeHelpDialog() {
 
 function mechNavigationUrl(mechId = "") {
   const url = new URL(window.location.href);
+  url.searchParams.delete(SHARED_LOADOUT_QUERY_PARAM);
   url.searchParams.delete("tab");
   if (mechId) url.searchParams.set("mech", mechId);
   else url.searchParams.delete("mech");
@@ -1171,6 +1181,7 @@ function mechNavigationUrl(mechId = "") {
 
 function mainTabNavigationUrl(tabName, mechId = null) {
   const url = new URL(window.location.href);
+  url.searchParams.delete(SHARED_LOADOUT_QUERY_PARAM);
   if (tabName === "mechlab") url.searchParams.delete("tab");
   else url.searchParams.set("tab", tabName);
   if (mechId !== null) {
@@ -1178,6 +1189,14 @@ function mainTabNavigationUrl(tabName, mechId = null) {
     else url.searchParams.delete("mech");
   }
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function sharedLoadoutUrl(code) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("tab");
+  url.searchParams.delete("mech");
+  url.searchParams.set(SHARED_LOADOUT_QUERY_PARAM, String(code || ""));
+  return url.href;
 }
 
 function updateMainTabNavigation(tabName, mode = "push", mechId = null) {
@@ -10937,6 +10956,15 @@ function selectMech(id, { historyMode = "push", enterFitting = true } = {}) {
 function applyMechNavigationFromLocation() {
   if (!mechNavigationReady) return;
   const params = new URL(window.location.href).searchParams;
+  const sharedLoadoutCode = params.get(SHARED_LOADOUT_QUERY_PARAM);
+  if (sharedLoadoutCode) {
+    try {
+      importMwoCode(sharedLoadoutCode, { closeDialog: false, updateNavigation: false });
+    } catch (error) {
+      $("data-status").textContent = error.message;
+    }
+    return;
+  }
   const tabParam = params.get("tab");
   const requestedTab = MAIN_TAB_NAMES.has(tabParam) ? tabParam : "mechlab";
   const requestedMechId = params.get("mech");
@@ -10963,6 +10991,21 @@ function applyMechNavigationFromLocation() {
 function initializeMechNavigation() {
   mechNavigationReady = true;
   const params = new URL(window.location.href).searchParams;
+  const sharedLoadoutCode = params.get(SHARED_LOADOUT_QUERY_PARAM);
+  let sharedLoadoutError = "";
+  if (sharedLoadoutCode) {
+    try {
+      importMwoCode(sharedLoadoutCode, { closeDialog: false, updateNavigation: false });
+      window.history.replaceState(
+        { mwolab: true, view: "mech", mechId: String(state.selectedMech?.id || "") },
+        "",
+        sharedLoadoutUrl(sharedLoadoutCode),
+      );
+      return;
+    } catch (error) {
+      sharedLoadoutError = error.message;
+    }
+  }
   const tabParam = params.get("tab");
   const requestedTab = MAIN_TAB_NAMES.has(tabParam) ? tabParam : "mechlab";
   const requestedMechId = params.get("mech");
@@ -10973,6 +11016,7 @@ function initializeMechNavigation() {
     updateMainTabNavigation(requestedTab, "replace");
   }
   applyMechNavigationFromLocation();
+  if (sharedLoadoutError) $("data-status").textContent = sharedLoadoutError;
 }
 
 function openMechFitting(id) {
@@ -10996,23 +11040,30 @@ function openLoadoutCodeDialog(mode) {
   state.loadoutCodeMode = mode;
   const importing = mode === "import";
   const textarea = $("loadout-code-text");
+  const urlField = $("loadout-url-field");
+  const urlText = $("loadout-url-text");
   $("loadout-code-title").textContent = t(importing ? "loadout.importTitle" : "loadout.exportTitle");
   $("loadout-code-description").textContent = t(
     importing ? "loadout.importDescription" : "loadout.exportDescription",
   );
   $("apply-loadout-code").hidden = !importing;
   $("copy-loadout-code").hidden = importing;
+  $("copy-loadout-url").hidden = importing;
+  urlField.hidden = importing;
   textarea.readOnly = !importing;
   textarea.placeholder = importing ? t("loadout.importPlaceholder") : "";
   setLoadoutCodeStatus();
 
   if (importing) {
     textarea.value = "";
+    urlText.value = "";
   } else {
     try {
       textarea.value = MWOCodec.encode(currentBuildAsMwoLoadout());
+      urlText.value = sharedLoadoutUrl(textarea.value);
     } catch (error) {
       textarea.value = "";
+      urlText.value = "";
       setLoadoutCodeStatus(error.message, "error");
     }
   }
@@ -11216,50 +11267,63 @@ function loadNamedLocalBuild(recordId) {
   }
 }
 
+function importMwoCode(code, { closeDialog = true, updateNavigation = true } = {}) {
+  if (!globalThis.MWOCodec) throw new Error(t("loadout.codecUnavailable"));
+  const decoded = MWOCodec.decode(code);
+  const mech = mechById(decoded.chassisId);
+  if (!mech) throw new Error(t("loadout.invalidMech", { id: decoded.chassisId }));
+  if (decoded.isOmni !== hasFixedOmnipods(mech)) {
+    throw new Error(t("loadout.invalidMech", { id: decoded.chassisId }));
+  }
+  const build = buildFromMwoCode(decoded, mech);
+  state.selectedMech = mech;
+  state.selectedChassis = mech.chassis || "";
+  state.selectedItemId = null;
+  if (state.selectedChassis) state.expandedChassis.add(state.selectedChassis);
+  state.currentBuild = build;
+  state.mechlabBuild = build;
+  state.mechlabBrowseMode = false;
+  state.mechlabCompactListOpen = false;
+  if (state.activeMainTab !== "mechlab") setMainTab("mechlab");
+  if (updateNavigation) updateMechNavigation("mech", mech.id);
+  if (closeDialog) closeLoadoutCodeDialog();
+  renderAll();
+  $("data-status").textContent = t("loadout.imported", { mech: mech.display_name });
+  document.querySelector(".tab-content").scrollTop = 0;
+}
+
 function applyImportedMwoCode() {
   try {
-    if (!globalThis.MWOCodec) throw new Error(t("loadout.codecUnavailable"));
-    const decoded = MWOCodec.decode($("loadout-code-text").value);
-    const mech = mechById(decoded.chassisId);
-    if (!mech) throw new Error(t("loadout.invalidMech", { id: decoded.chassisId }));
-    if (decoded.isOmni !== hasFixedOmnipods(mech)) {
-      throw new Error(t("loadout.invalidMech", { id: decoded.chassisId }));
-    }
-    const build = buildFromMwoCode(decoded, mech);
-    state.selectedMech = mech;
-    state.selectedChassis = mech.chassis || "";
-    state.selectedItemId = null;
-    if (state.selectedChassis) state.expandedChassis.add(state.selectedChassis);
-    state.currentBuild = build;
-    state.mechlabBrowseMode = false;
-    state.mechlabCompactListOpen = false;
-    updateMechNavigation("mech", mech.id);
-    closeLoadoutCodeDialog();
-    renderAll();
-    $("data-status").textContent = t("loadout.imported", { mech: mech.display_name });
-    document.querySelector(".tab-content").scrollTop = 0;
+    importMwoCode($("loadout-code-text").value);
   } catch (error) {
     setLoadoutCodeStatus(error.message, "error");
   }
 }
 
-async function copyExportedMwoCode() {
-  const textarea = $("loadout-code-text");
+async function copyLoadoutDialogValue(textarea, successMessage) {
   const code = textarea.value.trim();
   if (!code) return;
   try {
     if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
     await navigator.clipboard.writeText(code);
-    setLoadoutCodeStatus(t("loadout.copied"), "success");
+    setLoadoutCodeStatus(successMessage, "success");
   } catch {
     textarea.focus();
     textarea.select();
     const copied = typeof document.execCommand === "function" && document.execCommand("copy");
     setLoadoutCodeStatus(
-      t(copied ? "loadout.copied" : "loadout.copyFailed"),
+      copied ? successMessage : t("loadout.copyFailed"),
       copied ? "success" : "error",
     );
   }
+}
+
+function copyExportedMwoCode() {
+  return copyLoadoutDialogValue($("loadout-code-text"), t("loadout.copied"));
+}
+
+function copyExportedMwoUrl() {
+  return copyLoadoutDialogValue($("loadout-url-text"), t("loadout.urlCopied"));
 }
 
 function showMechlabList() {
@@ -13217,6 +13281,7 @@ function bindEvents() {
   $("close-loadout-code").addEventListener("click", closeLoadoutCodeDialog);
   $("apply-loadout-code").addEventListener("click", applyImportedMwoCode);
   $("copy-loadout-code").addEventListener("click", copyExportedMwoCode);
+  $("copy-loadout-url").addEventListener("click", copyExportedMwoUrl);
   $("loadout-code-overlay").addEventListener("mousedown", (event) => {
     if (event.target === $("loadout-code-overlay")) closeLoadoutCodeDialog();
   });
@@ -14286,6 +14351,7 @@ if (globalThis.__MWOLAB_TEST__) {
     ultraAutoCannonJamStats,
     mechSummaryWeaponMetrics,
     calculateBuild,
+    sharedLoadoutUrl,
   });
 } else {
   init();

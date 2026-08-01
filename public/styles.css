@@ -3973,7 +3973,21 @@ body.ui-settings-open {
   line-height: 1;
 }
 
-#loadout-code-text {
+.loadout-code-field {
+  display: grid;
+  gap: 0.35rem;
+  color: #9db7c1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.loadout-code-field[hidden] {
+  display: none;
+}
+
+#loadout-code-text,
+#loadout-url-text {
   width: 100%;
   min-height: 7rem;
   resize: vertical;
@@ -3987,7 +4001,13 @@ body.ui-settings-open {
   overflow-wrap: anywhere;
 }
 
-#loadout-code-text:focus {
+#loadout-url-text {
+  min-height: 4.5rem;
+  color: #a9d8e8;
+}
+
+#loadout-code-text:focus,
+#loadout-url-text:focus {
   border-color: var(--blue);
   outline: 1px solid var(--blue);
 }

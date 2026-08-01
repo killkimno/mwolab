@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>mwolab - MechWarrior Online MechLab</title>
     <meta name="description" content="MWO MechLab and build planner for MechWarrior Online. Compare mechs, equipment, quirks, hardpoints, loadouts, damage, heat and mobility stats.">
-  <link rel="stylesheet" href="styles.css?v=20260731-12">
+  <link rel="stylesheet" href="styles.css?v=20260801-1">
   </head>
   <body>
     <div id="app">
@@ -536,10 +536,18 @@
           </div>
           <button id="close-loadout-code" class="loadout-code-close" type="button" aria-label="닫기" data-i18n-aria-label="loadout.close">×</button>
         </header>
-        <textarea id="loadout-code-text" rows="5" spellcheck="false" autocomplete="off"></textarea>
+        <label class="loadout-code-field">
+          <span data-i18n="loadout.codeLabel">EXPORT 코드</span>
+          <textarea id="loadout-code-text" rows="5" spellcheck="false" autocomplete="off"></textarea>
+        </label>
+        <label id="loadout-url-field" class="loadout-code-field" hidden>
+          <span data-i18n="loadout.urlLabel">공유 URL</span>
+          <textarea id="loadout-url-text" rows="3" spellcheck="false" autocomplete="off" readonly></textarea>
+        </label>
         <p id="loadout-code-status" class="loadout-code-status" aria-live="polite"></p>
         <div class="loadout-code-dialog-actions">
           <button id="apply-loadout-code" type="button" data-i18n="loadout.apply">불러오기</button>
+          <button id="copy-loadout-url" type="button" data-i18n="loadout.copyUrl">URL 복사</button>
           <button id="copy-loadout-code" type="button" data-i18n="loadout.copy">코드 복사</button>
         </div>
       </section>
@@ -750,7 +758,7 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-  <script src="app.js?v=20260731-12"></script>
+  <script src="app.js?v=20260801-1"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->
