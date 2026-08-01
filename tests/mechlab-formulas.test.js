@@ -75,6 +75,7 @@ test("shared loadout URL preserves the exact MWO code", () => {
   assert.equal(sharedUrl.searchParams.get("loadout"), code);
   assert.equal(sharedUrl.searchParams.has("tab"), false);
   assert.equal(sharedUrl.searchParams.has("mech"), false);
+  assert.ok(sharedUrl.search.startsWith("?lang=en&loadout="));
 });
 
 function closeTo(actual, expected, epsilon = 1e-9) {

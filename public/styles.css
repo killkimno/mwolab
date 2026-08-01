@@ -1101,7 +1101,7 @@ body.help-open {
 
 .mech-toolbar-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 0.5rem;
 }
 
@@ -1136,6 +1136,12 @@ body.help-open {
 
 .class-section {
   border-bottom: 1px solid #22333a;
+}
+
+.mech-toolbar-import {
+  min-width: 4.6rem;
+  padding-inline: 0.65rem;
+  font-weight: 800;
 }
 
 .class-heading {

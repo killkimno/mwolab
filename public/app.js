@@ -25,6 +25,7 @@ let mechlabScaleObserver = null;
 let mechlabScaleFrame = 0;
 let mechNavigationReady = false;
 let mechFilterTrigger = null;
+let loadoutCodeTrigger = null;
 const LOCAL_BUILDS_STORAGE_KEY = "mwolab:local-builds:v1";
 const SHARED_LOADOUT_QUERY_PARAM = "loadout";
 const MAIN_TAB_NAMES = new Set(["mechlab", "equipment-info", "info", "compare", "stats"]);
@@ -1138,7 +1139,11 @@ function t(key, values = {}) {
 
 function languageUrl(language) {
   const url = new URL(window.location.href);
+  const remainingParams = Array.from(url.searchParams.entries())
+    .filter(([name]) => name !== "lang");
+  url.search = "";
   url.searchParams.set("lang", language);
+  remainingParams.forEach(([name, value]) => url.searchParams.append(name, value));
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -1193,8 +1198,12 @@ function mainTabNavigationUrl(tabName, mechId = null) {
 
 function sharedLoadoutUrl(code) {
   const url = new URL(window.location.href);
-  url.searchParams.delete("tab");
-  url.searchParams.delete("mech");
+  const language = url.searchParams.get("lang");
+  const remainingParams = Array.from(url.searchParams.entries())
+    .filter(([name]) => !["lang", "tab", "mech", SHARED_LOADOUT_QUERY_PARAM].includes(name));
+  url.search = "";
+  if (language) url.searchParams.set("lang", language);
+  remainingParams.forEach(([name, value]) => url.searchParams.append(name, value));
   url.searchParams.set(SHARED_LOADOUT_QUERY_PARAM, String(code || ""));
   return url.href;
 }
@@ -6683,6 +6692,7 @@ function renderMechList() {
   const layout = $("mech-browser-layout");
   const list = $("mech-list");
   const toggle = $("mech-list-view-toggle");
+  const toolbarImport = $("mech-toolbar-import");
   const isMechlab = state.activeMainTab === "mechlab";
   const mechlabBrowsing = isMechlab && state.mechlabBrowseMode;
   const mechlabFocused = isMechlab && !state.mechlabBrowseMode;
@@ -6699,6 +6709,7 @@ function renderMechList() {
     toggle.textContent = state.largeMechList ? "<<" : ">>";
     toggle.title = state.largeMechList ? t("list.smallView") : t("list.largeView");
   }
+  if (toolbarImport) toolbarImport.hidden = !isMechlab;
   renderMechlabCompactList();
 
   if (!filtered.length) {
@@ -11037,6 +11048,7 @@ function openLoadoutCodeDialog(mode) {
     $("data-status").textContent = t("loadout.codecUnavailable");
     return;
   }
+  loadoutCodeTrigger = document.activeElement;
   state.loadoutCodeMode = mode;
   const importing = mode === "import";
   const textarea = $("loadout-code-text");
@@ -11080,10 +11092,13 @@ function closeLoadoutCodeDialog() {
   if ($("loadout-code-overlay").hidden) return;
   $("loadout-code-overlay").hidden = true;
   document.body.classList.remove("loadout-code-open");
-  const focusTarget = state.loadoutCodeMode === "export"
-    ? $("export-loadout-code")
-    : $("import-loadout-code");
+  const focusTarget = loadoutCodeTrigger?.isConnected
+    ? loadoutCodeTrigger
+    : state.loadoutCodeMode === "export"
+      ? $("export-loadout-code")
+      : $("import-loadout-code");
   focusTarget?.focus();
+  loadoutCodeTrigger = null;
 }
 
 function setLocalBuildStatus(message = "", tone = "") {
@@ -13623,6 +13638,7 @@ function bindEvents() {
     renderEquipmentInfo();
   });
   $("mech-search").addEventListener("input", renderMechList);
+  $("mech-toolbar-import").addEventListener("click", () => openLoadoutCodeDialog("import"));
   document.querySelectorAll("[data-open-mech-filter]").forEach((button) => {
     button.addEventListener("click", () => openMechFilterDialog(button));
   });

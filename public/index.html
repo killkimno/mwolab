@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>mwolab - MechWarrior Online MechLab</title>
     <meta name="description" content="MWO MechLab and build planner for MechWarrior Online. Compare mechs, equipment, quirks, hardpoints, loadouts, damage, heat and mobility stats.">
-  <link rel="stylesheet" href="styles.css?v=20260801-1">
+  <link rel="stylesheet" href="styles.css?v=20260801-2">
   </head>
   <body>
     <div id="app">
@@ -35,6 +35,7 @@
               <div class="mech-toolbar-row">
                 <button class="mech-filter-button" type="button" data-open-mech-filter aria-haspopup="dialog" aria-controls="mech-filter-overlay" data-i18n="filters.open">필터</button>
                 <input id="mech-search" type="search" placeholder="기종 또는 변형 검색" data-i18n-placeholder="search.mechPlaceholder">
+                <button id="mech-toolbar-import" class="mech-toolbar-import" type="button" data-i18n="loadout.import" hidden>IMPORT</button>
                 <button id="mech-list-view-toggle" class="mech-list-view-toggle" type="button" aria-pressed="true" title="작은 리스트 보기" data-i18n-title="list.smallView" hidden>&lt;&lt;</button>
               </div>
               <select id="mech-sort">
@@ -758,7 +759,7 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-  <script src="app.js?v=20260801-1"></script>
+  <script src="app.js?v=20260801-2"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->
