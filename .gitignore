@@ -3,6 +3,7 @@ local-mech-icons/
 .mechlab-server.pid
 .local-preview-server.pid
 .local-preview-*.log
+.claude/settings.local.json
 __pycache__/
 *.pyc
 .vs/

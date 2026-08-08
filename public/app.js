@@ -24,6 +24,7 @@ let mechlabScale = 1;
 let mechlabScaleObserver = null;
 let mechlabScaleFrame = 0;
 let mechNavigationReady = false;
+let mechSortTrigger = null;
 let mechFilterTrigger = null;
 let loadoutCodeTrigger = null;
 const LOCAL_BUILDS_STORAGE_KEY = "mwolab:local-builds:v1";
@@ -431,6 +432,15 @@ const TEXT = {
     "equipmentInfo.engineHeatDissipation": "엔진 냉각/초",
     "sort.default": "기본 정렬",
     "sort.tons": "톤수 정렬",
+    "sort.alphabetical": "알파벳순",
+    "sort.title": "정렬 설정",
+    "sort.close": "정렬 팝업 닫기",
+    "sort.open": "정렬",
+    "sort.criterion": "정렬 기준",
+    "sort.direction": "정렬 방향",
+    "sort.ascending": "오름차순",
+    "sort.descending": "내림차순",
+    "sort.groupFaction": "진영별 표시",
     "weight.light": "라이트",
     "weight.medium": "미디엄",
     "weight.heavy": "헤비",
@@ -959,6 +969,15 @@ const TEXT = {
     "equipmentInfo.engineHeatDissipation": "Engine Dissipation/s",
     "sort.default": "Default sort",
     "sort.tons": "Sort by tonnage",
+    "sort.alphabetical": "Alphabetical",
+    "sort.title": "Sort settings",
+    "sort.close": "Close sort dialog",
+    "sort.open": "Sort",
+    "sort.criterion": "Sort criterion",
+    "sort.direction": "Sort direction",
+    "sort.ascending": "Ascending",
+    "sort.descending": "Descending",
+    "sort.groupFaction": "Group by faction",
     "weight.light": "Light",
     "weight.medium": "Medium",
     "weight.heavy": "Heavy",
@@ -1715,6 +1734,8 @@ const state = {
   statsSummaryWarmupScheduled: false,
   largeMechList: true,
   mechSort: "default",
+  mechSortDirection: "asc",
+  mechSortGroupFaction: true,
   mechFilterFaction: "",
   mechFilterWeightClasses: new Set(),
   mechFilterAllTypes: true,
@@ -1833,7 +1854,8 @@ function fmt(value, digits = 1) {
 }
 
 function weaponProjectilesPerFiring(item) {
-  if (String(item?.stats?.projectileclass || "").toLowerCase() !== "bullet") return 1;
+  const projectileClass = String(item?.stats?.projectileclass || "").toLowerCase();
+  if (projectileClass !== "bullet" && !isRocketLauncher(item)) return 1;
   return Math.max(1, Math.trunc(number(item?.stats?.numPerShot, 1)));
 }
 
@@ -2748,10 +2770,14 @@ function weightClassClass(weightClass) {
 function sortChassisGroups(a, b) {
   const tons = Number(a.tons) - Number(b.tons);
   const faction = factionRank(a.faction) - factionRank(b.faction);
-  if (state.mechSort === "tons") {
-    return tons || faction || a.label.localeCompare(b.label);
-  }
-  return faction || tons || a.order - b.order;
+  const alphabetical = a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" });
+  const criterion = state.mechSort === "alphabetical"
+    ? alphabetical
+    : state.mechSort === "tons"
+      ? tons || alphabetical
+      : tons || a.order - b.order;
+  const direction = state.mechSortDirection === "desc" ? -1 : 1;
+  return (state.mechSortGroupFaction ? faction : 0) || criterion * direction;
 }
 
 function chassisGroupsForWeight(grouped, weightClass) {
@@ -6643,6 +6669,67 @@ function renderMechFilterControls() {
   renderMechQuirkFilterControls();
 }
 
+function renderMechSortControls() {
+  document.querySelectorAll("[data-open-mech-sort]").forEach((button) => {
+    const customized = state.mechSort !== "default"
+      || state.mechSortDirection !== "asc"
+      || !state.mechSortGroupFaction;
+    button.classList.toggle("active", customized);
+  });
+  document.querySelectorAll("[data-mech-sort-key]").forEach((button) => {
+    const active = button.dataset.mechSortKey === state.mechSort;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll("[data-mech-sort-direction]").forEach((button) => {
+    const active = button.dataset.mechSortDirection === state.mechSortDirection;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll("[data-mech-sort-faction]").forEach((button) => {
+    button.classList.toggle("active", state.mechSortGroupFaction);
+    button.setAttribute("aria-checked", String(state.mechSortGroupFaction));
+  });
+}
+
+function openMechSortDialog(trigger) {
+  mechSortTrigger = trigger || document.activeElement;
+  $("mech-sort-overlay").hidden = false;
+  document.body.classList.add("mech-sort-open");
+  document.querySelectorAll("[data-open-mech-sort]").forEach((button) => {
+    button.setAttribute("aria-expanded", String(button === mechSortTrigger));
+  });
+  renderMechSortControls();
+  requestAnimationFrame(() => {
+    $("mech-sort-overlay").querySelector("[data-mech-sort-key].active")?.focus();
+  });
+}
+
+function closeMechSortDialog() {
+  if ($("mech-sort-overlay").hidden) return;
+  $("mech-sort-overlay").hidden = true;
+  document.body.classList.remove("mech-sort-open");
+  document.querySelectorAll("[data-open-mech-sort]").forEach((button) => {
+    button.setAttribute("aria-expanded", "false");
+  });
+  mechSortTrigger?.focus();
+  mechSortTrigger = null;
+}
+
+function renderChassisSections(chassisGroups, activeChassis, large) {
+  if (state.mechSortGroupFaction) {
+    return factionSectionsForChassisGroups(chassisGroups)
+      .map((section) => renderFactionSection(section, activeChassis, large))
+      .join("");
+  }
+  const listClass = large ? "chassis-list large-chassis-list" : "chassis-list";
+  return `<div class="${listClass} ungrouped-chassis-list">${chassisGroups
+    .map((group) => large
+      ? renderLargeChassisGroup(group, activeChassis)
+      : renderSmallChassisGroup(group, activeChassis))
+    .join("")}</div>`;
+}
+
 function renderMechlabCompactList() {
   const panel = $("mechlab-compact-list-panel");
   const summary = $("mech-summary-panel");
@@ -6671,11 +6758,10 @@ function renderMechlabCompactList() {
   list.innerHTML = sortedClassNames(grouped)
     .map((weightClass) => {
       const chassisGroups = chassisGroupsForWeight(grouped, weightClass);
-      const factionSections = factionSectionsForChassisGroups(chassisGroups);
       return `
         <section class="class-section compact-class-section">
           <div class="class-heading"><strong>${WEIGHT_CLASS_LABELS[weightClass] || formatChassisName(weightClass)}</strong></div>
-          ${factionSections.map((section) => renderFactionSection(section, activeChassis, false)).join("")}
+          ${renderChassisSections(chassisGroups, activeChassis, false)}
         </section>
       `;
     })
@@ -6684,6 +6770,7 @@ function renderMechlabCompactList() {
 
 function renderMechList() {
   renderMechFilterControls();
+  renderMechSortControls();
   const filtered = filteredMechsForList();
   const grouped = groupMechsForList(filtered);
   const activeChassis = activeChassisForList();
@@ -6725,7 +6812,6 @@ function renderMechList() {
   $("mech-list").innerHTML = classNames
     .map((weightClass) => {
       const chassisGroups = chassisGroupsForWeight(grouped, weightClass);
-      const factionSections = factionSectionsForChassisGroups(chassisGroups);
       const count = chassisGroups.reduce((sum, group) => sum + group.variants.length, 0);
       return `
         <section class="class-section">
@@ -6733,7 +6819,7 @@ function renderMechList() {
             <strong>${WEIGHT_CLASS_LABELS[weightClass] || formatChassisName(weightClass)}</strong>
             <span>${t("list.chassisVariants", { chassis: chassisGroups.length, variants: count })}</span>
           </div>
-          ${factionSections.map((section) => renderFactionSection(section, activeChassis, false)).join("")}
+          ${renderChassisSections(chassisGroups, activeChassis, false)}
         </section>
       `;
     })
@@ -7041,7 +7127,7 @@ function mechSummaryWeaponMetrics(weapons, firepower, heatSystem) {
     0,
   );
   const hps = weapons.reduce(
-    (sum, weapon) => sum + number(weapon.heat) / Math.max(0.016, number(weapon.cycle, 0.016)),
+    (sum, weapon) => sum + simulationWeaponHeatPerSecond(weapon),
     0,
   );
   const coolingRate = Math.max(0, number(heatSystem?.coolingRate));
@@ -7158,9 +7244,23 @@ function simulationItemKeys(item) {
   ].map(normalizeLookupKey).filter(Boolean));
 }
 
+function isRocketLauncher(item) {
+  return simulationItemKeys(item).has("rocketlauncher");
+}
+
+function isContinuousPerSecondWeapon(item) {
+  const keys = simulationItemKeys(item);
+  return keys.has("machinegun")
+    || keys.has("ismachinegun")
+    || keys.has("clanmachinegun")
+    || keys.has("rotaryautocannon")
+    || keys.has("clanbeamlaser")
+    || keys.has("flamer");
+}
+
 function isSimulationContinuousDamagePerSecondWeapon(item) {
   return Array.from(simulationItemKeys(item))
-    .some((key) => key.includes("beamlaser"));
+    .some((key) => key.includes("beamlaser") || key.includes("flamer"));
 }
 
 function simulationSpecificQuirkMatchesItem(prefix, item) {
@@ -7247,9 +7347,11 @@ function simulationWeaponTiming(item, quirks) {
     };
   }
 
-  const cooldownReduction = quirkReduction(quirks, "all_cooldown_multiplier")
-    + quirkReduction(quirks, `${type}_cooldown_multiplier`)
-    + simulationSpecificQuirkTotal(quirks, item, "_cooldown_multiplier");
+  const cooldownReduction = isRocketLauncher(item)
+    ? 0
+    : quirkReduction(quirks, "all_cooldown_multiplier")
+      + quirkReduction(quirks, `${type}_cooldown_multiplier`)
+      + simulationSpecificQuirkTotal(quirks, item, "_cooldown_multiplier");
   const durationModifier = quirkSignedValue(quirks, "all_duration_multiplier")
     + (type === "energy" ? quirkSignedValue(quirks, "energy_duration_multiplier") : 0)
     + simulationSpecificQuirkTotal(quirks, item, "_duration_multiplier", "signed");
@@ -7263,8 +7365,15 @@ function simulationWeaponTiming(item, quirks) {
   };
 }
 
+function isStreakSrm(item) {
+  return simulationItemKeys(item).has("streaksrm");
+}
+
 function weaponVolleySize(item) {
   if (equipmentHardpointType(item) !== "missile") return 1;
+  if (isStreakSrm(item)) {
+    return Math.max(1, Math.trunc(number(item?.stats?.numFiring, 1)));
+  }
   return Math.max(1, Math.trunc(number(item?.stats?.volleysize, 1)));
 }
 
@@ -7293,7 +7402,6 @@ function weaponExpectedCooldown(item, quirks = []) {
   const firingTime = weaponFiringTime(item);
   if (isUltraAutoCannon(item)) {
     const jam = ultraAutoCannonJamStats(item, quirks);
-    // One guaranteed volley plus one double-tap attempt; a jam replaces the extra volley.
     return (
       firingTime
       + (1 - jam.chance) * timing.cooldown
@@ -7398,9 +7506,10 @@ function simulationWeaponDamagePerSecond(weapon) {
   return number(damage) * simulationWeaponDamageMultiplier(weapon);
 }
 
-function isSimulationMachineGun(item) {
-  return simulationItemKeys(item).has("machinegun")
-    || normalizeLookupKey(item?.name).includes("machinegun");
+function simulationWeaponHeatPerSecond(weapon) {
+  if (isContinuousPerSecondWeapon(weapon?.item)) return Math.max(0, number(weapon?.heat));
+  return Math.max(0, number(weapon?.heat))
+    / Math.max(0.016, number(weapon?.cycle, 0.016));
 }
 
 function simulationHeatSinkItem(build = state.currentBuild) {
@@ -7472,7 +7581,8 @@ function collectSimulationWeapons() {
       const directDamage = weaponDirectDamage(item);
       const splashDamage = weaponSplashDamage(item);
       const damageRate = weaponDamageRate(item, quirks);
-      const directDamagePerSecond = damageRate?.final ?? directDamage / timing.cycle;
+      const cycle = expectedCooldown ?? timing.cycle;
+      const directDamagePerSecond = damageRate?.final ?? directDamage / cycle;
       weapons.push({
         key: `${state.selectedMech.id}:fixed:${component}:${index}:${item.id}`,
         item,
@@ -7486,10 +7596,11 @@ function collectSimulationWeapons() {
         ),
         heat: simulationWeaponHeat(item, quirks),
         ghostHeatBase: itemHeat(item),
-        ghostHeatBasePerSecond: itemHeat(item) / Math.max(0.016, baseTiming.cycle),
+        ghostHeatBasePerSecond: isContinuousPerSecondWeapon(item)
+          ? itemHeat(item)
+          : itemHeat(item) / Math.max(0.016, baseTiming.cycle),
         ghostHeatHslBonus: ghostHeatHslBonus(item, quirks),
-        continuous: isSimulationMachineGun(item)
-          || isSimulationContinuousDamagePerSecondWeapon(item),
+        continuous: Boolean(damageRate),
         chargeTime: Math.max(0, number(item.stats?.chargeTime)),
         firingTime: weaponFiringTime(item),
         shotCount: Math.max(1, Math.trunc(number(item.stats?.numFiring, 1))),
@@ -7503,7 +7614,7 @@ function collectSimulationWeapons() {
           targetComputer.rangeBonus,
         ),
         ...timing,
-        cycle: expectedCooldown ?? timing.cycle,
+        cycle,
         entry: null,
       });
     });
@@ -7518,7 +7629,8 @@ function collectSimulationWeapons() {
       const directDamage = weaponDirectDamage(item);
       const splashDamage = weaponSplashDamage(item);
       const damageRate = weaponDamageRate(item, quirks);
-      const directDamagePerSecond = damageRate?.final ?? directDamage / timing.cycle;
+      const cycle = expectedCooldown ?? timing.cycle;
+      const directDamagePerSecond = damageRate?.final ?? directDamage / cycle;
       weapons.push({
         key: `${state.selectedMech.id}:installed:${component}:${index}:${item.id}`,
         item,
@@ -7532,10 +7644,11 @@ function collectSimulationWeapons() {
         ),
         heat: simulationWeaponHeat(item, quirks),
         ghostHeatBase: itemHeat(item),
-        ghostHeatBasePerSecond: itemHeat(item) / Math.max(0.016, baseTiming.cycle),
+        ghostHeatBasePerSecond: isContinuousPerSecondWeapon(item)
+          ? itemHeat(item)
+          : itemHeat(item) / Math.max(0.016, baseTiming.cycle),
         ghostHeatHslBonus: ghostHeatHslBonus(item, quirks),
-        continuous: isSimulationMachineGun(item)
-          || isSimulationContinuousDamagePerSecondWeapon(item),
+        continuous: Boolean(damageRate),
         chargeTime: Math.max(0, number(item.stats?.chargeTime)),
         firingTime: weaponFiringTime(item),
         shotCount: Math.max(1, Math.trunc(number(item.stats?.numFiring, 1))),
@@ -7549,7 +7662,7 @@ function collectSimulationWeapons() {
           targetComputer.rangeBonus,
         ),
         ...timing,
-        cycle: expectedCooldown ?? timing.cycle,
+        cycle,
         entry,
       });
     });
@@ -7815,8 +7928,7 @@ function weaponDetailTotals() {
     ), 0);
     let rowHps = weapons.reduce(
       (sum, weapon) => sum
-        + number(weapon.heat)
-          / Math.max(0.016, number(weapon.cycle, 0.016))
+        + simulationWeaponHeatPerSecond(weapon)
           * weaponDetailFrequencyRatio(effectiveFrequencyByWeaponKey.get(weapon.key)),
       0,
     );
@@ -8979,7 +9091,7 @@ function updateSimulationContinuousDamage(now) {
         simulation.lastHitEffectAt.set(weapon.key, now);
       }
     }
-    simulation.currentHeat += (weapon.heat / weapon.cycle) * elapsed;
+    simulation.currentHeat += simulationWeaponHeatPerSecond(weapon) * elapsed;
     const ghostHeatGroup = ghostHeatGroupKey(weapon.item);
     if (ghostHeatGroup) {
       if (!ghostHeatByGroup.has(ghostHeatGroup)) ghostHeatByGroup.set(ghostHeatGroup, []);
@@ -9180,7 +9292,6 @@ function renderLargeMechList(classNames, grouped, activeChassis) {
   $("mech-list").innerHTML = classNames
     .map((weightClass) => {
       const chassisGroups = chassisGroupsForWeight(grouped, weightClass);
-      const factionSections = factionSectionsForChassisGroups(chassisGroups);
       const count = chassisGroups.reduce((sum, group) => sum + group.variants.length, 0);
       return `
         <section class="class-section mech-card-section">
@@ -9188,7 +9299,7 @@ function renderLargeMechList(classNames, grouped, activeChassis) {
             <strong>${WEIGHT_CLASS_LABELS[weightClass] || formatChassisName(weightClass)}</strong>
             <span>${t("list.chassisVariants", { chassis: chassisGroups.length, variants: count })}</span>
           </div>
-          ${factionSections.map((section) => renderFactionSection(section, activeChassis, true)).join("")}
+          ${renderChassisSections(chassisGroups, activeChassis, true)}
         </section>
       `;
     })
@@ -9215,7 +9326,7 @@ function renderSmallChassisGroup(group, activeChassis) {
   const active = group.chassis === activeChassis ? " active" : "";
   const expanded = state.expandedChassis.has(group.chassis);
   return `
-    <div class="chassis-group${active}${expanded ? " expanded" : ""}" data-chassis-group="${group.chassis}">
+    <div class="chassis-group ${factionClass(group.faction)}${active}${expanded ? " expanded" : ""}" data-chassis-group="${group.chassis}">
       <button class="chassis-row${active}" data-chassis="${group.chassis}" type="button" aria-expanded="${expanded}">
         <span class="row-title">
           <span class="chassis-title small-chassis-title"><span class="expand-indicator" aria-hidden="true">${expanded ? "-" : "+"}</span><strong>${group.label}</strong><span class="chassis-ton">${group.tons}t</span></span>
@@ -9252,7 +9363,7 @@ function renderLargeChassisGroup(group, activeChassis) {
   const active = group.chassis === activeChassis ? " active" : "";
   const expanded = state.expandedChassis.has(group.chassis);
   return `
-    <div class="chassis-group${active}${expanded ? " expanded" : ""}" data-chassis-group="${group.chassis}">
+    <div class="chassis-group ${factionClass(group.faction)}${active}${expanded ? " expanded" : ""}" data-chassis-group="${group.chassis}">
       <button class="chassis-row large-chassis-row${active}" data-chassis="${group.chassis}" type="button" aria-expanded="${expanded}">
         <span class="chassis-title">
           <span class="expand-indicator" aria-hidden="true">${expanded ? "-" : "+"}</span>
@@ -9388,9 +9499,13 @@ function equipmentInfoWeaponRow(item, index) {
     : 1;
   const splashDamage = weaponSplashDamage(item) * 2 * damageRateMultiplier;
   const totalDamage = damage + splashDamage;
+  const triggerTotalDamage = weaponTotalDamage(item);
   const heat = itemHeat(item);
   const expectedCooldown = weaponExpectedCooldown(item, []) ?? timing.cooldown;
-  const dph = heat > 0 ? totalDamage / heat : Number.NaN;
+  const cycle = weaponExpectedCooldown(item, []) ?? timing.cycle;
+  const dph = heat > 0
+    ? (isContinuousPerSecondWeapon(item) ? totalDamage : triggerTotalDamage) / heat
+    : Number.NaN;
   const spread = weaponSpreadValues(item, [])?.final ?? Number.NaN;
   const criticalChanceValues = weaponCriticalChanceValues(item);
   const criticalChance = criticalChanceValues.find((value) => Math.abs(value) > 0.000001) ?? Number.NaN;
@@ -9399,9 +9514,9 @@ function equipmentInfoWeaponRow(item, index) {
   const dps = usesPerSecondStats
     ? totalDamage
     : (expectedCooldown > 0 ? totalDamage / expectedCooldown : Number.NaN);
-  const hps = usesPerSecondStats
-    ? heat
-    : (expectedCooldown > 0 && heat > 0 ? heat / expectedCooldown : Number.NaN);
+  const hps = heat > 0
+    ? (isContinuousPerSecondWeapon(item) ? heat : heat / cycle)
+    : Number.NaN;
   const perSecondUnit = usesPerSecondStats ? "/s" : "";
   const name = item.display_name || item.name || "-";
   const health = Number(stats.Health ?? stats.health);
@@ -9438,7 +9553,7 @@ function equipmentInfoWeaponRow(item, index) {
       damage: splashDamage > 0
         ? `${equipmentInfoValue(damage, 2, perSecondUnit)} + ${equipmentInfoValue(splashDamage, 2, perSecondUnit)}`
         : equipmentInfoValue(damage, 2, perSecondUnit),
-      heat: equipmentInfoValue(heat, 2, perSecondUnit),
+      heat: equipmentInfoValue(heat, 2, isContinuousPerSecondWeapon(item) ? "/s" : ""),
       cooldown: equipmentInfoValue(timing.cooldown, 2, "s"),
       expectedCooldown: equipmentInfoValue(expectedCooldown, 2, "s"),
       duration: number(stats.duration) > 0 ? equipmentInfoValue(timing.duration, 2, "s") : "-",
@@ -11865,13 +11980,7 @@ function tooltipValueHtml(value) {
 }
 
 function isRofDamageWeapon(item) {
-  const keys = simulationItemKeys(item);
-  return Array.from(keys).some((key) => (
-    key.includes("machinegun")
-    || key.includes("rotaryautocannon")
-    || key.includes("beamlaser")
-    || key.includes("flamer")
-  ));
+  return isContinuousPerSecondWeapon(item);
 }
 
 function weaponDamagePerSecond(item, quirks = []) {
@@ -12009,13 +12118,20 @@ function weaponTooltipStatistics(item, quirks = []) {
     }
     if (baseHeat > 0 && finalHeat > 0 && damageRate.base > 0 && damageRate.final > 0) {
       rows.push(["DPH", tooltipQuirkValue(
-        damageRate.base / baseHeat,
-        damageRate.final / finalHeat,
+        isContinuousPerSecondWeapon(item) ? damageRate.base / baseHeat : totalDamage / baseHeat,
+        isContinuousPerSecondWeapon(item) ? damageRate.final / finalHeat : totalDamage / finalHeat,
         2,
       )]);
     }
-    if (baseHeat > 0) {
-      rows.push(["HPS", tooltipQuirkValue(baseHeat, finalHeat, 2)]);
+    if (baseHeat > 0 && (
+      isContinuousPerSecondWeapon(item)
+      || (baseCycle > 0 && finalCycle > 0)
+    )) {
+      rows.push(["HPS", tooltipQuirkValue(
+        isContinuousPerSecondWeapon(item) ? baseHeat : baseHeat / baseCycle,
+        isContinuousPerSecondWeapon(item) ? finalHeat : finalHeat / finalCycle,
+        2,
+      )]);
     }
     return rows;
   }
@@ -12160,7 +12276,7 @@ function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
     const velocityBonus = quirkIncrease(quirks, "all_velocity_multiplier")
       + quirkIncrease(quirks, `${type}_velocity_multiplier`)
       + simulationSpecificQuirkTotal(quirks, item, "_velocity_multiplier", "increase");
-    const heatUnit = weaponDamageRate(item, quirks) ? "/s" : "";
+    const heatUnit = isContinuousPerSecondWeapon(item) ? "/s" : "";
     const timingRows = [
       ["DAMAGE", weaponDamageTooltipValue(item, quirks)],
       ["HEAT", ghostHeatExtra > 0
@@ -13516,6 +13632,13 @@ function bindEvents() {
       }
       return;
     }
+    if (!$("mech-sort-overlay").hidden) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMechSortDialog();
+      }
+      return;
+    }
     if (!$("mech-filter-overlay").hidden) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -13642,6 +13765,24 @@ function bindEvents() {
   document.querySelectorAll("[data-open-mech-filter]").forEach((button) => {
     button.addEventListener("click", () => openMechFilterDialog(button));
   });
+  document.querySelectorAll("[data-open-mech-sort]").forEach((button) => {
+    button.addEventListener("click", () => openMechSortDialog(button));
+  });
+  $("close-mech-sort-x").addEventListener("click", closeMechSortDialog);
+  $("mech-sort-overlay").addEventListener("click", (event) => {
+    if (event.target === $("mech-sort-overlay")) {
+      closeMechSortDialog();
+      return;
+    }
+    const sortKey = event.target.closest("[data-mech-sort-key]");
+    const direction = event.target.closest("[data-mech-sort-direction]");
+    const faction = event.target.closest("[data-mech-sort-faction]");
+    if (sortKey) state.mechSort = sortKey.dataset.mechSortKey;
+    else if (direction) state.mechSortDirection = direction.dataset.mechSortDirection;
+    else if (faction) state.mechSortGroupFaction = !state.mechSortGroupFaction;
+    else return;
+    renderMechList();
+  });
   $("close-mech-filter-x").addEventListener("click", closeMechFilterDialog);
   $("close-mech-filter").addEventListener("click", closeMechFilterDialog);
   $("mech-filter-quirk-search").addEventListener("input", (event) => {
@@ -13720,10 +13861,6 @@ function bindEvents() {
     if (!input) return;
     const filter = state.mechHardpointFilters[input.dataset.mechHardpointFilterType];
     input.value = String(number(filter?.minimums[input.dataset.mechHardpointFilterLocation]));
-  });
-  $("mech-sort").addEventListener("change", (event) => {
-    state.mechSort = event.target.value;
-    renderMechList();
   });
   document.querySelectorAll("[data-equipment-category]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -14274,6 +14411,9 @@ if (globalThis.__MWOLAB_TEST__) {
   globalThis.__MWOLAB_TEST_API__ = Object.freeze({
     state,
     number,
+    sortChassisGroups,
+    isRocketLauncher,
+    isContinuousPerSecondWeapon,
     weaponProjectilesPerFiring,
     weaponBaseDirectDamage,
     weaponBonusDirectDamage,
@@ -14323,6 +14463,7 @@ if (globalThis.__MWOLAB_TEST__) {
     simulationSpecificQuirkTotal,
     targetComputerWeaponModifiers,
     simulationWeaponTiming,
+    isStreakSrm,
     weaponVolleySize,
     weaponFiringEventCount,
     weaponFiringTime,
@@ -14333,6 +14474,7 @@ if (globalThis.__MWOLAB_TEST__) {
     simulationWeaponDamageMultiplier,
     simulationWeaponDamage,
     simulationWeaponDamagePerSecond,
+    simulationWeaponHeatPerSecond,
     weaponDetailFrequencyRatio,
     weaponDetailAdjustedRate,
     weaponDetailEffectiveCooldown,
@@ -14361,6 +14503,9 @@ if (globalThis.__MWOLAB_TEST__) {
     amsDamagePerSecond,
     weaponDamageRate,
     weaponTotalDamageRate,
+    weaponTooltipStatistics,
+    weaponDamageTooltipValue,
+    equipmentTooltipGroups,
     weaponTooltipRanges,
     atmRangeBoundary,
     atmTooltipDamageBands,

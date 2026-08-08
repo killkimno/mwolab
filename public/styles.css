@@ -1101,8 +1101,101 @@ body.help-open {
 
 .mech-toolbar-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   gap: 0.5rem;
+}
+
+.mech-sort-control {
+  position: relative;
+}
+
+.mech-sort-button {
+  min-width: 3.5rem;
+  padding-inline: 0.65rem;
+  font-weight: 800;
+}
+
+.mech-sort-button.active {
+  border-color: var(--blue);
+  background: #17313b;
+  color: #d9f6ff;
+  box-shadow: 0 0 0.45rem #47bde833;
+}
+
+.mech-sort-dialog {
+  width: min(24rem, calc(100vw - 2rem));
+  min-height: min(14rem, calc(100dvh - 2rem));
+}
+
+.mech-sort-options {
+  display: grid;
+  align-content: center;
+  gap: 0.45rem;
+  min-height: 8.5rem;
+}
+
+.mech-sort-menu-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem;
+}
+
+.mech-sort-criterion-group {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mech-sort-options button {
+  min-height: 2.5rem;
+  padding: 0.35rem 0.55rem;
+  white-space: nowrap;
+}
+
+.mech-sort-options button.active,
+.mech-sort-options button[aria-pressed="true"] {
+  border-color: var(--blue);
+  background: #17313b;
+  color: #d9f6ff;
+}
+
+.mech-sort-faction-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding-inline: 0.75rem;
+}
+
+.mech-sort-toggle-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.35rem;
+  height: 1.25rem;
+  border: 1px solid #58717a;
+  border-radius: 999px;
+  background: #0b1114;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.mech-sort-toggle-thumb {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.83rem;
+  height: 0.83rem;
+  border-radius: 50%;
+  background: #8199a2;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.mech-sort-faction-toggle[aria-checked="true"] .mech-sort-toggle-track {
+  border-color: var(--green);
+  background: #17372b;
+}
+
+.mech-sort-faction-toggle[aria-checked="true"] .mech-sort-toggle-thumb {
+  background: #8fffc0;
+  transform: translateX(1.1rem);
 }
 
 .mech-filter-button {
@@ -1227,16 +1320,21 @@ body.help-open {
 }
 
 .faction-section.faction-innersphere .chassis-title strong,
-.faction-section.faction-innersphere .expand-indicator {
+.faction-section.faction-innersphere .expand-indicator,
+.chassis-group.faction-innersphere .chassis-title strong,
+.chassis-group.faction-innersphere .expand-indicator {
   color: var(--blue);
 }
 
 .faction-section.faction-clan .chassis-title strong,
-.faction-section.faction-clan .expand-indicator {
+.faction-section.faction-clan .expand-indicator,
+.chassis-group.faction-clan .chassis-title strong,
+.chassis-group.faction-clan .expand-indicator {
   color: var(--green);
 }
 
-.faction-section.faction-clan .expand-indicator {
+.faction-section.faction-clan .expand-indicator,
+.chassis-group.faction-clan .expand-indicator {
   border-color: #6f8f45;
 }
 
@@ -2891,7 +2989,7 @@ body.help-open {
 
 .mechlab-compact-list-toolbar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 2.35rem;
+  grid-template-columns: auto auto minmax(0, 1fr) 2.35rem;
   gap: 0.4rem;
   padding: 0.5rem;
   border-bottom: 1px solid #37505a;
@@ -3239,6 +3337,7 @@ body.local-build-open {
   overflow: hidden;
 }
 
+body.mech-sort-open,
 body.mech-filter-open,
 body.build-actions-open,
 body.skill-open,

@@ -126,7 +126,7 @@
     <main>
       <header>
         <h1>MwoLab 유닛 테스트 위키</h1>
-        <p class="meta">기준일 2026-07-28 · <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>의 테스트 전용 문서</p>
+        <p class="meta">기준일 2026-08-09 · <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>의 테스트 전용 문서</p>
         <p><code>tests/mechlab-formulas.test.js</code>와 <code>tests/quirk-calculations.test.js</code>가 검증하는 멕랩 계산식, 실행법과 유지 규칙을 정리한다.</p>
         <div class="notice">브라우저 화면이나 로컬 미리보기 서버를 사용하지 않고 Node 내장 테스트 러너에서 <code>public/app.js</code>와 <code>public/quirk-calculations.js</code>의 실제 계산 함수를 직접 호출한다. 화면용 복제 공식은 만들지 않는다.</div>
       </header>
@@ -171,10 +171,11 @@
         <table>
           <thead><tr><th>분류</th><th>검증 내용</th></tr></thead>
           <tbody>
+            <tr><td>탐색·공유</td><td>기본·톤수·알파벳순, 오름·내림차순, 진영 그룹 정렬과 공유 URL의 MWO 코드 보존</td></tr>
             <tr><td>기본 피팅</td><td>구조·장갑 톤수, 0.5톤 올림, 컴팩트 자이로, 엔진 히트싱크, 사이드 슬롯, 업그레이드 슬롯, 빌드 집계</td></tr>
             <tr><td>쿼크 공용 계산</td><td>이름 정규화, 동일 이름 +수치 합산, 출처·기여도, 표시 문자열, additive, multiplier, 감소·증가·부호 보존, 유해 수치, 내구 스킬</td></tr>
             <tr><td>내구도</td><td>최대 장갑, 전후면·구조 쿼크, Survival 스킬 내림, 현재 장갑과 컴포넌트 기여도</td></tr>
-            <tr><td>무기</td><td>펠릿·순차 발사, 모듈 추가 피해·발열, 스플래시, 쿨다운, 듀레이션, ROF, AMS, UAC 재밍</td></tr>
+            <tr><td>무기</td><td>펠릿·순차 발사, 로켓런처, SSRM, 모듈 추가 피해·발열, 스플래시, 쿨다운, 듀레이션, 연속형 무기의 초당 DAMAGE·HEAT·HPS·DPH, AMS, UAC 더블탭·재밍</td></tr>
             <tr><td>탄약·사거리</td><td>활성 탄종, Artemis, 탄약 소모·용량, 선형·step·지수 감쇠, ATM 거리별 피해</td></tr>
             <tr><td>기동·보조</td><td>속도·후진·가감속·선회·몸통, 센서, 타깃 컴퓨터, 점프젯 최종 높이</td></tr>
             <tr><td>발열·요약</td><td>히트싱크, 고스트 히트, HSL, DPS, DPH, HPS, 알파 발열, 열효율, 회복시간</td></tr>
@@ -184,13 +185,20 @@
 
       <section id="cases">
         <h2>개별 테스트 항목</h2>
-        <p>50개 실제 검증 사례와 일곱 개 상위 그룹 노드로 구성되어 현재 총 57개 테스트 노드가 통과한다.</p>
+        <p>63개 실제 검증 사례와 일곱 개 상위 그룹 노드로 구성되어 현재 총 70개 테스트 노드가 통과한다.</p>
+
+        <h3>탐색·공유</h3>
+        <ol class="test-list">
+          <li><strong>공유 URL 코드 보존</strong> — 특수문자를 포함한 MWO 코드를 쿼리 문자열에서 정확히 복원한다.</li>
+          <li><strong>멕 목록 정렬</strong> — 기본·톤수·숫자 인식 알파벳순과 오름·내림차순, 진영 그룹 설정을 함께 확인한다.</li>
+        </ol>
 
         <h3>기본 숫자와 장비</h3>
         <ol class="test-list">
           <li><strong>유효하지 않은 숫자의 기본값</strong> — <code>NaN</code>이나 문자열을 안전한 기본값으로 대체한다.</li>
           <li><strong>탄환형 발사 수·펠릿 수</strong> — <code>damage × numFiring × numPerShot</code> 직접 피해를 확인한다.</li>
           <li><strong>비탄환형 펠릿 중복 방지</strong> — 미사일 등에 <code>numPerShot</code>을 중복 적용하지 않는다.</li>
+          <li><strong>로켓런처 발사체 수</strong> — 무기명의 숫자를 추론하지 않고 추출된 <code>numPerShot</code>만 발당 피해에 적용한다.</li>
           <li><strong>항상 적용되는 무기 모듈</strong> — 호환 모듈의 additive 피해·발열을 허용 수량만큼 더한다.</li>
           <li><strong>스플래시와 모듈 피해</strong> — 기본 양쪽 스플래시와 모듈 총 스플래시를 구분한다.</li>
           <li><strong>구조·장갑 톤수</strong> — 구조 0.5톤 올림, 장갑 환산, 컴팩트 자이로 중량을 확인한다.</li>
@@ -227,17 +235,25 @@
         <ol class="test-list">
           <li><strong>감소·증가·부호 보존</strong> — 쿼크 성격에 맞는 값 방향을 사용한다.</li>
           <li><strong>쿨다운·듀레이션 합산</strong> — 전체·계열·무기별 쿼크를 합산한다.</li>
+          <li><strong>로켓런처 쿨다운</strong> — 전체·미사일·무기별 스킬과 쿼크 감소를 적용하지 않는다.</li>
           <li><strong>ROF 무기</strong> — ROF 보너스로 발사 주기와 초당 피해를 갱신한다.</li>
+          <li><strong>연속형 DAMAGE·HEAT</strong> — 머신건·RAC·빔레이저·플래머를 연속형으로 판정하고 DAMAGE와 HEAT의 <code>/s</code> 표시, 원본 초당 발열 HPS, 초당 DPH, 머신건 원본 발열 0을 확인한다.</li>
           <li><strong>volley 발사 이벤트</strong> — 이벤트 수와 이벤트 사이 시간을 계산한다.</li>
+          <li><strong>SSRM 동시 발사</strong> — IS·Clan SSRM 2/4/6의 원본 <code>volleydelay</code>를 발사 시간에 더하지 않는다.</li>
           <li><strong>기대 쿨다운</strong> — 충전·순차 발사·듀레이션·쿨다운을 모두 더한다.</li>
           <li><strong>발열·사거리 보너스</strong> — 전체·계열·무기별 값을 올바른 방향으로 합산한다.</li>
           <li><strong>유해한 spread 양수</strong> — 양수 multiplier를 제거하지 않고 산포 증가로 적용한다.</li>
           <li><strong>사거리 프로필 확장</strong> — 최소사거리는 고정하고 이후 구간만 늘린다.</li>
           <li><strong>선형·step·지수 감쇠</strong> — 보간 방식과 유효 범위 밖 0 피해를 확인한다.</li>
           <li><strong>ATM 거리대</strong> — 근·중·원거리 1.25/1/0.8 배율과 경계를 확인한다.</li>
-          <li><strong>UAC 재밍</strong> — 확률·지속시간 감소를 독립 적용하고 확률 범위를 제한한다.</li>
+          <li><strong>UAC 재밍·더블탭</strong> — 확률·지속시간 감소를 독립 적용하고 더블탭 기대 발사 수를 예상 쿨다운에 반영한다.</li>
           <li><strong>AMS additive·ROF 총 피해율</strong> — AMS 추가 피해와 스플래시 포함 초당 피해를 확인한다.</li>
           <li><strong>시뮬레이션 피해 래퍼</strong> — 거리, 발사 수, 스플래시 옵션을 단발·초당 피해에 반영한다.</li>
+          <li><strong>무장 상세 발사 빈도</strong> — 0%·50%·100%의 제외와 적용 쿨타임을 확인한다.</li>
+          <li><strong>무장·사거리 타입 토글</strong> — 저장된 빈도를 보존하면서 해당 계산만 제외한다.</li>
+          <li><strong>거리 눈금과 색상</strong> — 최대 DPS 구간과 피해 0 구간의 경계·구분선을 확인한다.</li>
+          <li><strong>무장 상세 열효율</strong> — 75%부터 25%까지 초록색에서 빨간색으로 보간한다.</li>
+          <li><strong>ATO</strong> — 알파 사이 냉각과 고스트 힛 추가 발열을 반영한다.</li>
           <li><strong>툴팁 사거리</strong> — 원본 구간의 최소·최적·최대 경계를 찾는다.</li>
         </ol>
 
@@ -252,6 +268,7 @@
 
         <h3>빌드 집계</h3>
         <ol class="test-list">
+          <li><strong>전체 무기 스펙 회귀</strong> — 추출된 모든 무기를 명시적 필드와 공식으로 계산해 유효한 결과를 확인한다.</li>
           <li><strong>개별 공식과 최종 빌드 일치</strong> — <code>calculateBuild()</code>의 톤수·화력·발열·장갑·히트싱크·슬롯 집계를 확인한다.</li>
         </ol>
 
@@ -281,7 +298,7 @@
       </section>
 
       <footer>
-        마지막 문서 갱신: 2026-07-28 · 상위 문서: <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>
+        마지막 문서 갱신: 2026-08-09 · 상위 문서: <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>
       </footer>
     </main>
   </div>

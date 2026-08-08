@@ -78,6 +78,52 @@ test("shared loadout URL preserves the exact MWO code", () => {
   assert.ok(sharedUrl.search.startsWith("?lang=en&loadout="));
 });
 
+test("멕 목록 정렬은 기준, 방향과 진영 그룹 설정을 반영한다", () => {
+  const clanLight = { tons: 20, faction: "Clan", label: "Clan A", order: 0 };
+  const innerLight = { tons: 25, faction: "InnerSphere", label: "Inner B", order: 1 };
+  const clanHeavy = { tons: 30, faction: "Clan", label: "Clan C", order: 2 };
+
+  api.state.mechSort = "tons";
+  api.state.mechSortDirection = "asc";
+  api.state.mechSortGroupFaction = true;
+  assert.deepEqual(
+    [innerLight, clanHeavy, clanLight].sort(api.sortChassisGroups).map((entry) => entry.label),
+    ["Clan A", "Clan C", "Inner B"],
+  );
+
+  api.state.mechSortDirection = "desc";
+  assert.deepEqual(
+    [innerLight, clanHeavy, clanLight].sort(api.sortChassisGroups).map((entry) => entry.label),
+    ["Clan C", "Clan A", "Inner B"],
+  );
+
+  api.state.mechSortGroupFaction = false;
+  assert.deepEqual(
+    [innerLight, clanHeavy, clanLight].sort(api.sortChassisGroups).map((entry) => entry.label),
+    ["Clan C", "Inner B", "Clan A"],
+  );
+
+  const zulu = { tons: 25, faction: "Clan", label: "Zulu 2", order: 0 };
+  const alphaTen = { tons: 25, faction: "Clan", label: "Alpha 10", order: 1 };
+  const alphaTwo = { tons: 25, faction: "Clan", label: "Alpha 2", order: 2 };
+  api.state.mechSort = "alphabetical";
+  api.state.mechSortDirection = "asc";
+  assert.deepEqual(
+    [zulu, alphaTen, alphaTwo].sort(api.sortChassisGroups).map((entry) => entry.label),
+    ["Alpha 2", "Alpha 10", "Zulu 2"],
+  );
+
+  api.state.mechSortDirection = "desc";
+  assert.deepEqual(
+    [zulu, alphaTen, alphaTwo].sort(api.sortChassisGroups).map((entry) => entry.label),
+    ["Zulu 2", "Alpha 10", "Alpha 2"],
+  );
+
+  api.state.mechSort = "default";
+  api.state.mechSortDirection = "asc";
+  api.state.mechSortGroupFaction = true;
+});
+
 function closeTo(actual, expected, epsilon = 1e-9) {
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 }
@@ -138,6 +184,20 @@ test("기본 숫자와 장비 공식", async (t) => {
     const item = weapon({ stats: { damage: 2, numFiring: 3, projectileclass: "missile", numPerShot: 4 } });
     assert.equal(api.weaponProjectilesPerFiring(item), 1);
     assert.equal(api.weaponBaseDirectDamage(item), 6);
+  });
+
+  await t.test("로켓런처는 데이터의 numPerShot을 발당 피해에 적용한다", () => {
+    resetEquipment();
+    const launchers = [10, 15, 20].map((shots, index) => weapon({
+      name: `RocketLauncher${shots}`,
+      display_name: `ROCKET LAUNCHER ${shots}`,
+      aliases: `Missile,RocketLauncher,RocketLauncher${shots}`,
+      hardpoint_type: "missile",
+      stats: { damage: 0.375, numFiring: 1, numPerShot: index + 1 },
+    }));
+    assert.deepEqual(launchers.map(api.weaponProjectilesPerFiring), [1, 2, 3]);
+    assert.deepEqual(launchers.map(api.weaponBaseDirectDamage), [0.375, 0.75, 1.125]);
+    assert.deepEqual(launchers.map(api.weaponDamageTooltipValue), ["0.4", "0.8", "1.1"]);
   });
 
   await t.test("항상 적용되는 무기 모듈의 피해와 발열을 수량만큼 더한다", () => {
@@ -467,6 +527,22 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.equal(timing.cycle, 1.5);
   });
 
+  await t.test("로켓런처 쿨다운은 스킬·쿼크 감소를 적용하지 않는다", () => {
+    const item = weapon({
+      name: "RocketLauncher10",
+      aliases: "Missile,RocketLauncher,RocketLauncher10",
+      hardpoint_type: "missile",
+      stats: { cooldown: 0.125 },
+    });
+    const timing = api.simulationWeaponTiming(item, [
+      quirk("all_cooldown_multiplier", -0.1),
+      quirk("missile_cooldown_multiplier", -0.2),
+      quirk("rocketlauncher10_cooldown_multiplier", -0.3),
+    ]);
+    assert.equal(timing.cooldown, 0.125);
+    assert.equal(timing.cycle, 0.125);
+  });
+
   await t.test("ROF 무기는 증가 쿼크를 초당 발사 횟수에 적용한다", () => {
     const item = weapon({ name: "MachineGun", stats: { damage: 1, rof: 5 } });
     const timing = api.simulationWeaponTiming(item, [quirk("machinegun_rof_multiplier", 0.2)]);
@@ -476,11 +552,100 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.equal(rate.final, 6);
   });
 
+  await t.test("연속형 무기는 데미지와 발열을 초당값으로 사용한다", () => {
+    resetEquipment();
+    const rac = weapon({
+      name: "RotaryAutoCannon5",
+      aliases: "Ballistic,RotaryAutoCannon,RotaryAutoCannon5",
+      stats: { damage: 1.1, numFiring: 1, heat: 3.25, rof: 10 },
+    });
+    const rows = Object.fromEntries(api.weaponTooltipStatistics(rac, []));
+    assert.equal(rows.DPS, "11");
+    assert.equal(rows.DPH, "3.38");
+    assert.equal(rows.HPS, "3.25");
+    assert.equal(api.simulationWeaponHeatPerSecond({ item: rac, heat: 3.25, cycle: 0.1 }), 3.25);
+    const racTooltip = Object.fromEntries(api.equipmentTooltipGroups(rac, 0).flat());
+    assert.equal(racTooltip.DAMAGE, "11/s");
+    assert.equal(racTooltip.HEAT, "3.25/s");
+
+    const beam = weapon({
+      name: "ClanBeamLaser",
+      aliases: "Energy,Laser,ClanBeamLaser",
+      stats: { damage: 5.5, numFiring: 1, heat: 3, duration: -1, cooldown: 0 },
+    });
+    const beamRows = Object.fromEntries(api.weaponTooltipStatistics(beam, []));
+    assert.equal(beamRows.DPS, "5.5");
+    assert.equal(beamRows.DPH, "1.83");
+    assert.equal(beamRows.HPS, "3");
+    assert.equal(api.simulationWeaponHeatPerSecond({ item: beam, heat: 3, cycle: 1 }), 3);
+    const beamTooltip = Object.fromEntries(api.equipmentTooltipGroups(beam, 0).flat());
+    assert.equal(beamTooltip.DAMAGE, "5.5/s");
+    assert.equal(beamTooltip.HEAT, "3/s");
+
+    const flamer = weapon({
+      name: "Flamer",
+      aliases: "Energy,Flamer,ISFlamer",
+      stats: { damage: 0.1, numFiring: 1, heat: 1, duration: -1, cooldown: 0 },
+    });
+    const flamerRows = Object.fromEntries(api.weaponTooltipStatistics(flamer, []));
+    assert.equal(flamerRows.DPS, "0.1");
+    assert.equal(flamerRows.DPH, "0.1");
+    assert.equal(flamerRows.HPS, "1");
+    assert.equal(api.simulationWeaponHeatPerSecond({ item: flamer, heat: 1, cycle: 1 }), 1);
+    const flamerTooltip = Object.fromEntries(api.equipmentTooltipGroups(flamer, 0).flat());
+    assert.equal(flamerTooltip.DAMAGE, "0.1/s");
+    assert.equal(flamerTooltip.HEAT, "1/s");
+
+    const machineGun = weapon({
+      name: "MachineGun",
+      aliases: "Ballistic,MachineGun,ISMachineGun",
+      stats: { damage: 0.1, numFiring: 1, heat: 0, rof: 10, duration: -1, cooldown: 0 },
+    });
+    const machineGunTooltip = Object.fromEntries(api.equipmentTooltipGroups(machineGun, 0).flat());
+    assert.equal(machineGunTooltip.DAMAGE, "1/s");
+    assert.equal(machineGunTooltip.HEAT, "0/s");
+
+    const equipmentData = JSON.parse(fs.readFileSync(
+      path.join(__dirname, "..", "public", "data", "equipment.json"),
+      "utf8",
+    ));
+    const machineGuns = equipmentData.families.weapons
+      .map((id) => equipmentData.items[id])
+      .filter((item) => String(item.aliases || "").split(",").some((alias) => (
+        alias === "MachineGun" || alias.endsWith("MachineGun")
+      )));
+    assert.equal(machineGuns.length > 0, true);
+    assert.equal(machineGuns.every((item) => item.stats.heat === 0), true);
+    assert.equal(machineGuns.every(api.isContinuousPerSecondWeapon), true);
+    assert.equal(machineGuns.every((item) => (
+      api.simulationWeaponHeatPerSecond({ item, heat: item.stats.heat, cycle: 0.1 }) === 0
+    )), true);
+  });
+
   await t.test("발사 이벤트와 발사 시간은 volley size로 묶는다", () => {
     const item = weapon({ hardpoint_type: "missile", stats: { numFiring: 10, volleysize: 4, volleydelay: 0.1 } });
     assert.equal(api.weaponVolleySize(item), 4);
     assert.equal(api.weaponFiringEventCount(item), 3);
     closeTo(api.weaponFiringTime(item), 0.2);
+  });
+
+  await t.test("IS·Clan SSRM 2/4/6은 전탄 동시 발사로 딜레이가 없다", () => {
+    for (const faction of ["InnerSphere", "Clan"]) {
+      for (const shots of [2, 4, 6]) {
+        const item = weapon({
+          name: faction === "Clan" ? `ClanStreakSRM${shots}` : `StreakSRM${shots}`,
+          aliases: `Missile,Missile${shots},StreakSRM,StreakSRM${shots}`,
+          faction,
+          hardpoint_type: "missile",
+          stats: { numFiring: shots, volleydelay: 0.25, cooldown: 3 },
+        });
+        assert.equal(api.isStreakSrm(item), true);
+        assert.equal(api.weaponVolleySize(item), shots);
+        assert.equal(api.weaponFiringEventCount(item), 1);
+        assert.equal(api.weaponFiringTime(item), 0);
+        assert.equal(api.weaponExpectedCooldown(item), null);
+      }
+    }
   });
 
   await t.test("기대 쿨다운은 충전·연속발사·듀레이션·쿨다운을 모두 더한다", () => {
@@ -601,6 +766,29 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     ]);
     assert.equal(result.chance, 0.1);
     assert.equal(result.duration, 4);
+  });
+
+  await t.test("UAC 예상 쿨다운은 더블탭 기대 발사 수를 반영한다", () => {
+    const item = weapon({
+      name: "UltraAutoCannon5",
+      aliases: "Ballistic,UltraAutoCannon,UltraAutoCannon5",
+      stats: {
+        damage: 5,
+        numFiring: 1,
+        cooldown: 1,
+        volleydelay: 0.2,
+        JammingChance: 0.2,
+        JammedTime: 5,
+        ShotsDuringCooldown: 1,
+      },
+    });
+    const firingTime = 0;
+    const expectedCycle = (
+      firingTime
+      + 0.8 * 1
+      + 0.2 * Math.max(1, 5)
+    ) / (2 - 0.2);
+    closeTo(api.weaponExpectedCooldown(item), expectedCycle);
   });
 
   await t.test("AMS additive와 ROF 피해율의 총 스플래시 배율을 계산한다", () => {
@@ -935,6 +1123,69 @@ test("히트싱크·고스트 히트·요약 공식", async (t) => {
     assert.equal(metrics.alphaHeatRecovery, 0);
     assert.equal(metrics.alphaHeatPercent, 0);
   });
+});
+
+test("추출된 전체 무기 스펙은 명시된 필드와 공식으로 계산된다", () => {
+  const equipmentData = JSON.parse(fs.readFileSync(
+    path.join(__dirname, "..", "public", "data", "equipment.json"),
+    "utf8",
+  ));
+  const weapons = equipmentData.families.weapons.map((id) => equipmentData.items[id]);
+  assert.equal(weapons.length > 0, true);
+
+  for (const item of weapons) {
+    const stats = item.stats || {};
+    for (const field of ["damage", "numFiring", "heat", "cooldown", "tons", "slots"]) {
+      assert.equal(Number.isFinite(stats[field]), true, `${item.name}: ${field}`);
+    }
+    assert.equal(Array.isArray(item.ranges) && item.ranges.length > 0, true, `${item.name}: ranges`);
+    for (let index = 1; index < item.ranges.length; index += 1) {
+      assert.equal(
+        item.ranges[index - 1].start <= item.ranges[index].start,
+        true,
+        `${item.name}: range order`,
+      );
+    }
+
+    const projectileClass = String(stats.projectileclass || "").toLowerCase();
+    const projectileMultiplier = projectileClass === "bullet" || api.isRocketLauncher(item)
+      ? Math.max(1, Math.trunc(stats.numPerShot || 1))
+      : 1;
+    closeTo(
+      api.weaponBaseDirectDamage(item),
+      stats.damage * stats.numFiring * projectileMultiplier,
+    );
+
+    if (stats.numPerShot > 0) {
+      assert.equal(
+        projectileClass === "bullet" || api.isRocketLauncher(item),
+        true,
+        `${item.name}: numPerShot use`,
+      );
+    }
+    if (stats.rof > 0 || (stats.duration < 0 && stats.damage > 0)) {
+      assert.notEqual(api.weaponDamageRate(item, []), null, `${item.name}: damage rate`);
+    }
+    const expectedCooldown = api.weaponExpectedCooldown(item, []);
+    assert.equal(
+      expectedCooldown === null || (Number.isFinite(expectedCooldown) && expectedCooldown > 0),
+      true,
+      `${item.name}: expected cooldown`,
+    );
+  }
+
+  const rockets = weapons
+    .filter(api.isRocketLauncher)
+    .sort((left, right) => left.id - right.id);
+  assert.deepEqual(rockets.map((item) => item.stats.numPerShot), [1, 2, 3]);
+  assert.deepEqual(rockets.map((item) => api.weaponBaseDirectDamage(item)), [0.375, 0.75, 1.125]);
+
+  const streaks = weapons.filter(api.isStreakSrm);
+  assert.equal(streaks.length, 6);
+  for (const item of streaks) {
+    assert.equal(api.weaponVolleySize(item), item.stats.numFiring, item.name);
+    assert.equal(api.weaponFiringTime(item), 0, item.name);
+  }
 });
 
 test("빌드 집계 공식은 개별 공식과 같은 최종값을 만든다", () => {

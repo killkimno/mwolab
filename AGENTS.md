@@ -3,8 +3,26 @@
 - Do not start, inspect, probe, or verify the local preview/dev server unless the user explicitly asks for it.
 - The user manually handles whether the server is running and whether the app can be opened.
 
+## Formula and Data Evidence Rules
+
+- Do not invent formulas, numeric meanings, counts, behavior, or mappings from equipment names, display names, suffixes, conventions, similar weapons, or outside assumptions. Use such a derivation only when the user or an authoritative project rule explicitly defines that exact mapping.
+- Implement calculations and displayed values only from explicit extracted data fields or formulas and mappings explicitly provided by the user or an authoritative project rule.
+- When the available data and a requested formula do not identify the required input unambiguously, report the missing evidence and ask for the authoritative field or formula instead of guessing.
+- Tests and documentation must preserve the same evidence-based rule and must not encode an inferred value as fact.
+
+## Where to Write a Rule
+
+- Record intended product purpose, supported capabilities, target users, and product scope in `프로젝트 사양서.md`.
+- Record reusable implementation, calculation, and UI requirements in the matching guide below.
+- Record descriptive details of the current implementation in `wiki/mwolab-implementation-wiki.html`.
+- When a topic spans layers, keep only the layer-appropriate statement in each document and link to the authoritative detail instead of copying the same rule.
+
 ## Related Guides
 
+- For the project's purpose, supported capabilities, target users, and top-level constraints, read `프로젝트 사양서.md` first.
+- For UI conventions, tab display specs, and slot/hardpoint display specs, follow `프로젝트 규약 에이전트.md`.
+- For weapon damage, range, tooltip calculations, and MechLab equipment filtering, follow `무기 관련 에이전트.md`.
+- For quirk-summary naming across the info and stats tabs, follow `쿼크 관련 에이전트.MD`.
 - For implementation-wiki maintenance, follow `위키 관리 지침.md`.
 - For game-data extraction or generated JSON changes, follow `JSON 추출 지침.md`.
 
@@ -49,7 +67,7 @@
 - Durability summaries are total-only, not per body part. `MAX` is armor plus structure, followed by armor, structure, and critical-hit prevention.
 
 - The top-level `쿼크 서머리` is its own info card. Do not render it inside the `QUIRKS` list/card.
-- The `쿼크 서머리` card currently contains cooldown, heat, durability, range, velocity, and owned special quirk categories. Special categories currently recognized are ECM, jump jets, and NARC duration.
+- The `쿼크 서머리` card contains cooldown, heat, durability, range, velocity, and owned special quirk categories. Recognized special categories are ECM, jump jets, and NARC duration.
 
 ## Optimization Notes
 
