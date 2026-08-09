@@ -26,6 +26,16 @@
 - For implementation-wiki maintenance, follow `위키 관리 지침.md`.
 - For game-data extraction or generated JSON changes, follow `JSON 추출 지침.md`.
 
+## Subagent Workflow Rules
+
+- Use project subagents for complex work that has at least two independent, non-trivial, read-heavy workstreams and where delegation materially improves speed or review quality. Do not delegate routine single-file or narrowly scoped changes.
+- Use `code_explorer` to trace execution paths, data flow, shared calculations, caches, render paths, and change impact before implementation when the relevant code is not already clear.
+- Use `data_evidence_reviewer` when a task depends on game-data fields, formulas, numeric meanings, equipment mappings, generated JSON, extraction overrides, or quirk/weapon calculations.
+- Use `change_reviewer` after non-trivial code or generated-data changes to review the completed diff for correctness, regressions, evidence violations, validation gaps, and documentation drift.
+- Keep project subagents read-only. The primary agent, or exactly one explicitly designated implementation worker, owns all file edits for a task. Do not run parallel write-heavy workflows against the shared worktree.
+- Give every subagent a concrete, bounded question and required output. Wait for all requested results, then consolidate their evidence and resolve contradictions before editing or reporting completion.
+- Do not use subagents merely to restate a domain guide. Reusable deterministic procedures, including the full JSON refresh workflow, belong in the matching skill or script; use subagents for independent investigation and verification.
+
 ## Simulation UI Rules
 
 - Keep simulation controls and HUD placement close to the in-game layout when practical; otherwise prioritize clear sightlines, comfortable reach, and immediate readability.
