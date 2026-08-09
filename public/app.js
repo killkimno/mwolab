@@ -558,6 +558,7 @@ const TEXT = {
     "build.engineHeatSinks": "엔진 히트싱크",
     "build.engineHeatSinkOnly": "엔진 내부에는 히트싱크만 장착할 수 있습니다",
     "build.engineHeatSinkFull": "엔진 히트싱크 슬롯이 가득 찼습니다",
+    "build.engineHeatSinksFixed": "옴니멕의 엔진 히트싱크는 고정되어 변경할 수 없습니다",
     "build.noAutoInstallLocation": "장착 가능한 부위가 없습니다",
     "build.noEngineHeatSinkSlots": "이 엔진에는 추가 히트싱크 슬롯이 없습니다",
     "build.heatSinkMismatch": "{item}은(는) 현재 히트싱크 업그레이드와 호환되지 않습니다",
@@ -1095,6 +1096,7 @@ const TEXT = {
     "build.engineHeatSinks": "Engine Heat Sinks",
     "build.engineHeatSinkOnly": "Only heat sinks can be installed inside the engine",
     "build.engineHeatSinkFull": "Engine heat sink slots are full",
+    "build.engineHeatSinksFixed": "This OmniMech's engine heat sinks are fixed and cannot be changed",
     "build.noAutoInstallLocation": "No component can install this item",
     "build.noEngineHeatSinkSlots": "This engine has no additional heat sink slots",
     "build.heatSinkMismatch": "{item} is incompatible with the current heat sink upgrade",
@@ -2309,6 +2311,18 @@ function engineUserHeatSinkCapacity(
   mech = state.selectedMech,
   build = state.currentBuild,
 ) {
+  if (fixedOmniEngine(mech)) return 0;
+  return Math.max(
+    0,
+    engineAdditionalHeatSinkCapacity(engine) - fixedEngineHeatSinkItems(mech, build).length,
+  );
+}
+
+function engineStoredHeatSinkCapacity(
+  engine = installedEngine(),
+  mech = state.selectedMech,
+  build = state.currentBuild,
+) {
   return Math.max(
     0,
     engineAdditionalHeatSinkCapacity(engine) - fixedEngineHeatSinkItems(mech, build).length,
@@ -2321,7 +2335,7 @@ function normalizeEngineHeatSinks(mech, build, { fillFromCentre = false } = {}) 
   build.components.centre_torso ||= { armor: 0, items: [] };
   const centreItems = build.components.centre_torso.items ||= [];
   const engine = installedEngine(build, mech);
-  const capacity = engineUserHeatSinkCapacity(engine, mech, build);
+  const capacity = engineStoredHeatSinkCapacity(engine, mech, build);
   const internal = [];
   const overflow = [];
 
@@ -6103,7 +6117,7 @@ function calculateBuild() {
   const engineIncludedHeatSinks = engineIncludedHeatSinkCount(engine);
   const fixedEngineHeatSinkCount = fixedEngineHeatSinkItems(mech, state.currentBuild).length;
   const engineHeatSinkCapacity = engineAdditionalHeatSinkCapacity(engine);
-  const engineUserHeatSinkSlots = Math.max(0, engineHeatSinkCapacity - fixedEngineHeatSinkCount);
+  const engineUserHeatSinkSlots = engineUserHeatSinkCapacity(engine, mech, state.currentBuild);
   const totalHeatSinkCount = installedHeatSinkCount + engineIncludedHeatSinks;
   const structureTons = structureUpgradeTonnage(maxTons, structureUpgrade);
   const totalTons = structureTons + itemTonnage + armorTonnage(armor, armorUpgrade);
@@ -10914,24 +10928,34 @@ function renderArmorSlots(slots, occupiedSlots = 0) {
 function renderEngineHeatSinkBay(engine, calc) {
   const capacity = Math.min(6, number(calc?.engineHeatSinkCapacity, engineAdditionalHeatSinkCapacity(engine)));
   if (!engine || capacity <= 0) return "";
+  const fixedOmniBay = Boolean(fixedOmniEngine());
   const fixedEntries = fixedEngineHeatSinkEntries();
   const installedEntries = engineHeatSinkEntries();
   const used = fixedEntries.length + installedEntries.length;
+  if (fixedOmniBay && used <= 0) return "";
   const fixedBoxes = fixedEntries.slice(0, capacity).map(({ item, source }) => `
     <span class="engine-heat-sink-box filled fixed-engine-heat-sink${source === "omnipod" ? " omnipod-engine-heat-sink" : ""}" data-tooltip-item="${item.id}" aria-label="${escapeHtml(item.display_name || item.name)}"></span>
   `).join("");
   const installedBoxes = installedEntries.slice(0, Math.max(0, capacity - fixedEntries.length)).map((entry, index) => {
     const item = itemById(entry.item_id);
     const name = item?.display_name || item?.name || t("build.missing", { id: entry.item_id });
+    if (fixedOmniBay) {
+      const tooltipItem = item ? ` data-tooltip-item="${item.id}"` : "";
+      return `
+        <span class="engine-heat-sink-box filled fixed-engine-heat-sink omnipod-engine-heat-sink"${tooltipItem} aria-label="${escapeHtml(name)}"></span>
+      `;
+    }
     return `
       <span class="engine-heat-sink-box filled installed-engine-heat-sink" data-engine-heat-sink-item="${index}" role="button" tabindex="0" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}"></span>
     `;
   }).join("");
-  const emptyBoxes = Array.from({ length: Math.max(0, capacity - used) }, () => (
+  const emptyBoxes = Array.from({ length: fixedOmniBay ? 0 : Math.max(0, capacity - used) }, () => (
     `<span class="engine-heat-sink-box empty-engine-heat-sink" aria-label="${t("common.empty")}"></span>`
   )).join("");
+  const dropTarget = fixedOmniBay ? "" : " data-engine-heat-sink-drop";
+  const displayedCapacity = fixedOmniBay ? used : capacity;
   return `
-    <div class="engine-inline-heat-sinks" data-engine-heat-sink-drop style="--engine-heat-sink-columns:3" aria-label="${t("build.engineHeatSinks")} ${used}/${capacity}">
+    <div class="engine-inline-heat-sinks${fixedOmniBay ? " fixed-omni-engine-heat-sinks" : ""}"${dropTarget} style="--engine-heat-sink-columns:3" aria-label="${t("build.engineHeatSinks")} ${used}/${displayedCapacity}">
       ${fixedBoxes}${installedBoxes}${emptyBoxes}
     </div>
   `;
@@ -12761,6 +12785,7 @@ function engineHeatSinkDropValidation(item, source = null) {
       faction: factionLabel(state.selectedMech?.faction),
     });
   }
+  if (fixedOmniEngine()) return t("build.engineHeatSinksFixed");
   const engine = installedEngine();
   const capacity = engineUserHeatSinkCapacity(engine);
   if (!engine || capacity <= 0) return t("build.noEngineHeatSinkSlots");
@@ -14435,6 +14460,10 @@ if (globalThis.__MWOLAB_TEST__) {
     itemHeat,
     engineIncludedHeatSinkCount,
     engineAdditionalHeatSinkCapacity,
+    engineUserHeatSinkCapacity,
+    engineStoredHeatSinkCapacity,
+    normalizeEngineHeatSinks,
+    renderEngineHeatSinkBay,
     engineSideSlots,
     activeWeaponAmmoType,
     weaponAmmoPerTrigger,

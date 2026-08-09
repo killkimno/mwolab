@@ -251,6 +251,84 @@ test("기본 숫자와 장비 공식", async (t) => {
     assert.equal(api.engineSideSlots(engine), 3);
     assert.equal(api.engineSideSlots({ stats: { sideSlots: -2 } }), 0);
   });
+
+  await t.test("고정 옴니 엔진의 내부 히트싱크는 유지하고 빈 슬롯 없이 잠근다", () => {
+    const previous = {
+      equipment: api.state.equipment,
+      loadouts: api.state.loadouts,
+      omnipods: api.state.omnipods,
+      selectedMech: api.state.selectedMech,
+      currentBuild: api.state.currentBuild,
+    };
+    const engine = {
+      id: 100,
+      item_type: "engine",
+      display_name: "FIXED CLAN ENGINE 300",
+      faction: "Clan",
+      stats: { rating: 300, heatsinks: 12, sideSlots: 2, slots: 6 },
+    };
+    const sink = {
+      id: 200,
+      item_type: "module",
+      ctype: "CHeatSinkStats",
+      name: "ClanDoubleHeatSink",
+      display_name: "CLAN DOUBLE HEAT SINK",
+      faction: "Clan",
+      stats: { slots: 2, tons: 1 },
+    };
+    const mech = {
+      id: 9001,
+      faction: "Clan",
+      stock_loadout: "test-omni",
+      definition: {
+        stats: { MinEngineRating: 300, MaxEngineRating: 300 },
+        components: { centre_torso: { fixed: [engine.id] } },
+      },
+    };
+    const build = {
+      components: { centre_torso: { omnipod: 77, items: [] } },
+      engineHeatSinks: [{ item_id: sink.id }],
+    };
+
+    try {
+      api.state.equipment = { items: { [engine.id]: engine, [sink.id]: sink } };
+      api.state.loadouts = { "test-omni": { components: { centre_torso: { omnipod: 77 } } } };
+      api.state.omnipods = {};
+      api.state.selectedMech = mech;
+      api.state.currentBuild = build;
+      api.state.fixedOmniEngineCache.clear();
+
+      assert.equal(api.engineStoredHeatSinkCapacity(engine, mech, build), 2);
+      assert.equal(api.engineUserHeatSinkCapacity(engine, mech, build), 0);
+      api.normalizeEngineHeatSinks(mech, build);
+      assert.equal(build.engineHeatSinks.map((entry) => entry.item_id).join(","), String(sink.id));
+
+      const html = api.renderEngineHeatSinkBay(engine, { engineHeatSinkCapacity: 2 });
+      assert.match(html, /fixed-engine-heat-sink omnipod-engine-heat-sink/);
+      assert.doesNotMatch(html, /data-engine-heat-sink-item/);
+      assert.doesNotMatch(html, /data-engine-heat-sink-drop/);
+      assert.doesNotMatch(html, /empty-engine-heat-sink/);
+
+      const standardMech = {
+        ...mech,
+        stock_loadout: "test-standard",
+        definition: {
+          stats: { MinEngineRating: 200, MaxEngineRating: 400 },
+          components: { centre_torso: { fixed: [] } },
+        },
+      };
+      api.state.loadouts["test-standard"] = { components: {} };
+      api.state.selectedMech = standardMech;
+      assert.equal(api.engineUserHeatSinkCapacity(engine, standardMech, build), 2);
+      const standardHtml = api.renderEngineHeatSinkBay(engine, { engineHeatSinkCapacity: 2 });
+      assert.match(standardHtml, /data-engine-heat-sink-item/);
+      assert.match(standardHtml, /data-engine-heat-sink-drop/);
+      assert.match(standardHtml, /empty-engine-heat-sink/);
+    } finally {
+      Object.assign(api.state, previous);
+      api.state.fixedOmniEngineCache.clear();
+    }
+  });
 });
 
 test("탄약·Artemis·하드포인트 공식", async (t) => {
