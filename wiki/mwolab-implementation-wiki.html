@@ -247,9 +247,9 @@
         <table>
           <thead><tr><th>항목</th><th>현재 값</th></tr></thead>
           <tbody>
-            <tr><td>멕</td><td>1,292개</td></tr>
+            <tr><td>멕</td><td>1,276개</td></tr>
             <tr><td>장비</td><td>751개</td></tr>
-            <tr><td>로드아웃</td><td>1,315개</td></tr>
+            <tr><td>로드아웃</td><td>1,299개</td></tr>
             <tr><td>옵니포드</td><td>1,833개</td></tr>
             <tr><td>핵심 코드 규모</td><td><code>app.js</code> 약 10,939줄, <code>styles.css</code> 약 5,698줄</td></tr>
           </tbody>
@@ -812,7 +812,7 @@
         </table>
         <p><strong>전체 추출</strong></p>
         <p><code>python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data</code></p>
-        <p>전체 추출은 <code>localization.json</code>과 <code>skills.json</code>을 포함한 모든 생성 JSON을 함께 갱신하며, 안전 갱신 게시 단계에서도 두 파일을 제외하지 않는다. <code>localization.json</code>은 <code>English_xml.pak</code>의 영문 키와 <code>TRANSLATED TEXT</code>를 원본 표기 그대로 보존하고 조회할 때만 선택적 선행 <code>@</code>와 대소문자를 무시한다. 멕 표시명은 내부 배리언트 키, 무기 표시명은 원본 <code>Loc.nameTag</code>의 번역 값을 사용하며, 이번 표시명 변경 대상이 아닌 설명·쿼크·비무기 장비명은 기존 <code>ORIGINAL TEXT</code> 기반 표시를 유지한다. 기본 로드아웃은 원본 <code>MechID</code>로 정식 멕 배리언트 키에 결합하고 원본 <code>Name</code>은 <code>source_name</code>으로 보존한다. 키가 없으면 키 자체를 표시명으로 유지하고 갱신 보고의 별도 누락 목록에 기록한다. 게시 전 <code>index.json</code>의 현지화 문자열 수와 실제 키 수, <code>skill_nodes</code>와 일곱 카테고리의 실제 노드 합계를 대조한다.</p>
+        <p>전체 추출은 <code>localization.json</code>과 <code>skills.json</code>을 포함한 모든 생성 JSON을 함께 갱신하며, 안전 갱신 게시 단계에서도 두 파일을 제외하지 않는다. <code>localization.json</code>은 <code>English_xml.pak</code>의 영문 키와 <code>TRANSLATED TEXT</code>를 원본 표기 그대로 보존하고 조회할 때만 선택적 선행 <code>@</code>와 대소문자를 무시한다. 멕 표시명은 내부 배리언트 키, 무기 표시명은 원본 <code>Loc.nameTag</code>의 번역 값을 사용하며, 이번 표시명 변경 대상이 아닌 설명·쿼크·비무기 장비명은 기존 <code>ORIGINAL TEXT</code> 기반 표시를 유지한다. 현지화 키가 존재하고 번역된 멕 이름이 정확히 <code>(T)</code> 접미사로 끝나는 멕은 실제 조립할 수 없는 항목으로 판정하여 멕과 기본 로드아웃 생성 데이터에서 함께 제외하되 원본 <code>localization.json</code> 키는 보존한다. 내부 멕 키가 <code>lgd</code>로 끝나고 MDF의 <code>VariantType</code>이 <code>Special</code>인 멕은 현지화된 최종 이름에 <code> (LGD)</code>를 한 번만 붙이며, <code>MechID</code>로 연결한 기본 로드아웃에도 같은 표시명을 저장한다. 기본 로드아웃은 원본 <code>MechID</code>로 정식 멕 배리언트 키에 결합하고 원본 <code>Name</code>은 <code>source_name</code>으로 보존한다. 키가 없으면 키 자체를 표시명으로 유지하고 갱신 보고의 별도 누락 목록에 기록한다. 게시 전 <code>index.json</code>의 현지화 문자열 수와 실제 키 수, <code>skill_nodes</code>와 일곱 카테고리의 실제 노드 합계를 대조한다.</p>
         <p><strong>하드포인트만 갱신</strong></p>
         <p><code>python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data --hardpoints-only</code></p>
         <p><strong>스킬만 갱신</strong></p>
@@ -846,7 +846,7 @@
           <li>임시 출력에 전체 데이터를 추출한 뒤 JSON 구조, 옵니포드 NULL 해소 결과, 표준 멕과 옵니포드 하드포인트 회귀 기준을 검증하고 성공한 결과만 게시 데이터에 반영한다.</li>
           <li>새 멕 ID와 <code>public/assets/mech-icons</code>의 썸네일을 비교하고, 누락 이미지는 <code>GameData.pak</code>의 <code>Libs/UI/Screens/Assets/MechIcons/</code>에서 찾는다. 기존 썸네일은 덮어쓰지 않는다.</li>
           <li>갱신 보고에는 생성 JSON 범위, 멕·무기 현지화 누락 키 목록, 자동·기록·공유 몸통 기반 NULL 해소, 두 미확정 구역, 추가된 썸네일과 검증 결과를 포함한다.</li>
-          <li>미확정이나 해석 오류가 있으면 임시 결과를 게시하지 않는다. 모두 해결된 현재 전체 데이터는 멕 1,292개, 장비 751개, 영문 현지화 문자열 30,350개, 로드아웃 1,315개, 옵니포드 1,833개이며 현지화 누락 키, 미확정 옵니포드와 누락 썸네일은 모두 0건이다.</li>
+          <li>미확정이나 해석 오류가 있으면 임시 결과를 게시하지 않는다. 모두 해결된 현재 전체 데이터는 조립 불가 <code>(T)</code> 멕을 제외한 멕 1,276개, 장비 751개, 영문 현지화 문자열 30,350개, 로드아웃 1,299개, 옵니포드 1,833개이며 현지화 누락 키, 미확정 옵니포드와 누락 썸네일은 모두 0건이다.</li>
           <li>“전체 JSON 갱신”은 추출·검증·보고까지만 포함한다. 커밋, 푸시, GitHub Pages 배포는 별도의 명시적 요청이 있을 때만 수행한다.</li>
         </ul>
 

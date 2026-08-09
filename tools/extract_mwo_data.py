@@ -130,6 +130,45 @@ def localized_name(key, localization, missing, kind, internal_name):
     return internal_name
 
 
+def is_non_buildable_trial_mech(mech, localization):
+    key = localization_key(mech.get("name"))
+    translated_name = localization.get(key.casefold()) if key else None
+    return (
+        isinstance(translated_name, str)
+        and translated_name.rstrip().endswith("(T)")
+    )
+
+
+def is_lgd_special_mech(mech, definition):
+    variant_type = definition.get("stats", {}).get("VariantType", "")
+    return (
+        str(mech.get("name", "")).casefold().endswith("lgd")
+        and str(variant_type).strip().casefold() == "special"
+    )
+
+
+def localized_mech_name(
+    mech,
+    definition,
+    localization,
+    missing,
+    internal_name,
+):
+    display_name = localized_name(
+        mech.get("name", ""),
+        localization,
+        missing,
+        "mech",
+        internal_name,
+    )
+    if (
+        is_lgd_special_mech(mech, definition)
+        and not display_name.rstrip().casefold().endswith("(lgd)")
+    ):
+        return f"{display_name.rstrip()} (LGD)"
+    return display_name
+
+
 def normalized_missing_localization_keys(missing):
     unique = {
         (
@@ -644,10 +683,13 @@ def parse_mech_list(game_data):
 def parse_loadouts(
     game_data,
     mechs,
+    definitions,
     localization,
     missing_localization_keys,
+    excluded_mech_ids=None,
 ):
     loadouts = {}
+    excluded_mech_ids = set(excluded_mech_ids or ())
     loadout_names = [name for name in game_data.namelist() if name.startswith("Libs/MechLoadout/") and name.endswith(".xml")]
     for inner_path in loadout_names:
         root = parse_xml(game_data.read(inner_path), inner_path)
@@ -658,12 +700,14 @@ def parse_loadouts(
             raise RuntimeError(
                 f"Loadout {inner_path} MechID {mech_id} did not match Mechs.xml"
             )
+        if str(mech_id) in excluded_mech_ids:
+            continue
         mech_key = str(mech["name"])
-        display_name = localized_name(
-            mech_key,
+        display_name = localized_mech_name(
+            mech,
+            definitions.get(mech_key, {}),
             localization,
             missing_localization_keys,
-            "mech",
             name,
         )
         loadout = {
@@ -858,11 +902,11 @@ def build_mech_payload(
         else:
             weight_class = ""
         loadout = by_mech_id.get(mech_id) or loadouts.get(mech["name"])
-        display_name = localized_name(
-            mech["name"],
+        display_name = localized_mech_name(
+            mech,
+            definition,
             localization,
             missing_localization_keys,
-            "mech",
             mech["name"],
         )
         payload.append({
@@ -1017,17 +1061,29 @@ def main(argv=None):
             missing_localization_keys,
         )
         mechs = parse_mech_list(game_data)
+        excluded_mech_ids = {
+            mech_id
+            for mech_id, mech in mechs.items()
+            if is_non_buildable_trial_mech(mech, name_localization)
+        }
+        buildable_mechs = {
+            mech_id: mech
+            for mech_id, mech in mechs.items()
+            if mech_id not in excluded_mech_ids
+        }
         loadouts = parse_loadouts(
             game_data,
             mechs,
+            definitions,
             name_localization,
             missing_localization_keys,
+            excluded_mech_ids,
         )
         omnipods = parse_omnipods(game_data, omnipod_details)
         skills = parse_skills(game_data, original_localization)
 
     mech_payload = build_mech_payload(
-        mechs,
+        buildable_mechs,
         definitions,
         loadouts,
         name_localization,
@@ -1069,6 +1125,12 @@ def main(argv=None):
         f"{len(loadouts)} loadouts, and {shake_damping_payload['count']} "
         "Cockpit.ShakeDamping=1.0 mechs."
     )
+    if excluded_mech_ids:
+        excluded_names = sorted(mechs[mech_id]["name"] for mech_id in excluded_mech_ids)
+        print(
+            "Excluded non-buildable localized (T) mechs: "
+            + ", ".join(excluded_names)
+        )
     print_missing_localization_keys(missing_localization_keys)
     return 0
 
