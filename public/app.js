@@ -1687,6 +1687,8 @@ const state = {
   index: null,
   mechs: [],
   equipment: null,
+  gameLocalization: {},
+  gameLocalizationLookup: new Map(),
   loadouts: {},
   omnipods: {},
   skills: { categories: [], node_count: 0 },
@@ -2719,10 +2721,6 @@ function scheduleStatsSummaryWarmup() {
   schedule(warmNextBatch);
 }
 
-function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function formatChassisName(chassis) {
   return String(chassis || t("common.unknown"))
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -2734,13 +2732,25 @@ function variantCode(mech) {
   return mech?.definition?.stats?.Variant || String(mech?.name || "").toUpperCase();
 }
 
+function buildGameLocalizationLookup(localization) {
+  const lookup = new Map();
+  for (const [sourceKey, value] of Object.entries(localization || {})) {
+    const key = String(sourceKey).replace(/^@/, "").toLocaleLowerCase();
+    if (!lookup.has(key)) lookup.set(key, value);
+  }
+  return lookup;
+}
+
+function gameLocalizedText(key) {
+  return state.gameLocalizationLookup.get(
+    String(key || "").replace(/^@/, "").toLocaleLowerCase(),
+  );
+}
+
 function chassisDisplayName(variants) {
   const mech = variants[0];
   if (!mech) return t("common.unknown");
-  const display = mech.display_name || formatChassisName(mech.chassis);
-  const variant = variantCode(mech);
-  const stripped = display.replace(new RegExp(`\\s*${escapeRegex(variant)}\\s*$`, "i"), "").trim();
-  return stripped || formatChassisName(mech.chassis);
+  return gameLocalizedText(mech.chassis) || formatChassisName(mech.chassis);
 }
 
 function sortMechsByVariant(a, b) {
@@ -9366,7 +9376,7 @@ function renderVariantRow(mech) {
   return `
     <button class="mech-row variant-row${selected}" data-mech="${mech.id}" type="button">
       <span class="row-title">
-        <span class="mech-title-main">${omnipodIcon(mech)}<strong>${variantCode(mech)}</strong></span>
+        <span class="mech-title-main">${omnipodIcon(mech)}<strong>${escapeHtml(mech.display_name || variantCode(mech))}</strong></span>
       </span>
       <span class="badge-line mech-slot-tags">${mechSlotBadges(mech)}</span>
     </button>
@@ -9412,7 +9422,7 @@ function renderMechCard(mech) {
         <img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" decoding="async">
       </span>
       <span class="mech-card-title">
-        <strong>${omnipodIcon(mech)}<span>${variantCode(mech)}</span></strong>
+        <strong>${omnipodIcon(mech)}<span>${escapeHtml(mech.display_name || variantCode(mech))}</span></strong>
       </span>
       <span class="mech-card-stats">
         <span><span>${t("info.durability")}</span><strong class="${durabilityBoosted ? "boosted" : ""}">${formatInfoNumber(data.combinedTotal, 0)}</strong></span>
@@ -14395,9 +14405,10 @@ async function init() {
   setMainTab(state.activeMainTab);
   try {
     state.index = await loadJson("data/index.json");
-    const [mechs, equipment, loadouts, omnipods, shakeDamping, skills] = await Promise.all([
+    const [mechs, equipment, localization, loadouts, omnipods, shakeDamping, skills] = await Promise.all([
       loadJson(state.index.files.mechs),
       loadJson(state.index.files.equipment),
+      loadJson(state.index.files.localization),
       loadJson(state.index.files.loadouts),
       loadJson(state.index.files.omnipods),
       state.index.files.shake_damping_mechs
@@ -14410,6 +14421,8 @@ async function init() {
     state.mechs = mechs.filter((mech) => mech.definition && mech.definition.components);
     initializeMechTypeFilters();
     state.equipment = excludeUnusedEquipment(equipment);
+    state.gameLocalization = localization;
+    state.gameLocalizationLookup = buildGameLocalizationLookup(localization);
     state.equipmentInfoHtmlCache.clear();
     state.loadouts = loadouts;
     state.omnipods = omnipods;

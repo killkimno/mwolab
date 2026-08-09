@@ -86,17 +86,91 @@ def loc_data(element):
     }
 
 
+def localization_key(tag):
+    text = str(tag or "").strip()
+    return text[1:] if text.startswith("@") else text
+
+
+def build_localization_lookup(localization):
+    lookup = {}
+    source_keys = {}
+    for key, value in localization.items():
+        folded = localization_key(key).casefold()
+        if folded in lookup:
+            if lookup[folded] != value:
+                raise RuntimeError(
+                    "Localization keys normalize to conflicting values: "
+                    f"{source_keys[folded]} and {key}"
+                )
+            continue
+        lookup[folded] = value
+        source_keys[folded] = key
+    return lookup
+
+
 def display_from_tag(tag, localization, fallback):
-    if not tag:
+    key = localization_key(tag)
+    if not key:
         return fallback
-    key = tag[1:] if tag.startswith("@") else tag
     return localization.get(key, fallback)
 
 
-def parse_localization(game_dir: Path):
+def localized_name(key, localization, missing, kind, internal_name):
+    key = localization_key(key)
+    value = localization.get(key.casefold()) if key else None
+    if value:
+        return value
+    if key:
+        missing.append({
+            "kind": kind,
+            "key": key,
+            "internal_name": internal_name,
+        })
+        return key
+    return internal_name
+
+
+def normalized_missing_localization_keys(missing):
+    unique = {
+        (
+            str(item.get("kind", "")),
+            str(item.get("key", "")),
+            str(item.get("internal_name", "")),
+        )
+        for item in missing
+    }
+    return [
+        {"kind": kind, "key": key, "internal_name": internal_name}
+        for kind, key, internal_name in sorted(
+            unique,
+            key=lambda item: (
+                item[0].casefold(),
+                item[1].casefold(),
+                item[2].casefold(),
+            ),
+        )
+    ]
+
+
+def print_missing_localization_keys(missing):
+    missing = normalized_missing_localization_keys(missing)
+    print("Missing localization keys:")
+    if not missing:
+        print("  (none)")
+        return
+    for item in missing:
+        print(
+            f"  [{item['kind']}] {item['key']} "
+            f"(internal: {item['internal_name']})"
+        )
+
+
+def parse_localization(game_dir: Path, value_column=2):
+    if value_column not in {1, 2}:
+        raise ValueError(f"Unsupported localization value column: {value_column}")
     loc_pak = game_dir / LOCALIZATION_PAK
     if not loc_pak.exists():
-        return {}
+        raise RuntimeError(f"Localization pak not found: {loc_pak}")
     with zipfile.ZipFile(loc_pak) as zf:
         root = parse_xml(zf.read("Localization/English/TheRealLoc.xml"), "TheRealLoc.xml")
 
@@ -107,26 +181,44 @@ def parse_localization(game_dir: Path):
         for cell in row.findall("ss:Cell", ns):
             node = cell.find("ss:Data", ns)
             values.append(node.text if node is not None and node.text is not None else "")
-        if len(values) >= 2:
+        if len(values) >= 3:
             key = values[0].strip()
-            value = values[1].strip()
-            if key and value and key.lower() not in {"id", "name", "key"}:
+            value = values[value_column].strip()
+            if key and key.lower() not in {"id", "name", "key"}:
                 data[key] = value
     return data
 
 
-def parse_item(element, family, localization):
+def parse_item(
+    element,
+    family,
+    localization,
+    name_localization,
+    missing_localization_keys,
+):
     loc = loc_data(element)
+    internal_name = element.attrib.get("name", "")
+    name_tag = loc.get("name_tag")
+    if family == "weapons":
+        display_name = localized_name(
+            name_tag or internal_name,
+            name_localization,
+            missing_localization_keys,
+            "weapon",
+            internal_name,
+        )
+    else:
+        display_name = display_from_tag(name_tag, localization, internal_name)
     item = {
         "id": int(element.attrib["id"]),
-        "name": element.attrib.get("name", ""),
+        "name": internal_name,
         "family": family,
         "kind": element.tag.lower(),
         "ctype": element.attrib.get("CType", ""),
         "faction": element.attrib.get("faction", ""),
         "aliases": element.attrib.get("HardpointAliases", ""),
         "loc": loc,
-        "display_name": display_from_tag(loc.get("name_tag"), localization, element.attrib.get("name", "")),
+        "display_name": display_name,
         "description": display_from_tag(loc.get("desc_tag"), localization, ""),
         "icon": "",
         "stats": {},
@@ -380,7 +472,12 @@ def parse_component_fixed(comp):
     return fixed
 
 
-def parse_items(game_data, localization):
+def parse_items(
+    game_data,
+    localization,
+    name_localization,
+    missing_localization_keys,
+):
     items_by_id = {}
     by_family = defaultdict(list)
 
@@ -389,7 +486,13 @@ def parse_items(game_data, localization):
         for element in list(root):
             if "id" not in element.attrib:
                 continue
-            item = parse_item(element, family, localization)
+            item = parse_item(
+                element,
+                family,
+                localization,
+                name_localization,
+                missing_localization_keys,
+            )
             items_by_id[str(item["id"])] = item
             by_family[family].append(item["id"])
 
@@ -538,16 +641,36 @@ def parse_mech_list(game_data):
     return mechs
 
 
-def parse_loadouts(game_data):
+def parse_loadouts(
+    game_data,
+    mechs,
+    localization,
+    missing_localization_keys,
+):
     loadouts = {}
     loadout_names = [name for name in game_data.namelist() if name.startswith("Libs/MechLoadout/") and name.endswith(".xml")]
     for inner_path in loadout_names:
         root = parse_xml(game_data.read(inner_path), inner_path)
         name = Path(inner_path).stem.lower()
+        mech_id = maybe_num(root.attrib.get("MechID"))
+        mech = mechs.get(str(mech_id), {})
+        if not mech.get("name"):
+            raise RuntimeError(
+                f"Loadout {inner_path} MechID {mech_id} did not match Mechs.xml"
+            )
+        mech_key = str(mech["name"])
+        display_name = localized_name(
+            mech_key,
+            localization,
+            missing_localization_keys,
+            "mech",
+            name,
+        )
         loadout = {
             "name": name,
-            "display_name": root.attrib.get("Name", name).strip(),
-            "mech_id": maybe_num(root.attrib.get("MechID")),
+            "source_name": root.attrib.get("Name", "").strip(),
+            "display_name": display_name,
+            "mech_id": mech_id,
             "public": maybe_num(root.attrib.get("Public", "0")),
             "upgrades": {},
             "components": {},
@@ -717,7 +840,13 @@ def parse_omnipods(game_data, omnipod_details):
     return pods
 
 
-def build_mech_payload(mechs, definitions, loadouts):
+def build_mech_payload(
+    mechs,
+    definitions,
+    loadouts,
+    localization,
+    missing_localization_keys,
+):
     payload = []
     by_mech_id = {str(loadout["mech_id"]): loadout for loadout in loadouts.values() if loadout.get("mech_id") is not None}
     for mech_id, mech in sorted(mechs.items(), key=lambda pair: int(pair[0])):
@@ -729,10 +858,17 @@ def build_mech_payload(mechs, definitions, loadouts):
         else:
             weight_class = ""
         loadout = by_mech_id.get(mech_id) or loadouts.get(mech["name"])
+        display_name = localized_name(
+            mech["name"],
+            localization,
+            missing_localization_keys,
+            "mech",
+            mech["name"],
+        )
         payload.append({
             "id": mech["id"],
             "name": mech["name"],
-            "display_name": (loadout or {}).get("display_name", mech["name"].upper()),
+            "display_name": display_name,
             "chassis": mech["chassis"],
             "faction": mech.get("faction", ""),
             "weight_class": weight_class,
@@ -812,10 +948,13 @@ def main(argv=None):
         return 0
 
     localization = parse_localization(game_dir)
+    original_localization = parse_localization(game_dir, value_column=1)
+    name_localization = build_localization_lookup(localization)
+    missing_localization_keys = []
 
     if args.skills_only:
         with zipfile.ZipFile(game_data_path) as game_data:
-            skills = parse_skills(game_data, localization)
+            skills = parse_skills(game_data, original_localization)
         index_path = out_dir / "index.json"
         index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else {
             "generated_from": "local game install",
@@ -823,32 +962,77 @@ def main(argv=None):
             "files": {},
         }
         index.setdefault("counts", {})["skill_nodes"] = skills["node_count"]
+        index.setdefault("counts", {})["localization_strings"] = len(
+            localization
+        )
         index.setdefault("files", {})["skills"] = "data/skills.json"
+        index.setdefault("files", {})["localization"] = "data/localization.json"
         write_json(index_path, index)
         write_json(out_dir / "skills.json", skills)
+        write_json(out_dir / "localization.json", localization)
         print(
             f"Extracted {skills['node_count']} skill nodes across "
             f"{len(skills['categories'])} categories."
         )
+        print_missing_localization_keys(missing_localization_keys)
         return 0
 
     if args.equipment_only:
         with zipfile.ZipFile(game_data_path) as game_data:
-            items_by_id, by_family = parse_items(game_data, localization)
+            items_by_id, by_family = parse_items(
+                game_data,
+                original_localization,
+                name_localization,
+                missing_localization_keys,
+            )
         write_json(out_dir / "equipment.json", {"items": items_by_id, "families": by_family})
+        write_json(out_dir / "localization.json", localization)
+        index_path = out_dir / "index.json"
+        index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else {
+            "generated_from": "local game install",
+            "counts": {},
+            "files": {},
+        }
+        index.setdefault("counts", {})["items"] = len(items_by_id)
+        index.setdefault("counts", {})["localization_strings"] = len(
+            localization
+        )
+        index.setdefault("files", {})["equipment"] = "data/equipment.json"
+        index.setdefault("files", {})["localization"] = "data/localization.json"
+        write_json(index_path, index)
         print(f"Extracted {len(items_by_id)} items.")
+        print_missing_localization_keys(missing_localization_keys)
         return 0
 
-    definitions, omnipod_details, cockpit_shake_damping = parse_mech_definitions(game_dir, localization)
+    definitions, omnipod_details, cockpit_shake_damping = parse_mech_definitions(
+        game_dir,
+        original_localization,
+    )
 
     with zipfile.ZipFile(game_data_path) as game_data:
-        items_by_id, by_family = parse_items(game_data, localization)
+        items_by_id, by_family = parse_items(
+            game_data,
+            original_localization,
+            name_localization,
+            missing_localization_keys,
+        )
         mechs = parse_mech_list(game_data)
-        loadouts = parse_loadouts(game_data)
+        loadouts = parse_loadouts(
+            game_data,
+            mechs,
+            name_localization,
+            missing_localization_keys,
+        )
         omnipods = parse_omnipods(game_data, omnipod_details)
-        skills = parse_skills(game_data, localization)
+        skills = parse_skills(game_data, original_localization)
 
-    mech_payload = build_mech_payload(mechs, definitions, loadouts)
+    mech_payload = build_mech_payload(
+        mechs,
+        definitions,
+        loadouts,
+        name_localization,
+        missing_localization_keys,
+    )
     shake_damping_payload = build_shake_damping_payload(mech_payload, cockpit_shake_damping)
 
     write_json(out_dir / "index.json", {
@@ -860,6 +1044,7 @@ def main(argv=None):
             "omnipods": len(omnipods),
             "shake_damping_mechs": shake_damping_payload["count"],
             "skill_nodes": skills["node_count"],
+            "localization_strings": len(localization),
         },
         "files": {
             "mechs": "data/mechs.json",
@@ -868,6 +1053,7 @@ def main(argv=None):
             "omnipods": "data/omnipods.json",
             "shake_damping_mechs": "data/shake_damping_mechs.json",
             "skills": "data/skills.json",
+            "localization": "data/localization.json",
         },
     })
     write_json(out_dir / "mechs.json", mech_payload)
@@ -876,12 +1062,14 @@ def main(argv=None):
     write_json(out_dir / "omnipods.json", omnipods)
     write_json(out_dir / "shake_damping_mechs.json", shake_damping_payload)
     write_json(out_dir / "skills.json", skills)
+    write_json(out_dir / "localization.json", localization)
 
     print(
         f"Extracted {len(mech_payload)} mechs, {len(items_by_id)} items, "
         f"{len(loadouts)} loadouts, and {shake_damping_payload['count']} "
         "Cockpit.ShakeDamping=1.0 mechs."
     )
+    print_missing_localization_keys(missing_localization_keys)
     return 0
 
 

@@ -2,9 +2,13 @@
 
 ## 생성 데이터
 
-- 의도적인 게임 데이터 갱신에는 `tools/extract_mwo_data.py`를 사용한다. 생성되는 브라우저 데이터는 `public/data/index.json`, `mechs.json`, `equipment.json`, `loadouts.json`, `omnipods.json`, `shake_damping_mechs.json`, `skills.json`이다.
+- 의도적인 게임 데이터 갱신에는 `tools/extract_mwo_data.py`를 사용한다. 생성되는 브라우저 데이터는 `public/data/index.json`, `mechs.json`, `equipment.json`, `localization.json`, `loadouts.json`, `omnipods.json`, `shake_damping_mechs.json`, `skills.json`이다.
 - 전체 추출은 `Libs/MechPilotTalents/MechSkillTreeNodes.xml`과 `MechSkillTreeNodesDisplay.xml`에서 `skills.json`을 갱신하고 다른 생성 데이터와 함께 배포해야 한다. `index.json`의 `skill_nodes` 개수가 추출된 모든 스킬 분류의 전체 노드 수와 일치하는지 검증한다.
 - 로컬 MWO 설치 경로는 현재 `F:\Game\Steam\steamapps\common\MechWarrior Online`이다. 추출기는 `Game\GameData.pak`, `Game\Localized\English_xml.pak`, `Game\mechs\*.pak`의 섀시 아카이브를 읽는다.
+- `localization.json`은 `English_xml.pak`의 `Localization/English/TheRealLoc.xml`에 있는 영문 키와 `TRANSLATED TEXT` 값을 원본 표기 그대로 보존하며 빈 번역 값도 버리지 않는다. 조회할 때만 키의 선택적 선행 `@`와 대소문자를 무시한다. 정규화한 중복 키의 값이 서로 다르면 오류로 중단하고, 같은 값이면 같은 키로 취급한다.
+- 멕 `display_name`은 내부 멕 배리언트 이름을 영문 현지화 키로 사용하고, 무기 `display_name`은 원본 `Loc.nameTag`를 사용한다. 키가 현지화 데이터에 없으면 다른 이름을 추론하지 않고 키 자체를 표시명으로 저장하며, 전체 갱신 보고의 별도 누락 키 목록에 멕과 무기를 구분해 출력한다.
+- 이번 표시명 규칙의 대상이 아닌 설명·쿼크·비무기 장비명은 기존 `ORIGINAL TEXT` 기반 표시를 유지한다.
+- 기본 로드아웃 `display_name`은 로드아웃 파일명으로 추정하지 않고 원본 `MechID`로 `Mechs.xml`의 정식 멕 배리언트 키를 찾아 같은 현지화 값을 사용한다. 로드아웃 XML의 원래 `Name`은 `source_name`에 별도로 보존한다.
 - 전체 추출 명령은 `python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data`이다.
 - 전체 추출은 현재 설치된 게임에서 모든 생성 데이터를 갱신하므로 무관한 밸런스 데이터나 숫자 형식 변경을 포함할 수 있다. 기존 장비와 로드아웃 데이터를 유지하면서 하드포인트만 갱신하려면 `python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data --hardpoints-only`를 사용한다.
 

@@ -469,7 +469,7 @@
         <p>정적 배포의 단순함을 유지하면서도 모든 화면이 같은 계산 결과를 공유하도록 HTML이 화면 골격을 제공하고, 하나의 전역 상태 객체를 중심으로 <code>app.js</code>가 데이터 로딩·계산·렌더링·이벤트를 처리한다. 계산 규칙이 화면마다 갈라지지 않도록 MWO 로드아웃 문자열 변환은 <code>mwo-codec.js</code>, 공용 쿼크 계산은 <code>quirk-calculations.js</code>에 분리한다.</p>
         <div class="flow">MWO 설치 파일 → extract_mwo_data.py → public/data/*.json → init() → state → 계산 함수 → 화면 렌더링</div>
         <ol>
-          <li><code>init()</code>이 <code>index.json</code>과 멕·장비·로드아웃·옵니포드·스킬 JSON을 읽는다.</li>
+          <li><code>init()</code>이 <code>index.json</code>과 멕·장비·영문 현지화·로드아웃·옵니포드·스킬 JSON을 읽는다.</li>
           <li>읽은 데이터는 <code>state</code>에 저장되고, 검색·쿼크·하드포인트용 파생 인덱스는 브라우저 메모리 캐시에 만든다.</li>
           <li>멕 선택 시 기본 로드아웃 또는 저장된 빌드를 <code>currentBuild</code>로 구성한다.</li>
           <li><code>calculateBuild()</code>가 중량, 슬롯, 아머, 장비, 탄약, 엔진, 발열과 경고를 계산한다.</li>
@@ -496,7 +496,7 @@
         <div class="intent"><strong>제작 의도:</strong> 멕 선택과 장비 편집을 별개 화면으로 끊지 않고, 장착 가능 여부·중량·슬롯·발열·탄약·화력을 즉시 확인하며 시행착오를 줄이는 것이 목표다. 게임과 가까운 부위 배치를 유지하되 계산 정보는 빠르게 읽을 수 있는 왼쪽 요약에 모은다.</div>
         <p><strong>세부 카테고리:</strong> 멕 탐색, 빌드 헤더, 컴포넌트, 장비 목록, 업그레이드, 피팅 요약, 로컬 저장·MWO 코드, 스킬 적용, 사격 시뮬레이션.</p>
         <ul>
-          <li><strong>멕 탐색:</strong> 검색, 진영, 체급, 기본·톤수·알파벳순 및 오름·내림차순 정렬과 큰/작은 목록을 지원한다. 알파벳순은 각 체급 안에서 섀시 표시명을 숫자 인식 방식으로 비교한다. 정렬 창은 공통 모달 오버레이를 사용해 뷰포트 가운데에 여유 있는 크기로 표시하고 배경을 어둡게 처리하며 상단 닫기 버튼, 바깥 영역 클릭, Esc로 닫는다. 작은 화면에서는 뷰포트를 넘지 않는다. 정렬 창의 진영별 표시는 스위치형 토글이며 기본값은 켜짐이다. 끄면 진영 헤더 없이 선택한 기준으로 양 진영 기종을 섞어 표시한다. 체급 헤더는 이 설정과 관계없이 항상 유지한다. 기종과 변형을 그룹화하며 공용 멕 슬롯과 하드포인트 태그를 쓴다.</li>
+          <li><strong>멕 탐색:</strong> 검색, 진영, 체급, 기본·톤수·알파벳순 및 오름·내림차순 정렬과 큰/작은 목록을 지원한다. 알파벳순은 각 체급 안에서 섀시 표시명을 숫자 인식 방식으로 비교한다. 정렬 창은 공통 모달 오버레이를 사용해 뷰포트 가운데에 여유 있는 크기로 표시하고 배경을 어둡게 처리하며 상단 닫기 버튼, 바깥 영역 클릭, Esc로 닫는다. 작은 화면에서는 뷰포트를 넘지 않는다. 정렬 창의 진영별 표시는 스위치형 토글이며 기본값은 켜짐이다. 끄면 진영 헤더 없이 선택한 기준으로 양 진영 기종을 섞어 표시한다. 체급 헤더는 이 설정과 관계없이 항상 유지한다. 기종과 변형을 그룹화하며 공용 멕 슬롯과 하드포인트 태그를 쓴다. 작은 목록의 배리언트 행과 큰 목록의 멕 카드는 현지화된 <code>mech.display_name</code>을 표시하고 값이 없을 때만 원본 배리언트 코드를 사용한다.</li>
           <li><strong>멕 종류 필터:</strong> <code>definition.stats.VariantType</code>이 없으면 일반형, <code>Hero</code>와 <code>Champion</code>은 각각 히어로와 챔피언으로 분류하며 그 밖의 값은 스페셜로 분류한다. 스페셜 하위 타입은 현재 멕 데이터에서 동적으로 만들고 기본 선택하며, 첫째 줄의 스페셜이 선택된 동안에만 조작할 수 있다. 하위의 모두 토글은 모든 스페셜 타입을 한 번에 선택하고, 모든 타입이 선택됐을 때만 체크 상태가 된다. 첫째 줄과 스페셜 하위 줄 모두 개별 선택을 전부 끄면 빈 선택으로 두지 않고 해당 줄의 모두 상태로 자동 복귀한다. 필터 선택지는 왼쪽 사각형에 체크 표시가 나타나는 체크박스형 토글로 표현한다.</li>
           <li><strong>필터 탭:</strong> 진영·체급·멕 종류·하드포인트 필터는 기본 탭에 두고, 특수 쿼크·특수 스탯·특수 장비 필터는 특수기능 탭에 두며, 원본 쿼크 이름 조건은 쿼크 탭에 둔다. 탭을 바꿔도 세 탭의 선택 상태와 필터 적용 상태는 유지한다.</li>
           <li><strong>하드포인트 필터:</strong> 에너지·미사일·발리스틱·AMS·ECM·JJ·MASC를 서로 독립적으로 활성화한다. 비활성 종류는 필터링하지 않으며, 에너지·미사일·발리스틱·AMS의 전체·RA·RT·HD·LT·LA 입력값은 모두 해당 위치의 하드포인트 수에 대한 최솟값이다. 한 종류에 여러 최솟값을 입력하면 전체와 모든 부위 조건을 동시에 만족해야 한다. ECM과 JJ는 전체 최솟값만 입력하며, MASC는 활성화 시 전체 1 조건으로 고정한다. JJ는 쿼크를 포함한 최대 점프젯 수, MASC는 장착 가능 여부를 사용한다. 옵니멕은 기본 로드아웃의 옵니포드를 합성한 유효 정의를 사용하고 결과는 멕별 브라우저 메모리에 캐시한다.</li>
@@ -781,7 +781,7 @@
 
         <h3>브라우저 로딩과 결합</h3>
         <ul>
-          <li><code>index.json</code>에서 생성 파일 경로와 개수를 읽고 <code>mechs.json</code>, <code>equipment.json</code>, <code>loadouts.json</code>, <code>omnipods.json</code>, <code>skills.json</code>을 로드한다.</li>
+          <li><code>index.json</code>에서 생성 파일 경로와 개수를 읽고 <code>mechs.json</code>, <code>equipment.json</code>, <code>localization.json</code>, <code>loadouts.json</code>, <code>omnipods.json</code>, <code>skills.json</code>을 로드한다.</li>
           <li>멕, 장비, 로드아웃, 옵니포드는 숫자 ID의 표현이 달라도 찾을 수 있도록 조회 경계에서 문자열 또는 정규화 키로 통일한다. 원본 ID 자체는 임의로 바꾸지 않는다.</li>
           <li>이름 매칭은 대소문자, 공백, 구분 기호 차이를 정규화한 검색 키를 사용한다. 표시 이름은 UI에만 사용하고 내부 이름·ID를 기본 결합 키로 둔다.</li>
           <li>누락 속성은 <code>undefined</code>, <code>null</code>, 빈 문자열을 구분해 처리한다. 의미가 확인되지 않은 누락값을 0, 빈 배열 또는 다른 레코드로 조용히 대체하지 않는다.</li>
@@ -812,7 +812,7 @@
         </table>
         <p><strong>전체 추출</strong></p>
         <p><code>python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data</code></p>
-        <p>전체 추출은 <code>skills.json</code>을 포함한 모든 생성 JSON을 함께 갱신하며, 안전 갱신 게시 단계에서도 스킬 파일을 제외하지 않는다. 게시 전 <code>index.json</code>의 <code>skill_nodes</code>와 일곱 카테고리의 실제 노드 합계를 대조한다.</p>
+        <p>전체 추출은 <code>localization.json</code>과 <code>skills.json</code>을 포함한 모든 생성 JSON을 함께 갱신하며, 안전 갱신 게시 단계에서도 두 파일을 제외하지 않는다. <code>localization.json</code>은 <code>English_xml.pak</code>의 영문 키와 <code>TRANSLATED TEXT</code>를 원본 표기 그대로 보존하고 조회할 때만 선택적 선행 <code>@</code>와 대소문자를 무시한다. 멕 표시명은 내부 배리언트 키, 무기 표시명은 원본 <code>Loc.nameTag</code>의 번역 값을 사용하며, 이번 표시명 변경 대상이 아닌 설명·쿼크·비무기 장비명은 기존 <code>ORIGINAL TEXT</code> 기반 표시를 유지한다. 기본 로드아웃은 원본 <code>MechID</code>로 정식 멕 배리언트 키에 결합하고 원본 <code>Name</code>은 <code>source_name</code>으로 보존한다. 키가 없으면 키 자체를 표시명으로 유지하고 갱신 보고의 별도 누락 목록에 기록한다. 게시 전 <code>index.json</code>의 현지화 문자열 수와 실제 키 수, <code>skill_nodes</code>와 일곱 카테고리의 실제 노드 합계를 대조한다.</p>
         <p><strong>하드포인트만 갱신</strong></p>
         <p><code>python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data --hardpoints-only</code></p>
         <p><strong>스킬만 갱신</strong></p>
@@ -845,8 +845,8 @@
         <ul>
           <li>임시 출력에 전체 데이터를 추출한 뒤 JSON 구조, 옵니포드 NULL 해소 결과, 표준 멕과 옵니포드 하드포인트 회귀 기준을 검증하고 성공한 결과만 게시 데이터에 반영한다.</li>
           <li>새 멕 ID와 <code>public/assets/mech-icons</code>의 썸네일을 비교하고, 누락 이미지는 <code>GameData.pak</code>의 <code>Libs/UI/Screens/Assets/MechIcons/</code>에서 찾는다. 기존 썸네일은 덮어쓰지 않는다.</li>
-          <li>갱신 보고에는 생성 JSON 범위, 자동·기록·공유 몸통 기반 NULL 해소, 두 미확정 구역, 추가된 썸네일과 검증 결과를 포함한다.</li>
-          <li>미확정이나 해석 오류가 있으면 임시 결과를 게시하지 않는다. 모두 해결된 현재 전체 데이터는 멕 1,292개, 장비 751개, 로드아웃 1,315개, 옵니포드 1,833개이며 미확정과 누락 썸네일은 0건이다.</li>
+          <li>갱신 보고에는 생성 JSON 범위, 멕·무기 현지화 누락 키 목록, 자동·기록·공유 몸통 기반 NULL 해소, 두 미확정 구역, 추가된 썸네일과 검증 결과를 포함한다.</li>
+          <li>미확정이나 해석 오류가 있으면 임시 결과를 게시하지 않는다. 모두 해결된 현재 전체 데이터는 멕 1,292개, 장비 751개, 영문 현지화 문자열 30,350개, 로드아웃 1,315개, 옵니포드 1,833개이며 현지화 누락 키, 미확정 옵니포드와 누락 썸네일은 모두 0건이다.</li>
           <li>“전체 JSON 갱신”은 추출·검증·보고까지만 포함한다. 커밋, 푸시, GitHub Pages 배포는 별도의 명시적 요청이 있을 때만 수행한다.</li>
         </ul>
 
@@ -909,6 +909,7 @@
             <tr><td><code>public/data/index.json</code></td><td>생성 데이터 개수와 파일 위치</td></tr>
             <tr><td><code>public/data/mechs.json</code></td><td>멕 정의, 기동성, 내구도, 하드포인트, 쿼크</td></tr>
             <tr><td><code>public/data/equipment.json</code></td><td>무기·탄약·엔진·모듈과 세부 통계</td></tr>
+            <tr><td><code>public/data/localization.json</code></td><td>게임 영문 현지화 키와 값</td></tr>
             <tr><td><code>public/data/loadouts.json</code></td><td>기본 장착 장비와 아머</td></tr>
             <tr><td><code>public/data/omnipods.json</code></td><td>옵니포드 컴포넌트, 하드포인트, 세트 쿼크</td></tr>
             <tr><td><code>public/data/skills.json</code></td><td>스킬 카테고리, 노드 배치, 효과, 적용 대상·요구조건과 중첩 범위</td></tr>
