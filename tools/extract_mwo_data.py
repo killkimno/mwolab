@@ -147,6 +147,44 @@ def is_lgd_special_mech(mech, definition):
     )
 
 
+def is_normal_mech(definition):
+    variant_type = definition.get("stats", {}).get("VariantType", "")
+    return not str(variant_type).strip()
+
+
+def strip_localized_chassis_prefix(mech, display_name, localization):
+    chassis_key = localization_key(mech.get("chassis"))
+    chassis_name = localization.get(chassis_key.casefold()) if chassis_key else None
+    if not isinstance(chassis_name, str) or not chassis_name.strip():
+        return display_name
+
+    chassis_name = chassis_name.strip()
+    if display_name.casefold() == chassis_name.casefold():
+        return display_name
+    prefixes = [chassis_name]
+    chassis_words = chassis_name.split()
+    if (
+        len(chassis_words) == 2
+        and chassis_words[1].casefold() == "clan"
+    ):
+        base_name = chassis_words[0]
+        prefixes.extend((f"CLAN {base_name}", base_name))
+
+    for candidate in prefixes:
+        prefix = display_name[:len(candidate)]
+        remainder = display_name[len(candidate):]
+        if (
+            prefix.casefold() != candidate.casefold()
+            or not remainder
+            or not remainder[0].isspace()
+        ):
+            continue
+        stripped_name = remainder.lstrip()
+        if stripped_name:
+            return stripped_name
+    return display_name
+
+
 def localized_mech_name(
     mech,
     definition,
@@ -154,13 +192,27 @@ def localized_mech_name(
     missing,
     internal_name,
 ):
-    display_name = localized_name(
+    localized_display_name = localized_name(
         mech.get("name", ""),
         localization,
         missing,
         "mech",
         internal_name,
     )
+    if is_normal_mech(definition):
+        variant = str(definition.get("stats", {}).get("Variant", "")).strip()
+        if not variant:
+            raise RuntimeError(
+                f"Normal mech {mech.get('name', internal_name)} is missing "
+                "definition.stats.Variant"
+            )
+        display_name = variant
+    else:
+        display_name = strip_localized_chassis_prefix(
+            mech,
+            localized_display_name,
+            localization,
+        )
     if (
         is_lgd_special_mech(mech, definition)
         and not display_name.rstrip().casefold().endswith("(lgd)")

@@ -8,6 +8,8 @@
 - `localization.json`은 `English_xml.pak`의 `Localization/English/TheRealLoc.xml`에 있는 영문 키와 `TRANSLATED TEXT` 값을 원본 표기 그대로 보존하며 빈 번역 값도 버리지 않는다. 조회할 때만 키의 선택적 선행 `@`와 대소문자를 무시한다. 정규화한 중복 키의 값이 서로 다르면 오류로 중단하고, 같은 값이면 같은 키로 취급한다.
 - 멕 `display_name`은 내부 멕 배리언트 이름을 영문 현지화 키로 사용하고, 무기 `display_name`은 원본 `Loc.nameTag`를 사용한다. 키가 현지화 데이터에 없으면 다른 이름을 추론하지 않고 키 자체를 표시명으로 저장하며, 전체 갱신 보고의 별도 누락 키 목록에 멕과 무기를 구분해 출력한다.
 - 현지화 데이터에 키가 존재하고 번역된 멕 이름이 정확히 `(T)` 접미사로 끝나면 실제 조립할 수 없는 멕으로 판정하여 `mechs.json`과 `loadouts.json`에서 함께 제외한다. 원본 번역 표인 `localization.json`에서는 해당 키를 삭제하지 않는다.
+- MDF의 `definition.stats.VariantType`이 없거나 빈 일반형 멕은 현지화 표시명 대신 MDF의 원본 `definition.stats.Variant` 코드를 최종 표시명으로 사용한다. 일반형에 원본 `Variant`가 없으면 다른 이름을 추론하지 않고 추출을 중단한다. 예: `jm6-de` → `JM6-DE`.
+- 비일반형의 현지화된 멕 이름이 `Mechs.xml`에서 추출한 `mech.chassis` 키의 현지화된 카테고리명과 대소문자 구분 없이 일치하는 접두어로 시작하고 그 뒤에 하나 이상의 공백과 나머지 이름이 있으면, 최종 표시명에서 선행 카테고리명과 공백을 제거한다. 이름 전체가 카테고리명과 같거나 카테고리명 뒤가 공백 경계가 아니면 제거하지 않는다. 카테고리명이 정확히 두 단어 `A CLAN`이면 긴 접두어부터 `A CLAN`, `CLAN A`, `A`도 같은 공백 경계 규칙으로 제거한다. 예: `CLAN FLEA WHITEHEAD` → `WHITEHEAD`, `WOLFHOUND WLF-C(L)` → `WLF-C(L)`.
 - 내부 멕 배리언트 키가 `lgd`로 끝나고 MDF의 `definition.stats.VariantType`이 `Special`이면 현지화된 최종 멕 이름 뒤에 ` (LGD)`를 한 번만 붙인다. 기본 로드아웃에도 `MechID`로 결합한 같은 최종 표시명을 사용한다.
 - 이번 표시명 규칙의 대상이 아닌 설명·쿼크·비무기 장비명은 기존 `ORIGINAL TEXT` 기반 표시를 유지한다.
 - 기본 로드아웃 `display_name`은 로드아웃 파일명으로 추정하지 않고 원본 `MechID`로 `Mechs.xml`의 정식 멕 배리언트 키를 찾아 같은 현지화 값을 사용한다. 로드아웃 XML의 원래 `Name`은 `source_name`에 별도로 보존한다.
