@@ -66,6 +66,57 @@ function loadMechLab() {
 
 const api = loadMechLab();
 
+test("UM-AIV 계열의 고정 XL Gyro를 특수 장비로 판별한다", () => {
+  const equipment = JSON.parse(fs.readFileSync(
+    path.join(__dirname, "..", "public", "data", "equipment.json"),
+    "utf8",
+  ));
+  const mechs = JSON.parse(fs.readFileSync(
+    path.join(__dirname, "..", "public", "data", "mechs.json"),
+    "utf8",
+  ));
+  const loadouts = JSON.parse(fs.readFileSync(
+    path.join(__dirname, "..", "public", "data", "loadouts.json"),
+    "utf8",
+  ));
+  const xlGyroMechs = mechs.filter((entry) => (
+    entry.definition.components.centre_torso.internals.includes(1942)
+  ));
+  const xlGyro = equipment.items["1942"];
+  const standardGyro = equipment.items["1903"];
+  const previous = {
+    equipment: api.state.equipment,
+    loadouts: api.state.loadouts,
+    omnipods: api.state.omnipods,
+    improvedJumpJetChassis: api.state.improvedJumpJetChassis,
+  };
+
+  assert.equal(xlGyro.name, "XLGyroLight");
+  assert.equal(xlGyro.item_type, "internal");
+  assert.equal(xlGyro.loc.desc_tag, "@mdf_XLGyroDesc");
+  assert.ok(xlGyro.stats.slots > standardGyro.stats.slots);
+  assert.ok(xlGyro.stats.tons < standardGyro.stats.tons);
+  assert.deepEqual(
+    xlGyroMechs.map((mech) => mech.display_name).sort(),
+    ["UM-AIV", "UM-AIV(S)"],
+  );
+
+  try {
+    api.state.equipment = equipment;
+    api.state.loadouts = loadouts;
+    api.state.omnipods = {};
+    api.state.mechSpecialFeatureCache.clear();
+    api.state.improvedJumpJetChassis = null;
+
+    xlGyroMechs.forEach((mech) => {
+      assert.equal(api.mechSpecialFeatures(mech).has("xl-gyro"), true);
+    });
+  } finally {
+    Object.assign(api.state, previous);
+    api.state.mechSpecialFeatureCache.clear();
+  }
+});
+
 test("shared loadout URL preserves the exact MWO code", () => {
   const code = "A12?@[\\]^_`abc|def";
   const sharedUrl = new URL(api.sharedLoadoutUrl(code));

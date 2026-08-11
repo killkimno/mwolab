@@ -310,6 +310,7 @@ const TEXT = {
     "filters.fallResistant": "낙하 데미지 없음",
     "filters.critImmune": "크리티컬 안 받음",
     "filters.compactGyro": "COMPACT GYRO",
+    "filters.xlGyro": "XL GYRO",
     "filters.compactCockpit": "COMPACT COCKPIT",
     "filters.noArmActuators": "Upper Arm 액추에이터 없음",
     "filters.laserHeatSinks": "레이저 히트 싱크",
@@ -326,6 +327,7 @@ const TEXT = {
     "filters.fallResistantDescription": "낙하 데미지 감소 50% 이상",
     "filters.critImmuneDescription": "CRIT HIT CHANCE (RECEIVING) 감소 100%",
     "filters.compactGyroDescription": "슬롯 감소, 톤 증가",
+    "filters.xlGyroDescription": "슬롯 증가, 톤 감소",
     "filters.compactCockpitDescription": "슬롯 감소, 톤 감소",
     "filters.noArmActuatorsDescription": "팔에 슬롯 -1, 팔 움직임 불가능",
     "filters.laserHeatSinksDescription": "환경 열 100% 무시",
@@ -848,6 +850,7 @@ const TEXT = {
     "filters.fallResistant": "No fall damage",
     "filters.critImmune": "Critical-hit immune",
     "filters.compactGyro": "COMPACT GYRO",
+    "filters.xlGyro": "XL GYRO",
     "filters.compactCockpit": "COMPACT COCKPIT",
     "filters.noArmActuators": "No Upper Arm Actuator",
     "filters.laserHeatSinks": "Laser heat sinks",
@@ -864,6 +867,7 @@ const TEXT = {
     "filters.fallResistantDescription": "At least 50% fall-damage reduction",
     "filters.critImmuneDescription": "100% CRIT HIT CHANCE (RECEIVING) reduction",
     "filters.compactGyroDescription": "Fewer slots and increased tonnage",
+    "filters.xlGyroDescription": "More slots and less tonnage",
     "filters.compactCockpitDescription": "Fewer slots and less tonnage",
     "filters.noArmActuatorsDescription": "-1 arm slot; the affected arm cannot move",
     "filters.laserHeatSinksDescription": "Ignores 100% of environmental heat",
@@ -1384,6 +1388,7 @@ const MECH_SPECIAL_TRAIT_ORDER = [
 ];
 const MECH_SPECIAL_EQUIPMENT_ORDER = [
   "compact-gyro",
+  "xl-gyro",
   "compact-cockpit",
   "no-arm-actuators",
   "laser-heat-sinks",
@@ -6392,6 +6397,12 @@ function mechSpecialFeatures(mech) {
   }
   if (fixedItemKeys.some((itemKey) => itemKey.includes("compactgyro"))) {
     features.add("compact-gyro");
+  }
+  if (fixedItems.some((item) => (
+    item.item_type === "internal"
+    && String(item.loc?.desc_tag || "").toLowerCase() === "@mdf_xlgyrodesc"
+  ))) {
+    features.add("xl-gyro");
   }
   if (fixedItemKeys.some((itemKey) => itemKey.includes("compactcockpit"))) {
     features.add("compact-cockpit");
@@ -14553,6 +14564,7 @@ if (globalThis.__MWOLAB_TEST__) {
     atmTooltipDamageBands,
     ultraAutoCannonJamStats,
     mechSummaryWeaponMetrics,
+    mechSpecialFeatures,
     calculateBuild,
     sharedLoadoutUrl,
   });
