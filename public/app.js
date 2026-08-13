@@ -5,6 +5,7 @@ if (!QUIRK_CALCULATIONS) {
 const {
   addQuirk,
   quirkValueText,
+  quirkFilterMagnitude,
   quirkValues,
   quirkAdd,
   quirkMultiplier,
@@ -299,6 +300,7 @@ const TEXT = {
     "filters.quirkMatchMode": "쿼크 포함 방식",
     "filters.quirkList": "쿼크 목록",
     "filters.quirkSearch": "쿼크 검색",
+    "filters.minimumQuirkValue": "최소 쿼크 수치",
     "filters.clearQuirkSelections": "선택 모두 해제",
     "filters.noQuirkResults": "일치하는 쿼크가 없습니다.",
     "filters.matchAllQuirks": "모두 포함",
@@ -839,6 +841,7 @@ const TEXT = {
     "filters.quirkMatchMode": "Quirk matching",
     "filters.quirkList": "Quirk list",
     "filters.quirkSearch": "Search quirks",
+    "filters.minimumQuirkValue": "Minimum quirk value",
     "filters.clearQuirkSelections": "Clear selection",
     "filters.noQuirkResults": "No matching quirks.",
     "filters.matchAllQuirks": "Include all",
@@ -1767,10 +1770,10 @@ const state = {
   mechSpecialEquipmentSelections: new Set(),
   mechSpecialFeatureCache: new Map(),
   mechQuirkFilterMode: "any",
-  mechQuirkFilterSelections: new Set(),
+  mechQuirkFilterSelections: new Map(),
   mechQuirkFilterOptions: [],
   mechQuirkFilterSearch: "",
-  mechQuirkNamesCache: new Map(),
+  mechQuirkValuesCache: new Map(),
   shakeDampingMechIds: new Set(),
   shakeDampingMechNames: new Set(),
   improvedJumpJetChassis: null,
@@ -6241,40 +6244,41 @@ function initializeMechTypeFilters() {
 
 function initializeMechQuirkFilters() {
   const options = new Map();
-  state.mechQuirkNamesCache.clear();
+  state.mechQuirkValuesCache.clear();
   state.mechs.forEach((mech) => {
     const quirks = effectiveQuirks(mech, buildFromLoadout(mech));
-    const names = new Set();
+    const values = new Map();
     quirks.forEach((quirk) => {
       const key = String(quirk.name || "").trim().toLowerCase();
       if (!key) return;
-      names.add(key);
+      values.set(key, number(quirk.value));
       if (!options.has(key)) {
         options.set(key, {
           key,
           label: String(quirk.display_name || quirk.name).trim() || quirk.name,
           name: quirk.name,
           display_name: quirk.display_name || quirk.name,
+          unit: key.endsWith("_multiplier") ? "%" : "",
         });
       }
     });
-    state.mechQuirkNamesCache.set(String(mech.id), names);
+    state.mechQuirkValuesCache.set(String(mech.id), values);
   });
   state.mechQuirkFilterOptions = sortQuirksForDisplay(Array.from(options.values()));
 }
 
-function mechQuirkNames(mech) {
+function mechQuirkValues(mech) {
   const key = String(mech?.id || "");
-  if (!key) return new Set();
-  const cached = state.mechQuirkNamesCache.get(key);
+  if (!key) return new Map();
+  const cached = state.mechQuirkValuesCache.get(key);
   if (cached) return cached;
-  const names = new Set(
-    effectiveQuirks(mech, buildFromLoadout(mech))
-      .map((quirk) => String(quirk.name || "").trim().toLowerCase())
-      .filter(Boolean),
-  );
-  state.mechQuirkNamesCache.set(key, names);
-  return names;
+  const values = new Map();
+  effectiveQuirks(mech, buildFromLoadout(mech)).forEach((quirk) => {
+    const name = String(quirk.name || "").trim().toLowerCase();
+    if (name) values.set(name, number(quirk.value));
+  });
+  state.mechQuirkValuesCache.set(key, values);
+  return values;
 }
 
 function mechMatchesTypeFilter(mech) {
@@ -6476,12 +6480,18 @@ function mechMatchesSpecialFeatureFilters(mech) {
 }
 
 function mechMatchesQuirkFilters(mech) {
-  const selections = Array.from(state.mechQuirkFilterSelections);
+  const selections = Array.from(state.mechQuirkFilterSelections.entries());
   if (selections.length === 0) return true;
-  const names = mechQuirkNames(mech);
+  const values = mechQuirkValues(mech);
+  const matches = ([quirk, minimum]) => {
+    if (!values.has(quirk)) return false;
+    if (minimum === null) return true;
+    const magnitude = quirkFilterMagnitude(quirk, values.get(quirk));
+    return magnitude !== null && magnitude >= minimum;
+  };
   return state.mechQuirkFilterMode === "all"
-    ? selections.every((quirk) => names.has(quirk))
-    : selections.some((quirk) => names.has(quirk));
+    ? selections.every(matches)
+    : selections.some(matches);
 }
 
 function mechMatchesListFilters(mech, search = "") {
@@ -6617,17 +6627,38 @@ function renderMechQuirkFilterControls() {
     || renderedKeys.some((key, index) => key !== availableKeys[index])
   ) {
     options.innerHTML = visibleOptions.map((option) => `
-      <button
-        type="button"
-        data-mech-quirk-filter="${escapeHtml(option.key)}"
-        title="${escapeHtml(option.label)}"
-      ><span class="${quirkToneClass(option)}">${escapeHtml(option.label)}</span></button>
+      <div class="mech-quirk-filter-row" data-mech-quirk-filter-row="${escapeHtml(option.key)}">
+        <button
+          type="button"
+          data-mech-quirk-filter="${escapeHtml(option.key)}"
+          title="${escapeHtml(option.label)}"
+        ><span class="${quirkToneClass(option)}">${escapeHtml(option.label)}</span></button>
+        <label class="mech-quirk-filter-value-slot">
+          <span class="sr-only">${escapeHtml(`${option.label} ${t("filters.minimumQuirkValue")}${option.unit ? ` (${option.unit})` : ""}`)}</span>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            inputmode="decimal"
+            data-mech-quirk-filter-value="${escapeHtml(option.key)}"
+          >
+          ${option.unit ? `<span aria-hidden="true">${option.unit}</span>` : ""}
+        </label>
+      </div>
     `).join("");
   }
-  options.querySelectorAll("[data-mech-quirk-filter]").forEach((button) => {
-    const active = state.mechQuirkFilterSelections.has(button.dataset.mechQuirkFilter);
+  options.querySelectorAll("[data-mech-quirk-filter-row]").forEach((row) => {
+    const key = row.dataset.mechQuirkFilterRow;
+    const button = row.querySelector("[data-mech-quirk-filter]");
+    const input = row.querySelector("[data-mech-quirk-filter-value]");
+    const active = state.mechQuirkFilterSelections.has(key);
+    const minimum = state.mechQuirkFilterSelections.get(key);
+    row.classList.toggle("active", active);
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
+    if (document.activeElement !== input) {
+      input.value = minimum === null || minimum === undefined ? "" : String(minimum);
+    }
   });
 }
 
@@ -11629,8 +11660,23 @@ function toggleMechQuirkFilter(quirk) {
   if (state.mechQuirkFilterSelections.has(quirk)) {
     state.mechQuirkFilterSelections.delete(quirk);
   } else {
-    state.mechQuirkFilterSelections.add(quirk);
+    state.mechQuirkFilterSelections.set(quirk, null);
   }
+  renderMechList();
+}
+
+function setMechQuirkFilterMinimum(quirk, value) {
+  if (!state.mechQuirkFilterOptions.some((option) => option.key === quirk)) return;
+  const text = String(value ?? "").trim();
+  if (!text) {
+    if (!state.mechQuirkFilterSelections.has(quirk)) return;
+    state.mechQuirkFilterSelections.set(quirk, null);
+    renderMechList();
+    return;
+  }
+  const minimum = Number(text);
+  if (!Number.isFinite(minimum) || minimum < 0) return;
+  state.mechQuirkFilterSelections.set(quirk, minimum);
   renderMechList();
 }
 
@@ -13894,6 +13940,11 @@ function bindEvents() {
     if (event.target === event.currentTarget) closeMechFilterDialog();
   });
   $("mech-filter-overlay").addEventListener("input", (event) => {
+    const quirkInput = event.target.closest("[data-mech-quirk-filter-value]");
+    if (quirkInput) {
+      setMechQuirkFilterMinimum(quirkInput.dataset.mechQuirkFilterValue, quirkInput.value);
+      return;
+    }
     const input = event.target.closest("[data-mech-hardpoint-filter-location]");
     if (!input) return;
     setMechHardpointFilterMinimum(
@@ -13903,11 +13954,21 @@ function bindEvents() {
     );
   });
   $("mech-filter-overlay").addEventListener("focusout", (event) => {
+    const quirkInput = event.target.closest("[data-mech-quirk-filter-value]");
+    if (quirkInput) {
+      const minimum = state.mechQuirkFilterSelections.get(quirkInput.dataset.mechQuirkFilterValue);
+      quirkInput.value = minimum === null || minimum === undefined ? "" : String(minimum);
+      return;
+    }
     const input = event.target.closest("[data-mech-hardpoint-filter-location]");
     if (!input) return;
     const filter = state.mechHardpointFilters[input.dataset.mechHardpointFilterType];
     input.value = String(number(filter?.minimums[input.dataset.mechHardpointFilterLocation]));
   });
+  $("mech-filter-overlay").addEventListener("wheel", (event) => {
+    if (!event.target.closest("[data-mech-quirk-filter-value]")) return;
+    event.preventDefault();
+  }, { passive: false });
   document.querySelectorAll("[data-equipment-category]").forEach((button) => {
     button.addEventListener("click", () => {
       state.activeEquipmentCategory = button.dataset.equipmentCategory;
@@ -14565,6 +14626,7 @@ if (globalThis.__MWOLAB_TEST__) {
     ultraAutoCannonJamStats,
     mechSummaryWeaponMetrics,
     mechSpecialFeatures,
+    mechMatchesQuirkFilters,
     calculateBuild,
     sharedLoadoutUrl,
   });

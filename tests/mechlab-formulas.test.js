@@ -66,6 +66,39 @@ function loadMechLab() {
 
 const api = loadMechLab();
 
+test("쿼크 필터는 빈 수치를 보유 여부로, 입력 수치를 효과 크기 하한으로 적용한다", () => {
+  const previousMode = api.state.mechQuirkFilterMode;
+  const previousSelections = api.state.mechQuirkFilterSelections;
+  const previousCache = api.state.mechQuirkValuesCache;
+  try {
+    api.state.mechQuirkValuesCache = new Map([
+      ["filter-test", new Map([
+        ["all_cooldown_multiplier", -0.15],
+        ["armorresist_all_additive", 12],
+      ])],
+    ]);
+    api.state.mechQuirkFilterMode = "all";
+    api.state.mechQuirkFilterSelections = new Map([
+      ["all_cooldown_multiplier", null],
+      ["armorresist_all_additive", 12],
+    ]);
+    assert.equal(api.mechMatchesQuirkFilters({ id: "filter-test" }), true);
+
+    api.state.mechQuirkFilterSelections.set("all_cooldown_multiplier", 15.00005);
+    assert.equal(api.mechMatchesQuirkFilters({ id: "filter-test" }), false);
+
+    api.state.mechQuirkFilterMode = "any";
+    assert.equal(api.mechMatchesQuirkFilters({ id: "filter-test" }), true);
+
+    api.state.mechQuirkFilterSelections = new Map([["missing_quirk_additive", null]]);
+    assert.equal(api.mechMatchesQuirkFilters({ id: "filter-test" }), false);
+  } finally {
+    api.state.mechQuirkFilterMode = previousMode;
+    api.state.mechQuirkFilterSelections = previousSelections;
+    api.state.mechQuirkValuesCache = previousCache;
+  }
+});
+
 test("UM-AIV 계열의 고정 XL Gyro를 특수 장비로 판별한다", () => {
   const equipment = JSON.parse(fs.readFileSync(
     path.join(__dirname, "..", "public", "data", "equipment.json"),

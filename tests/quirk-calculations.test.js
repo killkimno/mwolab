@@ -33,6 +33,12 @@ test("쿼크 이름과 +수치 공용 계산", async (t) => {
     assert.equal(quirks.quirkValueText("armorresist_all_additive", 5), "+5");
   });
 
+  await t.test("쿼크 필터 수치는 multiplier를 퍼센트로, additive를 원본 수치로 비교한다", () => {
+    assert.equal(quirks.quirkFilterMagnitude("energy_heat_multiplier", -0.125), 12.5);
+    assert.equal(quirks.quirkFilterMagnitude("energy_spread_multiplier", 0.2), 20);
+    assert.equal(quirks.quirkFilterMagnitude("targetdecayduration_additive", 1.5), 1.5);
+  });
+
   await t.test("전체와 부위별 additive 수치를 합산한다", () => {
     assert.equal(quirks.quirkAdd({
       armorresist_all_additive: 2,

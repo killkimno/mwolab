@@ -60,6 +60,13 @@
     return `${numeric > 0 ? "+" : ""}${numeric}`;
   }
 
+  function quirkFilterMagnitude(name, value) {
+    const numeric = finiteNumber(value, null);
+    if (numeric === null) return null;
+    const scale = normalizeQuirkName(name).endsWith("_multiplier") ? 100 : 1;
+    return Math.abs(numeric * scale);
+  }
+
   function quirkAdd(values, prefix, suffix) {
     const normalizedPrefix = normalizeQuirkName(prefix);
     const normalizedSuffix = normalizeQuirkName(suffix);
@@ -115,6 +122,7 @@
     quirkValues,
     addQuirk,
     quirkValueText,
+    quirkFilterMagnitude,
     quirkAdd,
     quirkMultiplier,
     quirkReduction,
