@@ -21,9 +21,11 @@ const DEFAULT_LANGUAGE = "kr";
 const MECHLAB_REFERENCE_WIDTH = 1920;
 const MECHLAB_REFERENCE_HEIGHT = 1080;
 const MECHLAB_MINIMUM_SCALE = 0.5;
+const MAX_MECHLAB_FITTING_TABS = 10;
 let mechlabScale = 1;
 let mechlabScaleObserver = null;
 let mechlabScaleFrame = 0;
+let mechlabFittingTabSequence = 0;
 let mechNavigationReady = false;
 let mechSortTrigger = null;
 let mechFilterTrigger = null;
@@ -130,7 +132,7 @@ const TEXT = {
     "localBuild.saveMode": "저장 모드",
     "localBuild.delete": "삭제",
     "localBuild.deleted": "{mech} | {name} 삭제 완료",
-    "mechlab.tools": "TOOL",
+    "mechlab.tools": "TOOLS",
     "skills.open": "스킬 적용",
     "skills.title": "스킬 적용",
     "skills.description": "활성화한 항목의 사용 가능한 모든 노드를 적용합니다.",
@@ -184,6 +186,12 @@ const TEXT = {
     "loadout.invalidOmnipod": "{component}의 옵니포드 ID가 올바르지 않습니다: {id}",
     "loadout.codecUnavailable": "MWO 코드 모듈을 불러오지 못했습니다.",
     "mechlab.showList": "멕 리스트",
+    "mechlab.returnFitting": "피팅으로 돌아가기",
+    "mechlab.addMechFitting": "{mech} 새 피팅 탭에 추가",
+    "mechlab.fittingTabs": "멕랩 핏팅 탭",
+    "mechlab.addFittingTab": "핏팅 탭 추가",
+    "mechlab.closeFittingTab": "{mech} 핏팅 탭 닫기",
+    "mechlab.maxFittingTabs": "핏팅 탭은 최대 {max}개까지 열 수 있습니다.",
     "mechlab.ghostHeatWarning": "고스트 힛 발생 가능",
     "mechlab.ghostHeatWarningTitle": "GHOST HEAT WARNING",
     "mechlab.ghostHeatWarningLine": "{weapons} : 발열 {percent} (최종: {totalHeat}, 고스트 힛: {ghostHeat})",
@@ -255,7 +263,7 @@ const TEXT = {
     "simulation.group": "그룹",
     "simulation.groupStatus": "무기 그룹 상태",
     "simulation.noWeapons": "장착된 무기가 없습니다.",
-    "tabs.mechlab": "멕랩",
+    "tabs.mechlab": "TOOL",
     "tabs.equipmentInfo": "무장 정보",
     "tabs.info": "정보",
     "tabs.compare": "비교하기",
@@ -671,7 +679,7 @@ const TEXT = {
     "localBuild.saveMode": "Save mode",
     "localBuild.delete": "Delete",
     "localBuild.deleted": "Deleted {mech} | {name}",
-    "mechlab.tools": "TOOL",
+    "mechlab.tools": "TOOLS",
     "skills.open": "Apply skills",
     "skills.title": "Apply skills",
     "skills.description": "Applies every available node in each enabled group.",
@@ -725,6 +733,12 @@ const TEXT = {
     "loadout.invalidOmnipod": "Invalid omnipod ID for {component}: {id}",
     "loadout.codecUnavailable": "The MWO code module could not be loaded.",
     "mechlab.showList": "Mech List",
+    "mechlab.returnFitting": "Return to fitting",
+    "mechlab.addMechFitting": "Add {mech} in a new fitting tab",
+    "mechlab.fittingTabs": "MechLab fitting tabs",
+    "mechlab.addFittingTab": "Add fitting tab",
+    "mechlab.closeFittingTab": "Close {mech} fitting tab",
+    "mechlab.maxFittingTabs": "You can open up to {max} fitting tabs.",
     "mechlab.ghostHeatWarning": "Ghost heat possible",
     "mechlab.ghostHeatWarningTitle": "GHOST HEAT WARNING",
     "mechlab.ghostHeatWarningLine": "{weapons}: heat {percent} (final: {totalHeat}, ghost heat: {ghostHeat})",
@@ -1251,16 +1265,30 @@ function updateMainTabNavigation(tabName, mode = "push", mechId = null) {
   else window.history.pushState(historyState, "", url);
 }
 
-function updateMechNavigation(view, mechId = "", mode = "push") {
+function updateMechNavigation(view, mechId = "", mode = "push", fittingTabId = null) {
   const normalizedMechId = view === "mech" ? String(mechId || "") : "";
   const historyState = {
     mwolab: true,
     view: normalizedMechId ? "mech" : "list",
     mechId: normalizedMechId,
   };
+  if (normalizedMechId && fittingTabId) historyState.fittingTabId = String(fittingTabId);
   const url = mechNavigationUrl(normalizedMechId);
   if (mode === "replace") window.history.replaceState(historyState, "", url);
   else window.history.pushState(historyState, "", url);
+}
+
+function replaceSharedLoadoutNavigation(code) {
+  window.history.replaceState(
+    {
+      mwolab: true,
+      view: "mech",
+      mechId: String(state.selectedMech?.id || ""),
+      fittingTabId: state.activeMechlabTabId,
+    },
+    "",
+    sharedLoadoutUrl(code),
+  );
 }
 
 function applyStaticTranslations() {
@@ -1707,7 +1735,11 @@ const state = {
     mechlab: null,
     info: null,
   },
-  mechlabBuild: null,
+  mechlabTabs: [],
+  activeMechlabTabId: null,
+  mechlabPendingTabIndex: null,
+  mechlabBrowseIntent: "replace",
+  mechlabBrowseSelectionId: null,
   mechlabBrowseMode: true,
   mechlabCompactListOpen: false,
   mechListScrollTop: 0,
@@ -3322,10 +3354,137 @@ function effectiveDefinition(mech = state.selectedMech, build = state.currentBui
   };
 }
 
+function activeMechlabTab() {
+  return state.mechlabTabs.find((tab) => tab.id === state.activeMechlabTabId) || null;
+}
+
+function hasFocusedEmptyMechlabTabSlot() {
+  return state.mechlabPendingTabIndex === state.mechlabTabs.length
+    && state.mechlabTabs.length < MAX_MECHLAB_FITTING_TABS;
+}
+
+function focusEmptyMechlabTabSlot() {
+  if (state.mechlabTabs.length >= MAX_MECHLAB_FITTING_TABS) return false;
+  rememberActiveMechlabTabBuild();
+  state.mechlabPendingTabIndex = state.mechlabTabs.length;
+  state.mechlabBrowseIntent = "add";
+  return true;
+}
+
+function clearEmptyMechlabTabSlotFocus() {
+  state.mechlabPendingTabIndex = null;
+}
+
+function mechlabFittingTargetMode(mode = "replace") {
+  if (hasFocusedEmptyMechlabTabSlot()) return "add";
+  return mode === "add" ? "add" : "replace";
+}
+
+function restoreMechlabMainTabViewState() {
+  state.mechlabBrowseMode = hasFocusedEmptyMechlabTabSlot() || !state.selectedMech;
+  state.mechlabCompactListOpen = false;
+}
+
+function rememberActiveMechlabTabBuild() {
+  const tab = activeMechlabTab();
+  if (!tab || !state.currentBuild || String(tab.mechId) !== String(state.selectedMech?.id || "")) return;
+  tab.build = state.currentBuild;
+}
+
+function applyActiveMechlabTabSelection() {
+  const tab = activeMechlabTab();
+  const mech = tab ? mechById(tab.mechId) : null;
+  state.selectedMech = mech;
+  state.currentBuild = mech && tab?.build ? tab.build : null;
+  state.selectedMechIdsByTab.mechlab = mech?.id ?? null;
+  state.selectedChassis = mech?.chassis || "";
+  return tab && mech ? tab : null;
+}
+
+function addMechlabTabRecord(mech, build) {
+  if (!mech || !build || state.mechlabTabs.length >= MAX_MECHLAB_FITTING_TABS) return null;
+  const tab = {
+    id: `fitting-${++mechlabFittingTabSequence}`,
+    mechId: mech.id,
+    build,
+  };
+  state.mechlabTabs.push(tab);
+  state.activeMechlabTabId = tab.id;
+  clearEmptyMechlabTabSlotFocus();
+  applyActiveMechlabTabSelection();
+  return tab;
+}
+
+function replaceActiveMechlabTabRecord(mech, build) {
+  if (!mech || !build) return null;
+  const tab = activeMechlabTab();
+  if (!tab) return addMechlabTabRecord(mech, build);
+  tab.mechId = mech.id;
+  tab.build = build;
+  clearEmptyMechlabTabSlotFocus();
+  applyActiveMechlabTabSelection();
+  return tab;
+}
+
+function assignMechlabFittingTabRecord(mech, build, mode = "replace") {
+  return mechlabFittingTargetMode(mode) === "add"
+    ? addMechlabTabRecord(mech, build)
+    : replaceActiveMechlabTabRecord(mech, build);
+}
+
+function activateMechlabTabRecord(tabId) {
+  const tab = state.mechlabTabs.find((entry) => entry.id === tabId);
+  if (!tab) return null;
+  rememberActiveMechlabTabBuild();
+  clearEmptyMechlabTabSlotFocus();
+  state.activeMechlabTabId = tab.id;
+  return applyActiveMechlabTabSelection();
+}
+
+function restoreMechlabHistoryTabRecord(mech, requestedTabId, build) {
+  if (!mech || !build) return null;
+  const exactTab = requestedTabId
+    ? state.mechlabTabs.find((tab) => (
+      tab.id === requestedTabId && String(tab.mechId) === String(mech.id)
+    ))
+    : null;
+  if (exactTab) return activateMechlabTabRecord(exactTab.id);
+  if (!requestedTabId) {
+    const active = activeMechlabTab();
+    if (active && String(active.mechId) === String(mech.id)) return active;
+  }
+  return addMechlabTabRecord(mech, build);
+}
+
+function closeMechlabTabRecord(tabId) {
+  if (state.mechlabTabs.length <= 1) return false;
+  const index = state.mechlabTabs.findIndex((tab) => tab.id === tabId);
+  if (index < 0) return false;
+  const closingActiveTab = state.activeMechlabTabId === tabId;
+  state.mechlabTabs.splice(index, 1);
+  if (state.mechlabPendingTabIndex !== null) {
+    state.mechlabPendingTabIndex = state.mechlabTabs.length;
+  }
+  if (closingActiveTab) {
+    const nextIndex = Math.max(0, index - 1);
+    state.activeMechlabTabId = state.mechlabTabs[nextIndex].id;
+    applyActiveMechlabTabSelection();
+  }
+  return true;
+}
+
+function setActiveMechlabTabBuild(build) {
+  const tab = activeMechlabTab();
+  if (!tab || !build) return false;
+  tab.build = build;
+  state.currentBuild = build;
+  return true;
+}
+
 function rememberActiveTabMechSelection() {
   if (!SINGLE_MECH_SELECTION_TABS.has(state.activeMainTab)) return;
   state.selectedMechIdsByTab[state.activeMainTab] = state.selectedMech?.id ?? null;
-  if (state.activeMainTab === "mechlab") state.mechlabBuild = state.currentBuild;
+  if (state.activeMainTab === "mechlab") rememberActiveMechlabTabBuild();
 }
 
 function restoreTabMechSelection(tabName) {
@@ -3333,6 +3492,11 @@ function restoreTabMechSelection(tabName) {
     state.selectedMech = null;
     state.currentBuild = null;
     state.selectedChassis = "";
+    return;
+  }
+
+  if (tabName === "mechlab") {
+    applyActiveMechlabTabSelection();
     return;
   }
 
@@ -3344,15 +3508,7 @@ function restoreTabMechSelection(tabName) {
     return;
   }
 
-  if (
-    tabName === "mechlab"
-    && String(state.mechlabBuild?.mechId || "") === String(mech.id)
-  ) {
-    state.currentBuild = state.mechlabBuild;
-  } else {
-    state.currentBuild = loadBuild(mech);
-    if (tabName === "mechlab") state.mechlabBuild = state.currentBuild;
-  }
+  state.currentBuild = loadBuild(mech);
 }
 
 function setMainTab(tabName) {
@@ -3363,8 +3519,7 @@ function setMainTab(tabName) {
   state.compareMode = isCompareTab;
   restoreTabMechSelection(tabName);
   if (tabName === "mechlab") {
-    state.mechlabBrowseMode = !state.selectedMech;
-    state.mechlabCompactListOpen = false;
+    restoreMechlabMainTabViewState();
   }
   if (isCompareTab) {
     state.selectedChassis = "";
@@ -6782,17 +6937,17 @@ function closeMechSortDialog() {
   mechSortTrigger = null;
 }
 
-function renderChassisSections(chassisGroups, activeChassis, large) {
+function renderChassisSections(chassisGroups, activeChassis, large, compactActions = false) {
   if (state.mechSortGroupFaction) {
     return factionSectionsForChassisGroups(chassisGroups)
-      .map((section) => renderFactionSection(section, activeChassis, large))
+      .map((section) => renderFactionSection(section, activeChassis, large, compactActions))
       .join("");
   }
   const listClass = large ? "chassis-list large-chassis-list" : "chassis-list";
   return `<div class="${listClass} ungrouped-chassis-list">${chassisGroups
     .map((group) => large
       ? renderLargeChassisGroup(group, activeChassis)
-      : renderSmallChassisGroup(group, activeChassis))
+      : renderSmallChassisGroup(group, activeChassis, compactActions))
     .join("")}</div>`;
 }
 
@@ -6827,7 +6982,7 @@ function renderMechlabCompactList() {
       return `
         <section class="class-section compact-class-section">
           <div class="class-heading"><strong>${WEIGHT_CLASS_LABELS[weightClass] || formatChassisName(weightClass)}</strong></div>
-          ${renderChassisSections(chassisGroups, activeChassis, false)}
+          ${renderChassisSections(chassisGroups, activeChassis, false, true)}
         </section>
       `;
     })
@@ -6846,6 +7001,7 @@ function renderMechList() {
   const list = $("mech-list");
   const toggle = $("mech-list-view-toggle");
   const toolbarImport = $("mech-toolbar-import");
+  const toolbarReturn = $("mech-toolbar-return");
   const isMechlab = state.activeMainTab === "mechlab";
   const mechlabBrowsing = isMechlab && state.mechlabBrowseMode;
   const mechlabFocused = isMechlab && !state.mechlabBrowseMode;
@@ -6863,6 +7019,7 @@ function renderMechList() {
     toggle.title = state.largeMechList ? t("list.smallView") : t("list.largeView");
   }
   if (toolbarImport) toolbarImport.hidden = !isMechlab;
+  if (toolbarReturn) toolbarReturn.hidden = !(mechlabBrowsing && activeMechlabTab());
   renderMechlabCompactList();
 
   if (!filtered.length) {
@@ -7133,7 +7290,9 @@ function renderMechBrowserPreview() {
     return;
   }
 
-  const mech = mechById(state.mechBrowserHoverMechId) || state.selectedMech;
+  const mech = mechById(state.mechBrowserHoverMechId)
+    || mechById(state.mechlabBrowseSelectionId)
+    || state.selectedMech;
   if (!mech) {
     content.innerHTML = `<div class="empty mech-browser-preview-empty">${t("info.selectMechHint")}</div>`;
     return;
@@ -9309,7 +9468,13 @@ function filteredMechsForList() {
 
 function activeChassisForList() {
   const firstCompareMech = compareMechs()[0];
-  return state.selectedChassis || (state.compareMode ? firstCompareMech?.chassis : state.selectedMech?.chassis) || "";
+  const browseMech = state.activeMainTab === "mechlab" && state.mechlabBrowseMode
+    ? mechById(state.mechlabBrowseSelectionId)
+    : null;
+  return state.selectedChassis
+    || browseMech?.chassis
+    || (state.compareMode ? firstCompareMech?.chassis : state.selectedMech?.chassis)
+    || "";
 }
 
 function findChassisGroupForCurrentList(chassis) {
@@ -9327,7 +9492,9 @@ function chassisGroupElement(chassis) {
 }
 
 function syncMechListActiveStates(activeChassis = activeChassisForList()) {
-  const selectedMechId = state.selectedMech?.id;
+  const selectedMechId = state.activeMainTab === "mechlab" && state.mechlabBrowseMode
+    ? state.mechlabBrowseSelectionId
+    : state.selectedMech?.id;
   const compareIds = new Set(state.compareMechIds.map((id) => String(id)));
   $("mech-list").querySelectorAll(".chassis-group").forEach((group) => {
     const active = group.dataset.chassisGroup === activeChassis;
@@ -9372,9 +9539,11 @@ function renderLargeMechList(classNames, grouped, activeChassis) {
     .join("");
 }
 
-function renderFactionSection(section, activeChassis, large) {
+function renderFactionSection(section, activeChassis, large, compactActions = false) {
   const listClass = large ? "chassis-list large-chassis-list" : "chassis-list";
-  const groupHtml = section.groups.map((group) => large ? renderLargeChassisGroup(group, activeChassis) : renderSmallChassisGroup(group, activeChassis)).join("");
+  const groupHtml = section.groups.map((group) => large
+    ? renderLargeChassisGroup(group, activeChassis)
+    : renderSmallChassisGroup(group, activeChassis, compactActions)).join("");
   return `
     <section class="faction-section ${factionClass(section.faction)}">
       <div class="faction-heading ${factionClass(section.faction)}">
@@ -9388,7 +9557,7 @@ function renderFactionSection(section, activeChassis, large) {
   `;
 }
 
-function renderSmallChassisGroup(group, activeChassis) {
+function renderSmallChassisGroup(group, activeChassis, compactActions = false) {
   const active = group.chassis === activeChassis ? " active" : "";
   const expanded = state.expandedChassis.has(group.chassis);
   return `
@@ -9403,24 +9572,41 @@ function renderSmallChassisGroup(group, activeChassis) {
       </button>
       ${expanded ? `
         <div class="variant-list">
-          ${group.variants.map(renderVariantRow).join("")}
+          ${group.variants.map((mech) => renderVariantRow(mech, compactActions)).join("")}
         </div>
       ` : ""}
     </div>
   `;
 }
 
-function renderVariantRow(mech) {
+function renderVariantRow(mech, compactActions = false) {
   const isSelected = state.compareMode
     ? state.compareMechIds.some((id) => String(id) === String(mech.id))
     : state.selectedMech?.id === mech.id;
   const selected = isSelected ? " active" : "";
+  const mechName = mech.display_name || variantCode(mech);
+  const rowContent = `
+    <span class="row-title">
+      <span class="mech-title-main">${omnipodIcon(mech)}<strong>${escapeHtml(mechName)}</strong></span>
+    </span>
+    <span class="badge-line mech-slot-tags">${mechSlotBadges(mech)}</span>
+  `;
+  if (compactActions) {
+    const atLimit = state.mechlabTabs.length >= MAX_MECHLAB_FITTING_TABS;
+    return `
+      <div class="mech-row variant-row compact-variant-row${selected}">
+        <button class="compact-variant-select" data-mech="${mech.id}" type="button">
+          ${rowContent}
+        </button>
+        <span class="compact-variant-actions">
+          <button class="compact-variant-action compact-variant-add" data-add-compact-mech="${mech.id}" type="button" title="${escapeHtml(atLimit ? t("mechlab.maxFittingTabs", { max: MAX_MECHLAB_FITTING_TABS }) : t("mechlab.addMechFitting", { mech: mechName }))}" aria-label="${escapeHtml(t("mechlab.addMechFitting", { mech: mechName }))}" ${atLimit ? "disabled" : ""}>+</button>
+        </span>
+      </div>
+    `;
+  }
   return `
     <button class="mech-row variant-row${selected}" data-mech="${mech.id}" type="button">
-      <span class="row-title">
-        <span class="mech-title-main">${omnipodIcon(mech)}<strong>${escapeHtml(mech.display_name || variantCode(mech))}</strong></span>
-      </span>
-      <span class="badge-line mech-slot-tags">${mechSlotBadges(mech)}</span>
+      ${rowContent}
     </button>
   `;
 }
@@ -11050,12 +11236,58 @@ function renderLoadoutItem(component, entry, index, engineBayCalc = null, ghostH
   return row;
 }
 
+function mechlabFittingTabLabels() {
+  const counts = new Map();
+  return state.mechlabTabs.map((tab) => {
+    const mech = mechById(tab.mechId);
+    const base = mech ? (mech.display_name || variantCode(mech)) : String(tab.mechId);
+    const count = (counts.get(String(tab.mechId)) || 0) + 1;
+    counts.set(String(tab.mechId), count);
+    return count > 1 ? `${base} ${count}` : base;
+  });
+}
+
+function renderMechlabFittingTabs() {
+  const rail = $("mechlab-fitting-tabs");
+  const list = $("mechlab-fitting-tab-list");
+  const addButton = $("add-mechlab-fitting-tab");
+  if (!rail || !list || !addButton) return;
+  rail.hidden = state.mechlabTabs.length === 0;
+  const emptySlotFocused = hasFocusedEmptyMechlabTabSlot();
+  const labels = mechlabFittingTabLabels();
+  list.innerHTML = state.mechlabTabs.map((tab, index) => {
+    const label = labels[index];
+    const active = !emptySlotFocused && tab.id === state.activeMechlabTabId;
+    const closeButton = state.mechlabTabs.length > 1
+      ? `<button class="mechlab-fitting-tab-close" type="button" data-close-mechlab-fitting-tab="${escapeHtml(tab.id)}" aria-label="${escapeHtml(t("mechlab.closeFittingTab", { mech: label }))}">×</button>`
+      : "";
+    return `
+      <div class="mechlab-fitting-tab${active ? " active" : ""}" role="presentation">
+        <button class="mechlab-fitting-tab-select" type="button" role="tab" data-mechlab-fitting-tab="${escapeHtml(tab.id)}" aria-controls="mechlab-fitting-content" aria-selected="${String(active)}" tabindex="${active ? "0" : "-1"}" title="${escapeHtml(label)}">
+          <span>${escapeHtml(label)}</span>
+        </button>
+        ${closeButton}
+      </div>
+    `;
+  }).join("");
+  const atLimit = state.mechlabTabs.length >= MAX_MECHLAB_FITTING_TABS;
+  addButton.disabled = atLimit;
+  addButton.classList.toggle("active", emptySlotFocused);
+  addButton.setAttribute("aria-selected", String(emptySlotFocused));
+  addButton.tabIndex = emptySlotFocused ? 0 : -1;
+  addButton.title = atLimit
+    ? t("mechlab.maxFittingTabs", { max: MAX_MECHLAB_FITTING_TABS })
+    : t("mechlab.addFittingTab");
+  addButton.setAttribute("aria-label", addButton.title);
+}
+
 function renderVariant() {
   const mech = state.selectedMech;
   if (!mech) return;
   const stats = mech.definition?.stats || {};
   $("variant-name").textContent = mech.display_name;
   $("variant-meta").textContent = `${factionLabel(mech.faction)} - ${WEIGHT_CLASS_LABELS[mech.weight_class] || mech.weight_class || t("common.unknown")} - ${stats.MaxTons || "?"} ${t("common.tons")} - ${t("common.engine")} ${stats.MinEngineRating || "?"}-${stats.MaxEngineRating || "?"}`;
+  renderMechlabFittingTabs();
   const calc = calculateBuild();
   $("data-status").textContent = calc.warnings.length ? calc.warnings.join(" - ") : t("status.loadedData", { count: state.index.counts.mechs });
   renderSummary(calc);
@@ -11068,6 +11300,7 @@ function renderVariant() {
 function renderSelectionPrompt() {
   $("variant-name").textContent = t("info.selectMech");
   $("variant-meta").textContent = t("info.selectMechHint");
+  renderMechlabFittingTabs();
   renderSummary();
   renderMechSummary();
   renderMechlabGhostHeatWarning();
@@ -11097,10 +11330,100 @@ function renderAll() {
   else renderSelectionPrompt();
 }
 
-function selectMech(id, { historyMode = "push", enterFitting = true } = {}) {
+function resetSelectedEquipmentForMech() {
+  const selectedItem = itemById(state.selectedItemId);
+  if (
+    !itemMatchesMechFaction(selectedItem, state.selectedMech)
+    || !equipmentMatchesSelectedMechCapabilities(selectedItem)
+    || !heatSinkMatchesUpgrade(selectedItem)
+  ) {
+    state.selectedItemId = null;
+  }
+}
+
+function selectMechBrowserCandidate(id) {
+  const mech = mechById(id);
+  if (!mech) return;
+  state.mechlabBrowseSelectionId = String(mech.id);
+  state.mechBrowserHoverMechId = String(mech.id);
+  state.selectedChassis = mech.chassis || "";
+  if (state.selectedChassis) state.expandedChassis.add(state.selectedChassis);
+  syncMechListActiveStates();
+  renderMechBrowserPreview();
+}
+
+function setMechlabFitting(mech, build, mode = "replace") {
+  const tab = assignMechlabFittingTabRecord(mech, build, mode);
+  if (!tab) {
+    $("data-status").textContent = t("mechlab.maxFittingTabs", { max: MAX_MECHLAB_FITTING_TABS });
+    return null;
+  }
+  state.mechlabBrowseMode = false;
+  state.mechlabBrowseIntent = "replace";
+  state.mechlabBrowseSelectionId = String(mech.id);
+  state.mechlabCompactListOpen = false;
+  resetSelectedEquipmentForMech();
+  if (state.selectedChassis) state.expandedChassis.add(state.selectedChassis);
+  return tab;
+}
+
+function openMechlabTab(tabId, historyMode = "push") {
+  const tab = activateMechlabTabRecord(tabId);
+  if (!tab) return;
+  state.mechlabBrowseMode = false;
+  state.mechlabBrowseIntent = "replace";
+  state.mechlabBrowseSelectionId = String(tab.mechId);
+  state.mechlabCompactListOpen = false;
+  resetSelectedEquipmentForMech();
+  if (historyMode !== "none") {
+    updateMechNavigation("mech", tab.mechId, historyMode, tab.id);
+  }
+  renderAll();
+  document.querySelector(".tab-content").scrollTop = 0;
+  requestAnimationFrame(updateMechlabScale);
+}
+
+function closeMechlabTab(tabId) {
+  const activeBefore = state.activeMechlabTabId;
+  if (!closeMechlabTabRecord(tabId)) return;
+  const active = activeMechlabTab();
+  if (activeBefore === tabId && active) {
+    resetSelectedEquipmentForMech();
+    updateMechNavigation("mech", active.mechId, "replace", active.id);
+    renderAll();
+  } else {
+    renderMechlabFittingTabs();
+  }
+  requestAnimationFrame(() => $("mechlab-fitting-tab-list").querySelector('[aria-selected="true"]')?.focus());
+}
+
+function selectMech(id, { historyMode = "push", enterFitting = true, mechlabMode = null } = {}) {
   const nextMech = mechById(id) || state.mechs[0];
+  if (!nextMech) return;
   const wasMechlabBrowsing = state.activeMainTab === "mechlab" && state.mechlabBrowseMode;
   if (wasMechlabBrowsing) rememberMechListScroll();
+
+  if (state.activeMainTab === "mechlab" && !enterFitting) {
+    selectMechBrowserCandidate(nextMech.id);
+    return;
+  }
+
+  if (state.activeMainTab === "mechlab") {
+    const preserveCurrentBuild = historyMode === "none"
+      && String(state.selectedMech?.id || "") === String(nextMech.id)
+      && state.currentBuild;
+    const mode = mechlabMode || (wasMechlabBrowsing ? state.mechlabBrowseIntent : "replace");
+    const tab = setMechlabFitting(nextMech, preserveCurrentBuild ? state.currentBuild : loadBuild(nextMech), mode);
+    if (!tab) return;
+    if (historyMode !== "none") {
+      updateMechNavigation("mech", nextMech.id, historyMode, tab.id);
+    }
+    renderAll();
+    document.querySelector(".tab-content").scrollTop = 0;
+    requestAnimationFrame(updateMechlabScale);
+    return;
+  }
+
   const preserveCurrentBuild = historyMode === "none"
     && String(state.selectedMech?.id || "") === String(nextMech?.id || "")
     && state.currentBuild;
@@ -11110,48 +11433,15 @@ function selectMech(id, { historyMode = "push", enterFitting = true } = {}) {
   }
   state.selectedChassis = state.selectedMech?.chassis || "";
   if (!preserveCurrentBuild) state.currentBuild = loadBuild(state.selectedMech);
-  if (state.activeMainTab === "mechlab") state.mechlabBuild = state.currentBuild;
-  const selectedItem = itemById(state.selectedItemId);
-  if (
-    !itemMatchesMechFaction(selectedItem, state.selectedMech)
-    || !equipmentMatchesSelectedMechCapabilities(selectedItem)
-    || !heatSinkMatchesUpgrade(selectedItem)
-  ) {
-    state.selectedItemId = null;
-  }
+  resetSelectedEquipmentForMech();
   if (state.selectedChassis) state.expandedChassis.add(state.selectedChassis);
-  if (state.activeMainTab === "mechlab" && enterFitting) {
-    state.mechlabBrowseMode = false;
-    state.mechlabCompactListOpen = false;
-  }
   if (historyMode !== "none" && state.selectedMech) {
-    if (state.activeMainTab === "mechlab") {
-      updateMechNavigation("mech", state.selectedMech.id, historyMode);
-    } else {
-      updateMainTabNavigation(state.activeMainTab, historyMode, state.selectedMech.id);
-    }
+    updateMainTabNavigation(state.activeMainTab, historyMode, state.selectedMech.id);
   }
-  if (wasMechlabBrowsing) {
-    if (enterFitting) {
-      renderMechList();
-    } else {
-      state.mechBrowserHoverMechId = String(state.selectedMech?.id || "");
-      syncMechListActiveStates();
-      renderMechBrowserPreview();
-    }
-  } else {
-    syncMechListActiveStates();
-    renderMechlabCompactList();
-  }
-  if (state.activeMainTab === "mechlab") {
-    renderEquipmentList();
-    renderVariant();
-  } else if (state.activeMainTab === "info") {
+  syncMechListActiveStates();
+  renderMechlabCompactList();
+  if (state.activeMainTab === "info") {
     renderInfoPanel();
-  }
-  if (state.activeMainTab === "mechlab" && enterFitting) {
-    document.querySelector(".tab-content").scrollTop = 0;
-    requestAnimationFrame(updateMechlabScale);
   }
 }
 
@@ -11161,7 +11451,13 @@ function applyMechNavigationFromLocation() {
   const sharedLoadoutCode = params.get(SHARED_LOADOUT_QUERY_PARAM);
   if (sharedLoadoutCode) {
     try {
-      importMwoCode(sharedLoadoutCode, { closeDialog: false, updateNavigation: false });
+      const historyTabId = window.history.state?.fittingTabId;
+      importMwoCode(sharedLoadoutCode, {
+        closeDialog: false,
+        updateNavigation: false,
+        historyTabId,
+      });
+      replaceSharedLoadoutNavigation(sharedLoadoutCode);
     } catch (error) {
       $("data-status").textContent = error.message;
     }
@@ -11180,10 +11476,24 @@ function applyMechNavigationFromLocation() {
   }
   if (state.activeMainTab !== "mechlab") setMainTab("mechlab");
   if (requestedMech) {
-    selectMech(requestedMech.id, { historyMode: "none" });
+    const historyTabId = window.history.state?.fittingTabId;
+    const tab = restoreMechlabHistoryTabRecord(requestedMech, historyTabId, loadBuild(requestedMech));
+    if (!tab) {
+      const active = activeMechlabTab();
+      if (active) {
+        openMechlabTab(active.id, "none");
+        updateMechNavigation("mech", active.mechId, "replace", active.id);
+      }
+      $("data-status").textContent = t("mechlab.maxFittingTabs", { max: MAX_MECHLAB_FITTING_TABS });
+      return;
+    }
+    openMechlabTab(tab.id, "none");
+    updateMechNavigation("mech", tab.mechId, "replace", tab.id);
     return;
   }
   state.mechlabBrowseMode = true;
+  state.mechlabBrowseIntent = hasFocusedEmptyMechlabTabSlot() ? "add" : "replace";
+  state.mechlabBrowseSelectionId = activeMechlabTab()?.mechId ?? null;
   state.mechlabCompactListOpen = false;
   renderAll();
   restoreMechListScroll();
@@ -11198,11 +11508,7 @@ function initializeMechNavigation() {
   if (sharedLoadoutCode) {
     try {
       importMwoCode(sharedLoadoutCode, { closeDialog: false, updateNavigation: false });
-      window.history.replaceState(
-        { mwolab: true, view: "mech", mechId: String(state.selectedMech?.id || "") },
-        "",
-        sharedLoadoutUrl(sharedLoadoutCode),
-      );
+      replaceSharedLoadoutNavigation(sharedLoadoutCode);
       return;
     } catch (error) {
       sharedLoadoutError = error.message;
@@ -11221,10 +11527,15 @@ function initializeMechNavigation() {
   if (sharedLoadoutError) $("data-status").textContent = sharedLoadoutError;
 }
 
-function openMechFitting(id) {
+function openMechFitting(id, { mechlabMode = null } = {}) {
   if (!mechById(id)) return;
-  setMainTab("mechlab");
-  selectMech(id);
+  const mode = mechlabFittingTargetMode(mechlabMode || (
+    state.activeMainTab === "mechlab" && state.mechlabBrowseMode
+      ? state.mechlabBrowseIntent
+      : "replace"
+  ));
+  if (state.activeMainTab !== "mechlab") setMainTab("mechlab");
+  selectMech(id, { mechlabMode: mode });
 }
 
 function setLoadoutCodeStatus(message = "", tone = "") {
@@ -11453,14 +11764,11 @@ function loadNamedLocalBuild(recordId) {
     return;
   }
   try {
-    state.selectedMech = mech;
-    state.selectedChassis = mech.chassis || "";
     state.selectedItemId = null;
-    if (state.selectedChassis) state.expandedChassis.add(state.selectedChassis);
-    state.currentBuild = applyFixedOmnipods(mech, JSON.parse(JSON.stringify(record.build)));
-    state.mechlabBrowseMode = false;
-    state.mechlabCompactListOpen = false;
-    updateMechNavigation("mech", mech.id);
+    const build = applyFixedOmnipods(mech, JSON.parse(JSON.stringify(record.build)));
+    const tab = setMechlabFitting(mech, build, mechlabFittingTargetMode());
+    if (!tab) throw new Error("Unable to open fitting tab");
+    updateMechNavigation("mech", mech.id, "push", tab.id);
     closeLocalBuildDialog();
     renderAll();
     $("data-status").textContent = t("localBuild.loaded", {
@@ -11473,7 +11781,11 @@ function loadNamedLocalBuild(recordId) {
   }
 }
 
-function importMwoCode(code, { closeDialog = true, updateNavigation = true } = {}) {
+function importMwoCode(code, {
+  closeDialog = true,
+  updateNavigation = true,
+  historyTabId = null,
+} = {}) {
   if (!globalThis.MWOCodec) throw new Error(t("loadout.codecUnavailable"));
   const decoded = MWOCodec.decode(code);
   const mech = mechById(decoded.chassisId);
@@ -11482,20 +11794,30 @@ function importMwoCode(code, { closeDialog = true, updateNavigation = true } = {
     throw new Error(t("loadout.invalidMech", { id: decoded.chassisId }));
   }
   const build = buildFromMwoCode(decoded, mech);
-  state.selectedMech = mech;
-  state.selectedChassis = mech.chassis || "";
   state.selectedItemId = null;
-  if (state.selectedChassis) state.expandedChassis.add(state.selectedChassis);
-  state.currentBuild = build;
-  state.mechlabBuild = build;
-  state.mechlabBrowseMode = false;
-  state.mechlabCompactListOpen = false;
   if (state.activeMainTab !== "mechlab") setMainTab("mechlab");
-  if (updateNavigation) updateMechNavigation("mech", mech.id);
+  const historyTab = historyTabId
+    ? state.mechlabTabs.find((entry) => (
+      entry.id === historyTabId && String(entry.mechId) === String(mech.id)
+    ))
+    : null;
+  if (historyTab) activateMechlabTabRecord(historyTab.id);
+  const tab = setMechlabFitting(
+    mech,
+    build,
+    mechlabFittingTargetMode(historyTabId && !historyTab ? "add" : "replace"),
+  );
+  if (!tab) throw new Error(t("mechlab.maxFittingTabs", { max: MAX_MECHLAB_FITTING_TABS }));
+  if (updateNavigation) updateMechNavigation("mech", mech.id, "push", tab.id);
   if (closeDialog) closeLoadoutCodeDialog();
   renderAll();
   $("data-status").textContent = t("loadout.imported", { mech: mech.display_name });
   document.querySelector(".tab-content").scrollTop = 0;
+  if (closeDialog) {
+    requestAnimationFrame(() => (
+      $("mechlab-fitting-tab-list").querySelector('[aria-selected="true"]')?.focus()
+    ));
+  }
 }
 
 function applyImportedMwoCode() {
@@ -11546,12 +11868,25 @@ function closeMechlabCompactList() {
   renderMechlabCompactList();
 }
 
-function showFullMechlabList() {
+function showFullMechlabList(intent = null) {
   if (state.activeMainTab !== "mechlab") return;
+  const resolvedIntent = intent === "add" || (intent === null && hasFocusedEmptyMechlabTabSlot())
+    ? "add"
+    : "replace";
+  if (resolvedIntent === "add" && !focusEmptyMechlabTabSlot()) {
+    $("data-status").textContent = t("mechlab.maxFittingTabs", { max: MAX_MECHLAB_FITTING_TABS });
+    return;
+  }
+  if (resolvedIntent === "replace") clearEmptyMechlabTabSlotFocus();
   const alreadyBrowsing = state.mechlabBrowseMode;
+  rememberActiveMechlabTabBuild();
   state.mechlabBrowseMode = true;
+  state.mechlabBrowseIntent = resolvedIntent;
+  state.mechlabBrowseSelectionId = activeMechlabTab()?.mechId ?? null;
+  state.mechBrowserHoverMechId = null;
   state.mechlabCompactListOpen = false;
   if (!alreadyBrowsing) updateMechNavigation("list");
+  renderMechlabFittingTabs();
   renderMechList();
   renderMechlabCompactList();
   restoreMechListScroll();
@@ -11906,6 +12241,7 @@ function applyBuildAction(action) {
   if (!state.selectedMech || !state.currentBuild) return;
   if (action === "stock-loadout") {
     state.currentBuild = buildFromLoadout(state.selectedMech);
+    setActiveMechlabTabBuild(state.currentBuild);
   } else if (action === "strip-armor") {
     stripBuildArmor();
   } else if (action === "strip-equipment") {
@@ -13854,6 +14190,10 @@ function bindEvents() {
   });
   $("mech-search").addEventListener("input", renderMechList);
   $("mech-toolbar-import").addEventListener("click", () => openLoadoutCodeDialog("import"));
+  $("mech-toolbar-return").addEventListener("click", () => {
+    const tab = activeMechlabTab();
+    if (tab) openMechlabTab(tab.id);
+  });
   document.querySelectorAll("[data-open-mech-filter]").forEach((button) => {
     button.addEventListener("click", () => openMechFilterDialog(button));
   });
@@ -13987,6 +14327,49 @@ function bindEvents() {
   $("mech-browser-preview").addEventListener("click", (event) => {
     const button = event.target.closest("[data-fit-browser-mech]");
     if (button) openMechFitting(button.dataset.fitBrowserMech);
+  });
+  $("add-mechlab-fitting-tab").addEventListener("click", () => showFullMechlabList("add"));
+  $("mechlab-fitting-tabs").addEventListener("click", (event) => {
+    const closeButton = event.target.closest("[data-close-mechlab-fitting-tab]");
+    if (closeButton) {
+      closeMechlabTab(closeButton.dataset.closeMechlabFittingTab);
+      return;
+    }
+    const tabButton = event.target.closest("[data-mechlab-fitting-tab]");
+    if (tabButton) openMechlabTab(tabButton.dataset.mechlabFittingTab);
+  });
+  $("mechlab-fitting-tabs").addEventListener("keydown", (event) => {
+    if (event.target.closest("#add-mechlab-fitting-tab")) {
+      if (["ArrowLeft", "Home"].includes(event.key) && state.mechlabTabs.length) {
+        event.preventDefault();
+        openMechlabTab(state.mechlabTabs[event.key === "Home" ? 0 : state.mechlabTabs.length - 1].id);
+        requestAnimationFrame(() => $("mechlab-fitting-tab-list").querySelector('[aria-selected="true"]')?.focus());
+      }
+      return;
+    }
+    const tabButton = event.target.closest("[data-mechlab-fitting-tab]");
+    if (!tabButton) return;
+    const index = state.mechlabTabs.findIndex((tab) => tab.id === tabButton.dataset.mechlabFittingTab);
+    if (index < 0) return;
+    if (event.key === "Delete") {
+      event.preventDefault();
+      closeMechlabTab(tabButton.dataset.mechlabFittingTab);
+      return;
+    }
+    let nextIndex = null;
+    if (event.key === "ArrowLeft") nextIndex = Math.max(0, index - 1);
+    if (event.key === "ArrowRight" && index === state.mechlabTabs.length - 1 && !$("add-mechlab-fitting-tab").disabled) {
+      event.preventDefault();
+      $("add-mechlab-fitting-tab").focus();
+      return;
+    }
+    if (event.key === "ArrowRight") nextIndex = Math.min(state.mechlabTabs.length - 1, index + 1);
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = state.mechlabTabs.length - 1;
+    if (nextIndex === null || nextIndex === index) return;
+    event.preventDefault();
+    openMechlabTab(state.mechlabTabs[nextIndex].id);
+    requestAnimationFrame(() => $("mechlab-fitting-tab-list").querySelector('[aria-selected="true"]')?.focus());
   });
   $("mech-list-view-toggle").addEventListener("click", () => {
     state.largeMechList = !state.largeMechList;
@@ -14284,6 +14667,13 @@ function bindEvents() {
   });
   $("mech-list").addEventListener("scroll", rememberMechListScroll, { passive: true });
   $("mechlab-compact-list").addEventListener("click", (event) => {
+    const addButton = event.target.closest("[data-add-compact-mech]");
+    if (addButton) {
+      if (!addButton.disabled && state.mechlabTabs.length < MAX_MECHLAB_FITTING_TABS) {
+        openMechFitting(addButton.dataset.addCompactMech, { mechlabMode: "add" });
+      }
+      return;
+    }
     const chassis = event.target.closest("[data-chassis]");
     if (chassis) {
       state.selectedChassis = chassis.dataset.chassis;
@@ -14520,6 +14910,21 @@ async function init() {
 if (globalThis.__MWOLAB_TEST__) {
   globalThis.__MWOLAB_TEST_API__ = Object.freeze({
     state,
+    MAX_MECHLAB_FITTING_TABS,
+    activeMechlabTab,
+    hasFocusedEmptyMechlabTabSlot,
+    focusEmptyMechlabTabSlot,
+    mechlabFittingTargetMode,
+    restoreMechlabMainTabViewState,
+    setMechlabFitting,
+    addMechlabTabRecord,
+    assignMechlabFittingTabRecord,
+    replaceActiveMechlabTabRecord,
+    activateMechlabTabRecord,
+    restoreMechlabHistoryTabRecord,
+    closeMechlabTabRecord,
+    setActiveMechlabTabBuild,
+    mechlabFittingTabLabels,
     number,
     sortChassisGroups,
     isRocketLauncher,

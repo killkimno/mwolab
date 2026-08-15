@@ -1237,6 +1237,19 @@ body.help-open {
   font-weight: 800;
 }
 
+.mech-toolbar-return {
+  border-color: #816235;
+  background: #392b16;
+  color: #f7e4ad;
+}
+
+.mech-toolbar-return:hover,
+.mech-toolbar-return:focus-visible {
+  border-color: var(--yellow);
+  background: #503b1b;
+  color: #fff1c7;
+}
+
 .class-heading {
   display: flex;
   justify-content: space-between;
@@ -2840,6 +2853,11 @@ body.help-open {
   padding-bottom: 1rem;
 }
 
+.mechlab-variant-identity {
+  flex: 0 0 20rem;
+  min-width: 0;
+}
+
 .variant-title-row {
   display: flex;
   align-items: center;
@@ -3031,6 +3049,75 @@ body.help-open {
   border-radius: 0;
 }
 
+.compact-mech-list .compact-variant-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+}
+
+.compact-mech-list .compact-variant-row.active {
+  padding-left: 0;
+}
+
+.compact-variant-select {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.6rem 0.45rem 0.6rem 1.4rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.compact-variant-row.active .compact-variant-select {
+  padding-left: calc(1.4rem - 3px);
+}
+
+.compact-variant-select .mech-slot-tags {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  justify-content: start;
+  gap: 0.25rem;
+}
+
+.compact-variant-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0.45rem 0.55rem;
+  border-left: 1px solid #263940;
+}
+
+.compact-variant-action {
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid #3b6675;
+  border-radius: 3px;
+  background: #132830;
+  color: #bfe9f7;
+  box-shadow: inset 0 0 0 1px #0a1519;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.compact-variant-action:hover,
+.compact-variant-action:focus-visible {
+  border-color: #62b6d4;
+  background: #1d4656;
+  color: #ffffff;
+}
+
+.compact-variant-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
 .mech-summary-content {
   display: grid;
   align-content: start;
@@ -3115,6 +3202,122 @@ body.help-open {
   color: #bfeaff;
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.mechlab-fitting-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 3rem;
+  border: 1px solid #2f5968;
+  background: #091013;
+}
+
+.mechlab-fitting-tabs[hidden] {
+  display: none;
+}
+
+.mechlab-fitting-tab-list {
+  display: flex;
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: calc(100% - 3rem);
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.mechlab-fitting-tab {
+  display: flex;
+  flex: 0 0 10rem;
+  width: 10rem;
+  min-width: 10rem;
+  border-right: 1px solid #29424b;
+  background: #111a1e;
+}
+
+.mechlab-fitting-tab.active {
+  background: linear-gradient(180deg, #214251 0%, #17313b 100%);
+  box-shadow: inset 0 -3px 0 #58b8da;
+}
+
+.mechlab-fitting-tab-select,
+.mechlab-fitting-tab-close,
+.add-mechlab-fitting-tab {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.mechlab-fitting-tab-select {
+  flex: 1 1 auto;
+  padding: 0.45rem 0.55rem;
+  color: #8facb7;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.025em;
+}
+
+.mechlab-fitting-tab.active .mechlab-fitting-tab-select {
+  color: #e1f6ff;
+}
+
+.mechlab-fitting-tab-select span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mechlab-fitting-tab-close {
+  flex: 0 0 1.8rem;
+  width: 1.8rem;
+  padding: 0;
+  color: #79909a;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.mechlab-fitting-tab-close:hover,
+.mechlab-fitting-tab-close:focus-visible {
+  background: #512222;
+  color: #ffd0d0;
+}
+
+.add-mechlab-fitting-tab {
+  flex: 0 0 3rem;
+  width: 3rem;
+  border-left: 1px solid #3b6675;
+  background: #132830;
+  color: #bfe9f7;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.add-mechlab-fitting-tab:hover,
+.add-mechlab-fitting-tab:focus-visible {
+  background: #1d4656;
+  color: #ffffff;
+}
+
+.add-mechlab-fitting-tab.active {
+  background: linear-gradient(180deg, #214251 0%, #17313b 100%);
+  color: #ffffff;
+  box-shadow: inset 0 -3px 0 #58b8da;
+}
+
+.add-mechlab-fitting-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.mechlab-fitting-tab-select:focus-visible,
+.mechlab-fitting-tab-close:focus-visible,
+.add-mechlab-fitting-tab:focus-visible {
+  outline: 2px solid #7bdcff;
+  outline-offset: -2px;
 }
 
 .mech-summary-metrics {
@@ -6815,12 +7018,6 @@ body.weapon-detail-open {
 .component-omnipod-card.fixed .component-omnipod-card-head > span:first-child,
 .component-omnipod-card.fixed .component-omnipod-card-head strong {
   color: #879399;
-}
-
-.component-omnipod-card.fixed .hardpoint-chip {
-  border-color: #4d565b;
-  background: #151a1d;
-  filter: grayscale(0.72);
 }
 
 .component-omnipod-hardpoints {

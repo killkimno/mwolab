@@ -162,6 +162,215 @@ test("shared loadout URL preserves the exact MWO code", () => {
   assert.ok(sharedUrl.search.startsWith("?lang=en&loadout="));
 });
 
+test("멕랩 핏팅 탭은 중복 멕의 독립 빌드를 생성하고 활성 탭만 교체한다", () => {
+  const previous = {
+    mechs: api.state.mechs,
+    mechlabTabs: api.state.mechlabTabs,
+    activeMechlabTabId: api.state.activeMechlabTabId,
+    selectedMech: api.state.selectedMech,
+    currentBuild: api.state.currentBuild,
+    selectedChassis: api.state.selectedChassis,
+    mechlabSelection: api.state.selectedMechIdsByTab.mechlab,
+  };
+  const alpha = { id: 101, chassis: "alpha", display_name: "ALPHA" };
+  const beta = { id: 202, chassis: "beta", display_name: "BETA" };
+  const alphaBuildOne = { mechId: alpha.id, marker: "one" };
+  const alphaBuildTwo = { mechId: alpha.id, marker: "two" };
+  const betaBuild = { mechId: beta.id, marker: "beta" };
+
+  try {
+    api.state.mechs = [alpha, beta];
+    api.state.mechlabTabs = [];
+    api.state.activeMechlabTabId = null;
+
+    const first = api.addMechlabTabRecord(alpha, alphaBuildOne);
+    const second = api.addMechlabTabRecord(alpha, alphaBuildTwo);
+    assert.equal(api.state.mechlabTabs.length, 2);
+    assert.deepEqual(Array.from(api.mechlabFittingTabLabels()), ["ALPHA", "ALPHA 2"]);
+    assert.equal(api.activeMechlabTab().id, second.id);
+    assert.equal(api.state.currentBuild, alphaBuildTwo);
+
+    api.activateMechlabTabRecord(first.id);
+    assert.equal(api.state.currentBuild, alphaBuildOne);
+    api.replaceActiveMechlabTabRecord(beta, betaBuild);
+    assert.equal(api.state.mechlabTabs.length, 2);
+    assert.equal(api.state.mechlabTabs[0].id, first.id);
+    assert.equal(api.state.mechlabTabs[0].mechId, beta.id);
+    assert.equal(api.state.currentBuild, betaBuild);
+    assert.equal(api.state.mechlabTabs[1].build, alphaBuildTwo);
+  } finally {
+    api.state.mechs = previous.mechs;
+    api.state.mechlabTabs = previous.mechlabTabs;
+    api.state.activeMechlabTabId = previous.activeMechlabTabId;
+    api.state.selectedMech = previous.selectedMech;
+    api.state.currentBuild = previous.currentBuild;
+    api.state.selectedChassis = previous.selectedChassis;
+    api.state.selectedMechIdsByTab.mechlab = previous.mechlabSelection;
+  }
+});
+
+test("플러스 빈 탭 슬롯은 화면 전환 뒤에도 다음 피팅과 IMPORT 대상을 새 탭으로 유지한다", () => {
+  const previous = {
+    mechs: api.state.mechs,
+    mechlabTabs: api.state.mechlabTabs,
+    activeMechlabTabId: api.state.activeMechlabTabId,
+    mechlabPendingTabIndex: api.state.mechlabPendingTabIndex,
+    mechlabBrowseIntent: api.state.mechlabBrowseIntent,
+    activeMainTab: api.state.activeMainTab,
+    selectedMech: api.state.selectedMech,
+    currentBuild: api.state.currentBuild,
+    selectedChassis: api.state.selectedChassis,
+    mechlabSelection: api.state.selectedMechIdsByTab.mechlab,
+  };
+  const alpha = { id: 211, chassis: "empty-slot-a", display_name: "EMPTY A" };
+  const beta = { id: 212, chassis: "empty-slot-b", display_name: "EMPTY B" };
+  const alphaBuild = { mechId: alpha.id, marker: "existing" };
+  const importedBuild = { mechId: beta.id, marker: "imported" };
+
+  try {
+    api.state.mechs = [alpha, beta];
+    api.state.mechlabTabs = [];
+    api.state.activeMechlabTabId = null;
+    api.state.mechlabPendingTabIndex = null;
+    api.state.activeMainTab = "mechlab";
+    const first = api.addMechlabTabRecord(alpha, alphaBuild);
+
+    assert.equal(api.focusEmptyMechlabTabSlot(), true);
+    assert.equal(api.state.mechlabPendingTabIndex, 1);
+    assert.equal(api.hasFocusedEmptyMechlabTabSlot(), true);
+    assert.equal(api.mechlabFittingTargetMode("replace"), "add");
+
+    api.state.activeMainTab = "info";
+    api.restoreMechlabMainTabViewState();
+    assert.equal(api.state.mechlabBrowseMode, true);
+    assert.equal(api.mechlabFittingTargetMode("replace"), "add");
+
+    const imported = api.setMechlabFitting(beta, importedBuild, "replace");
+    assert.equal(api.state.mechlabTabs.length, 2);
+    assert.equal(api.state.mechlabTabs[0].id, first.id);
+    assert.equal(api.state.mechlabTabs[0].build, alphaBuild);
+    assert.equal(imported.mechId, beta.id);
+    assert.equal(imported.build, importedBuild);
+    assert.equal(api.state.activeMechlabTabId, imported.id);
+    assert.equal(api.state.mechlabPendingTabIndex, null);
+
+    assert.equal(api.focusEmptyMechlabTabSlot(), true);
+    api.activateMechlabTabRecord(first.id);
+    assert.equal(api.hasFocusedEmptyMechlabTabSlot(), false);
+  } finally {
+    api.state.mechs = previous.mechs;
+    api.state.mechlabTabs = previous.mechlabTabs;
+    api.state.activeMechlabTabId = previous.activeMechlabTabId;
+    api.state.mechlabPendingTabIndex = previous.mechlabPendingTabIndex;
+    api.state.mechlabBrowseIntent = previous.mechlabBrowseIntent;
+    api.state.activeMainTab = previous.activeMainTab;
+    api.state.selectedMech = previous.selectedMech;
+    api.state.currentBuild = previous.currentBuild;
+    api.state.selectedChassis = previous.selectedChassis;
+    api.state.selectedMechIdsByTab.mechlab = previous.mechlabSelection;
+  }
+});
+
+test("멕랩 핏팅 탭은 10개로 제한하고 활성 탭 닫기 시 왼쪽 탭을 선택한다", () => {
+  const previous = {
+    mechs: api.state.mechs,
+    mechlabTabs: api.state.mechlabTabs,
+    activeMechlabTabId: api.state.activeMechlabTabId,
+    selectedMech: api.state.selectedMech,
+    currentBuild: api.state.currentBuild,
+    selectedChassis: api.state.selectedChassis,
+    mechlabSelection: api.state.selectedMechIdsByTab.mechlab,
+  };
+  const mech = { id: 303, chassis: "limit", display_name: "LIMIT" };
+
+  try {
+    api.state.mechs = [mech];
+    api.state.mechlabTabs = [];
+    api.state.activeMechlabTabId = null;
+    const tabs = [];
+    for (let index = 0; index < api.MAX_MECHLAB_FITTING_TABS; index += 1) {
+      tabs.push(api.addMechlabTabRecord(mech, { mechId: mech.id, index }));
+    }
+    assert.equal(api.state.mechlabTabs.length, 10);
+    assert.equal(api.addMechlabTabRecord(mech, { mechId: mech.id, index: 10 }), null);
+    const buildAtLimit = api.state.currentBuild;
+    assert.equal(
+      api.restoreMechlabHistoryTabRecord(mech, "closed-fitting-tab", { mechId: mech.id, index: 11 }),
+      null,
+    );
+    assert.equal(api.state.currentBuild, buildAtLimit);
+
+    api.activateMechlabTabRecord(tabs[5].id);
+    assert.equal(api.closeMechlabTabRecord(tabs[5].id), true);
+    assert.equal(api.state.activeMechlabTabId, tabs[4].id);
+    assert.equal(api.state.currentBuild.index, 4);
+
+    const inactiveId = tabs[8].id;
+    assert.equal(api.closeMechlabTabRecord(inactiveId), true);
+    assert.equal(api.state.activeMechlabTabId, tabs[4].id);
+
+    while (api.state.mechlabTabs.length > 1) {
+      const removable = api.state.mechlabTabs.find((tab) => tab.id !== api.state.activeMechlabTabId);
+      api.closeMechlabTabRecord(removable.id);
+    }
+    assert.equal(api.closeMechlabTabRecord(api.state.activeMechlabTabId), false);
+    assert.equal(api.state.mechlabTabs.length, 1);
+  } finally {
+    api.state.mechs = previous.mechs;
+    api.state.mechlabTabs = previous.mechlabTabs;
+    api.state.activeMechlabTabId = previous.activeMechlabTabId;
+    api.state.selectedMech = previous.selectedMech;
+    api.state.currentBuild = previous.currentBuild;
+    api.state.selectedChassis = previous.selectedChassis;
+    api.state.selectedMechIdsByTab.mechlab = previous.mechlabSelection;
+  }
+});
+
+test("닫힌 피팅 탭의 History 복원은 현재 활성 빌드를 교체하지 않는다", () => {
+  const previous = {
+    mechs: api.state.mechs,
+    mechlabTabs: api.state.mechlabTabs,
+    activeMechlabTabId: api.state.activeMechlabTabId,
+    selectedMech: api.state.selectedMech,
+    currentBuild: api.state.currentBuild,
+    selectedChassis: api.state.selectedChassis,
+    mechlabSelection: api.state.selectedMechIdsByTab.mechlab,
+  };
+  const alpha = { id: 401, chassis: "history-a", display_name: "HISTORY A" };
+  const beta = { id: 402, chassis: "history-b", display_name: "HISTORY B" };
+  const alphaBuild = { mechId: alpha.id, marker: "alpha-original" };
+  const betaBuild = { mechId: beta.id, marker: "beta-unsaved" };
+  const restoredAlphaBuild = { mechId: alpha.id, marker: "alpha-restored" };
+
+  try {
+    api.state.mechs = [alpha, beta];
+    api.state.mechlabTabs = [];
+    api.state.activeMechlabTabId = null;
+    const alphaTab = api.addMechlabTabRecord(alpha, alphaBuild);
+    const betaTab = api.addMechlabTabRecord(beta, betaBuild);
+    api.closeMechlabTabRecord(alphaTab.id);
+
+    const restored = api.restoreMechlabHistoryTabRecord(alpha, alphaTab.id, restoredAlphaBuild);
+    assert.notEqual(restored.id, betaTab.id);
+    assert.equal(api.state.mechlabTabs.find((tab) => tab.id === betaTab.id).build, betaBuild);
+    assert.equal(betaBuild.marker, "beta-unsaved");
+    assert.equal(api.state.currentBuild, restoredAlphaBuild);
+
+    api.activateMechlabTabRecord(betaTab.id);
+    const exact = api.restoreMechlabHistoryTabRecord(alpha, restored.id, { marker: "unused" });
+    assert.equal(exact.id, restored.id);
+    assert.equal(api.state.currentBuild, restoredAlphaBuild);
+  } finally {
+    api.state.mechs = previous.mechs;
+    api.state.mechlabTabs = previous.mechlabTabs;
+    api.state.activeMechlabTabId = previous.activeMechlabTabId;
+    api.state.selectedMech = previous.selectedMech;
+    api.state.currentBuild = previous.currentBuild;
+    api.state.selectedChassis = previous.selectedChassis;
+    api.state.selectedMechIdsByTab.mechlab = previous.mechlabSelection;
+  }
+});
+
 test("멕 목록 정렬은 기준, 방향과 진영 그룹 설정을 반영한다", () => {
   const clanLight = { tons: 20, faction: "Clan", label: "Clan A", order: 0 };
   const innerLight = { tons: 25, faction: "InnerSphere", label: "Inner B", order: 1 };
