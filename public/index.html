@@ -16,7 +16,7 @@
       </div>
 
       <nav class="main-tabs" aria-label="Main tabs">
-        <button class="tab-button active" type="button" data-main-tab="mechlab" aria-controls="tab-mechlab" data-i18n="tabs.mechlab">TOOL</button>
+        <button class="tab-button active" type="button" data-main-tab="mechlab" aria-controls="tab-mechlab" data-i18n="tabs.mechlab">멕랩</button>
         <button class="tab-button" type="button" data-main-tab="equipment-info" aria-controls="tab-equipment-info" data-i18n="tabs.equipmentInfo">무장 정보</button>
         <button class="tab-button" type="button" data-main-tab="info" aria-controls="tab-info" data-i18n="tabs.info">정보</button>
         <button class="tab-button" type="button" data-main-tab="compare" aria-controls="tab-compare" data-i18n="tabs.compare">비교하기</button>
@@ -40,7 +40,7 @@
                 <button class="mech-filter-button" type="button" data-open-mech-filter aria-haspopup="dialog" aria-controls="mech-filter-overlay" data-i18n="filters.open">필터</button>
                 <input id="mech-search" type="search" placeholder="기종 또는 변형 검색" data-i18n-placeholder="search.mechPlaceholder">
                 <button id="mech-toolbar-import" class="mech-toolbar-import" type="button" data-i18n="loadout.import" hidden>IMPORT</button>
-                <button id="mech-toolbar-return" class="mech-toolbar-import mech-toolbar-return" type="button" aria-label="피팅으로 돌아가기" data-i18n-aria-label="mechlab.returnFitting" hidden>RETURN</button>
+                <button id="mech-toolbar-return" class="mech-toolbar-import mech-toolbar-return" type="button" aria-label="마지막 피팅으로 돌아가기" data-i18n="mechlab.returnFitting" data-i18n-aria-label="mechlab.returnFittingAria" hidden>돌아가기</button>
                 <button id="mech-list-view-toggle" class="mech-list-view-toggle" type="button" aria-pressed="true" title="작은 리스트 보기" data-i18n-title="list.smallView" hidden>&lt;&lt;</button>
               </div>
             </div>
@@ -792,7 +792,7 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-  <script src="app.js?v=20260815-6"></script>
+  <script src="app.js?v=20260815-8"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->
