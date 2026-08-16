@@ -2200,8 +2200,9 @@ function activeWeaponAmmoType(weapon, build = state.currentBuild) {
 
 function weaponAmmoPerTrigger(weapon, modules = installedMechItems("module")) {
   if (!activeWeaponAmmoType(weapon)) return 0;
-  const sourceAmmoPerShot = Math.max(0, number(weapon.stats?.ammoPerShot));
-  const sequentialShots = effectiveWeaponFiringProfile(weapon, modules).firingShots;
+  const effective = effectiveWeaponStats(weapon, modules);
+  const sourceAmmoPerShot = Math.max(0, effective.ammoPerShot);
+  const sequentialShots = Math.max(1, Math.trunc(effective.numFiring));
   // Sequential projectiles consume one round each (C-AC, UAC, HAG, etc.).
   // LB-X pellets use numPerShot instead, so they correctly remain one consumed round.
   return Math.max(1, Math.trunc(Math.max(sourceAmmoPerShot, sequentialShots)));
@@ -7962,45 +7963,84 @@ function hasWeaponFilterFunctionMode(item) {
 
 function weaponFunctionModesForItem(item, modules = installedMechItems("module")) {
   const modes = new Set();
-  (modules || []).forEach((module) => {
-    (module?.weapon_stat_filters || []).forEach((filter) => {
-      if (!targetComputerFilterMatchesWeapon(filter, item)) return;
-      const mode = weaponFilterFunctionMode(filter);
-      if (mode) modes.add(mode);
-    });
+  matchingInstalledWeaponFilters(item, modules).forEach(({ filter }) => {
+    const mode = weaponFilterFunctionMode(filter);
+    if (mode) modes.add(mode);
   });
   return modes;
+}
+
+const SUPPORTED_WEAPON_MODIFIER_FIELDS = new Map([
+  [9031, new Set(["damage", "numFiring", "numPerShot", "spread", "volleydelay"])],
+  [9032, new Set(["numFiring", "ammoPerShot", "volleydelay", "cooldown", "minReactivationTime"])],
+]);
+
+function matchingInstalledWeaponFilters(item, modules = installedMechItems("module")) {
+  const records = [];
+  (Array.isArray(modules) ? modules : installedMechItems("module")).forEach((module, moduleIndex) => {
+    (module?.weapon_stat_filters || []).forEach((filter, filterIndex) => {
+      if (!targetComputerFilterMatchesWeapon(filter, item)) return;
+      records.push({ module, moduleIndex, filter, filterIndex });
+    });
+  });
+  return records;
+}
+
+function weaponModifierFieldValue(source, field) {
+  if (field === "minReactivationTime") {
+    return number(source?.MinReactivationTime ?? source?.MinReactivationTIme ?? source?.minReactivationTime);
+  }
+  return number(source?.[field], field === "numFiring" ? 1 : 0);
+}
+
+function weaponModifierOperand(entry, field) {
+  if (field === "minReactivationTime") {
+    return Number(entry?.MinReactivationTime ?? entry?.MinReactivationTIme ?? entry?.minReactivationTime);
+  }
+  return Number(entry?.[field]);
 }
 
 function effectiveWeaponStats(item, modules = installedMechItems("module")) {
   const activeModules = Array.isArray(modules) ? modules : installedMechItems("module");
   const source = item?.stats || {};
   const values = {
-    damage: number(source.damage),
-    numFiring: number(source.numFiring, 1),
-    numPerShot: number(source.numPerShot),
-    spread: number(source.spread),
-    volleydelay: number(source.volleydelay),
+    damage: weaponModifierFieldValue(source, "damage"),
+    numFiring: weaponModifierFieldValue(source, "numFiring"),
+    numPerShot: weaponModifierFieldValue(source, "numPerShot"),
+    spread: weaponModifierFieldValue(source, "spread"),
+    volleydelay: weaponModifierFieldValue(source, "volleydelay"),
+    cooldown: weaponModifierFieldValue(source, "cooldown"),
+    ammoPerShot: weaponModifierFieldValue(source, "ammoPerShot"),
+    minReactivationTime: weaponModifierFieldValue(source, "minReactivationTime"),
   };
   const modes = new Set();
   const matchedFilterIndexes = [];
-  activeModules.forEach((module) => {
-    if (number(module?.id) !== 9031) return;
-    (module.weapon_stat_filters || []).forEach((filter, filterIndex) => {
-      if (!targetComputerFilterMatchesWeapon(filter, item)) return;
-      matchedFilterIndexes.push(filterIndex);
-      const mode = weaponFilterFunctionMode(filter);
-      if (mode) modes.add(mode);
-      (filter.weapon_stats || []).forEach((entry) => {
-        const operation = String(entry.operation || "");
-        if (operation !== "+" && operation !== "*") return;
-        Object.keys(values).forEach((field) => {
-          if (entry[field] === undefined) return;
-          const operand = Number(entry[field]);
-          if (!Number.isFinite(operand)) return;
-          values[field] = operation === "+"
-            ? values[field] + operand
-            : values[field] * operand;
+  const contributions = [];
+  matchingInstalledWeaponFilters(item, activeModules).forEach((record) => {
+    const supportedFields = SUPPORTED_WEAPON_MODIFIER_FIELDS.get(number(record.module?.id));
+    if (!supportedFields) return;
+    matchedFilterIndexes.push(record.filterIndex);
+    const mode = weaponFilterFunctionMode(record.filter);
+    if (mode) modes.add(mode);
+    (record.filter.weapon_stats || []).forEach((entry, statIndex) => {
+      const operation = String(entry.operation || "");
+      if (operation !== "+" && operation !== "*") return;
+      supportedFields.forEach((field) => {
+        const operand = weaponModifierOperand(entry, field);
+        if (!Number.isFinite(operand)) return;
+        const before = values[field];
+        const after = operation === "+" ? before + operand : before * operand;
+        values[field] = after;
+        contributions.push({
+          moduleId: record.module.id,
+          moduleOccurrence: record.moduleIndex,
+          filterIndex: record.filterIndex,
+          statIndex,
+          field,
+          operation,
+          operand,
+          before,
+          after,
         });
       });
     });
@@ -8009,6 +8049,7 @@ function effectiveWeaponStats(item, modules = installedMechItems("module")) {
     ...values,
     modes,
     matchedFilterIndexes,
+    contributions,
   };
 }
 
@@ -8043,13 +8084,14 @@ function collectTargetComputerWeaponEffects(item, modules = installedMechItems("
     rangeBonus: 0,
     speedBonus: 0,
     criticalChance: [0, 0, 0],
-    applyCriticalChanceToSentinel: false,
   };
   const sources = [];
   const hasRange = (item?.ranges || []).some((range) => number(range.start) > 0);
   const hasVelocity = number(item?.stats?.speed) > 0 && !isHitscanWeapon(item);
 
-  modules.forEach((module) => {
+  const activeModules = Array.isArray(modules) ? modules : installedMechItems("module");
+  const matchingFilters = matchingInstalledWeaponFilters(item, activeModules);
+  activeModules.forEach((module, moduleIndex) => {
     const displayValues = {
       criticalChance: new Map(),
       range: new Map(),
@@ -8062,8 +8104,7 @@ function collectTargetComputerWeaponEffects(item, modules = installedMechItems("
       displayValues[kind].set(scope, number(displayValues[kind].get(scope)) + value);
     };
 
-    (module.weapon_stat_filters || []).forEach((filter) => {
-      if (!targetComputerFilterMatchesWeapon(filter, item)) return;
+    matchingFilters.filter((record) => record.moduleIndex === moduleIndex).forEach(({ filter }) => {
       const scope = targetComputerEffectScope(module, filter);
       const functionMode = weaponFilterFunctionMode(filter);
       if (functionMode) functionModes.add(functionMode);
@@ -8079,11 +8120,7 @@ function collectTargetComputerWeaponEffects(item, modules = installedMechItems("
         const operation = String(weaponStats.operation || "");
         if (number(module?.id) === 9031 && functionMode) {
           const labels = {
-            spread: "SPREAD",
-            numPerShot: "PELLETS / SHOT",
-            damage: "DAMAGE / PROJECTILE",
-            volleydelay: "SHOT INTERVAL",
-            numFiring: "PROJECTILES",
+            volleydelay: "C.HAG INTERVAL",
           };
           Object.entries(labels).forEach(([field, label]) => {
             if (weaponStats[field] === undefined || (operation !== "+" && operation !== "*")) return;
@@ -8105,7 +8142,6 @@ function collectTargetComputerWeaponEffects(item, modules = installedMechItems("
           if (hasVelocity) addDisplayValue("velocity", scope, value);
         }
         if (operation === "+" && weaponStats.critChanceIncrease !== undefined) {
-          if (number(module?.id) === 9031) totals.applyCriticalChanceToSentinel = true;
           String(weaponStats.critChanceIncrease).split(",").forEach((value, index) => {
             if (index < totals.criticalChance.length) {
               totals.criticalChance[index] += number(Number(value));
@@ -8220,7 +8256,7 @@ function weaponEquipmentEffectToneClass(item) {
   return "quirk-tone-default";
 }
 
-function simulationWeaponTiming(item, quirks) {
+function simulationWeaponTiming(item, quirks, modules = installedMechItems("module")) {
   const stats = item?.stats || {};
   if (isSimulationContinuousDamagePerSecondWeapon(item)) {
     return {
@@ -8245,7 +8281,10 @@ function simulationWeaponTiming(item, quirks) {
   const effects = collectWeaponQuirkEffects(item, quirks).totals;
   const cooldownReduction = effects.cooldownReduction;
   const durationModifier = effects.durationModifier;
-  const cooldown = Math.max(0, number(stats.cooldown) * Math.max(0, 1 - cooldownReduction));
+  const cooldown = Math.max(
+    0,
+    effectiveWeaponStats(item, modules).cooldown * Math.max(0, 1 - cooldownReduction),
+  );
   const duration = Math.max(0, number(stats.duration) * Math.max(0, 1 + durationModifier));
   return {
     duration,
@@ -8288,7 +8327,7 @@ function weaponHasExpectedCooldown(item, modules = installedMechItems("module"))
 function weaponExpectedCooldown(item, quirks = [], modules = installedMechItems("module")) {
   if (!weaponHasExpectedCooldown(item, modules)) return null;
   const stats = item?.stats || {};
-  const timing = simulationWeaponTiming(item, quirks);
+  const timing = simulationWeaponTiming(item, quirks, modules);
   const firingTime = weaponFiringTime(item, modules);
   if (isUltraAutoCannon(item)) {
     const jam = ultraAutoCannonJamStats(item, quirks);
@@ -8305,8 +8344,8 @@ function weaponExpectedCooldown(item, quirks = [], modules = installedMechItems(
     + timing.cooldown);
 }
 
-function simulationWeaponCycle(item, quirks) {
-  return simulationWeaponTiming(item, quirks).cycle;
+function simulationWeaponCycle(item, quirks, modules = installedMechItems("module")) {
+  return simulationWeaponTiming(item, quirks, modules).cycle;
 }
 
 function simulationWeaponHeat(item, quirks) {
@@ -8457,13 +8496,13 @@ function collectSimulationWeapons() {
       const item = itemById(itemId);
       if (item?.item_type !== "weapon" || isAmsWeapon(item)) return;
       const firingProfile = effectiveWeaponFiringProfile(item, modules);
-      const baseTiming = simulationWeaponTiming(item, []);
-      const timing = simulationWeaponTiming(item, quirks);
+      const baseTiming = simulationWeaponTiming(item, [], []);
+      const timing = simulationWeaponTiming(item, quirks, modules);
       const expectedCooldown = weaponExpectedCooldown(item, quirks, modules);
-      const targetComputer = targetComputerWeaponModifiers(item);
+      const targetComputer = targetComputerWeaponModifiers(item, modules);
       const directDamage = weaponDirectDamage(item, modules);
       const splashDamage = weaponSplashDamage(item, modules);
-      const damageRate = weaponDamageRate(item, quirks);
+      const damageRate = weaponDamageRate(item, quirks, modules);
       const cycle = expectedCooldown ?? timing.cycle;
       const directDamagePerSecond = damageRate?.final ?? directDamage / cycle;
       weapons.push({
@@ -8506,13 +8545,13 @@ function collectSimulationWeapons() {
       const item = itemById(entry.item_id);
       if (item?.item_type !== "weapon" || isAmsWeapon(item)) return;
       const firingProfile = effectiveWeaponFiringProfile(item, modules);
-      const baseTiming = simulationWeaponTiming(item, []);
-      const timing = simulationWeaponTiming(item, quirks);
+      const baseTiming = simulationWeaponTiming(item, [], []);
+      const timing = simulationWeaponTiming(item, quirks, modules);
       const expectedCooldown = weaponExpectedCooldown(item, quirks, modules);
-      const targetComputer = targetComputerWeaponModifiers(item);
+      const targetComputer = targetComputerWeaponModifiers(item, modules);
       const directDamage = weaponDirectDamage(item, modules);
       const splashDamage = weaponSplashDamage(item, modules);
-      const damageRate = weaponDamageRate(item, quirks);
+      const damageRate = weaponDamageRate(item, quirks, modules);
       const cycle = expectedCooldown ?? timing.cycle;
       const directDamagePerSecond = damageRate?.final ?? directDamage / cycle;
       weapons.push({
@@ -10390,8 +10429,8 @@ function weaponCriticalChanceText(item) {
 function equipmentInfoWeaponRow(item, index) {
   const stats = item.stats || {};
   const ranges = weaponTooltipRanges(item);
-  const timing = simulationWeaponTiming(item, []);
-  const damageRate = weaponDamageRate(item, []);
+  const timing = simulationWeaponTiming(item, [], []);
+  const damageRate = weaponDamageRate(item, [], []);
   const usesPerSecondStats = Boolean(damageRate);
   const directDamage = weaponDirectDamage(item, []);
   const damage = usesPerSecondStats ? damageRate.base : directDamage;
@@ -13082,8 +13121,8 @@ function isRofDamageWeapon(item) {
   return isContinuousPerSecondWeapon(item);
 }
 
-function weaponDamagePerSecond(item, quirks = []) {
-  const directDamage = weaponDirectDamage(item);
+function weaponDamagePerSecond(item, quirks = [], modules = installedMechItems("module")) {
+  const directDamage = weaponDirectDamage(item, modules);
   const rof = number(item?.stats?.rof);
   if (!(rof > 0)) return { base: directDamage, final: directDamage };
   const rofBonus = collectWeaponQuirkEffects(item, quirks).totals.rofBonus;
@@ -13099,14 +13138,14 @@ function amsDamagePerSecond(item, quirks = []) {
   return { base, final: base + additive };
 }
 
-function weaponDamageRate(item, quirks = []) {
+function weaponDamageRate(item, quirks = [], modules = installedMechItems("module")) {
   if (isAmsWeapon(item)) return amsDamagePerSecond(item, quirks);
-  if (isRofDamageWeapon(item)) return weaponDamagePerSecond(item, quirks);
+  if (isRofDamageWeapon(item)) return weaponDamagePerSecond(item, quirks, modules);
   return null;
 }
 
 function weaponTotalDamageRate(item, quirks = [], modules = installedMechItems("module")) {
-  const directRate = weaponDamageRate(item, quirks);
+  const directRate = weaponDamageRate(item, quirks, modules);
   if (!directRate) return null;
   const directDamage = weaponDirectDamage(item, modules);
   const totalDamage = weaponTotalDamage(item, true, modules);
@@ -13118,11 +13157,15 @@ function weaponTotalDamageRate(item, quirks = [], modules = installedMechItems("
 }
 
 function weaponDamageTooltipValue(item, quirks = [], modules = installedMechItems("module")) {
-  const damageRate = weaponDamageRate(item, quirks);
+  const damageRate = weaponDamageRate(item, quirks, modules);
   if (damageRate) return tooltipQuirkValue(damageRate.base, damageRate.final, 1, "/s");
-  const directDamage = tooltipNumber(weaponDirectDamage(item, modules), 1);
+  const baseDirectDamage = weaponDirectDamage(item, []);
+  const finalDirectDamage = weaponDirectDamage(item, modules);
+  const directDamage = tooltipNumber(finalDirectDamage, 1);
   const totalSplashDamage = weaponSplashDamage(item, modules) * 2;
-  if (!(totalSplashDamage > 0)) return directDamage;
+  if (!(totalSplashDamage > 0)) {
+    return tooltipFinalQuirkValue(baseDirectDamage, finalDirectDamage, 1);
+  }
   return {
     html: `${escapeHtml(directDamage)} <span class="equipment-tooltip-splash">+ ${escapeHtml(tooltipNumber(totalSplashDamage, 1))}</span>`,
   };
@@ -13161,7 +13204,7 @@ function weaponTooltipCriticalChance(item, targetComputer = targetComputerWeapon
   const size = Math.max(baseChances.length, additions.length);
   const chances = Array.from({ length: size }, (_, index) => {
     const baseChance = Number.isFinite(baseChances[index]) ? baseChances[index] : 0;
-    return Math.abs(baseChance + 1) < 0.0001 && !targetComputer.applyCriticalChanceToSentinel
+    return Math.abs(baseChance + 1) < 0.0001
       ? -1
       : baseChance + number(additions[index]);
   });
@@ -13208,8 +13251,8 @@ function weaponTooltipStatistics(item, quirks = [], modules = installedMechItems
   const hasCooldown = number(stats.cooldown) > 0;
   const baseExpectedCooldown = weaponExpectedCooldown(item, [], []);
   const finalExpectedCooldown = weaponExpectedCooldown(item, quirks, modules);
-  const baseCycle = baseExpectedCooldown ?? simulationWeaponTiming(item, []).cooldown;
-  const finalCycle = finalExpectedCooldown ?? simulationWeaponTiming(item, quirks).cooldown;
+  const baseCycle = baseExpectedCooldown ?? simulationWeaponTiming(item, [], []).cooldown;
+  const finalCycle = finalExpectedCooldown ?? simulationWeaponTiming(item, quirks, modules).cooldown;
   const rows = [];
 
   if (damageRate) {
@@ -13348,26 +13391,15 @@ function targetComputerTooltipRows(item) {
         rows.push([`${scope} CRITICAL CHANCE`, values]);
       }
       if (number(item?.id) === 9031 && weaponFilterFunctionMode(filter)) {
-        const targets = (filter.compatible_weapons || []).map((name) => {
-          const key = normalizeLookupKey(name);
-          const weapon = Object.values(state.equipment?.items || {}).find((candidate) => (
-            candidate?.item_type === "weapon" && normalizeLookupKey(candidate.name) === key
-          ));
-          return String(weapon?.display_name || name).toUpperCase();
-        }).join(" / ");
         const labels = {
-          spread: "SPREAD",
-          numPerShot: "PELLETS / SHOT",
-          damage: "DAMAGE / PROJECTILE",
-          volleydelay: "SHOT INTERVAL",
-          numFiring: "PROJECTILES",
+          volleydelay: "C.HAG INTERVAL",
         };
         Object.entries(labels).forEach(([field, label]) => {
           if (weaponStats[field] === undefined) return;
           const operand = Number(weaponStats[field]);
           if (!Number.isFinite(operand)) return;
           rows.push([
-            `${targets} ${label}`,
+            label,
             operation === "+"
               ? signedEquipmentEffectText(operand, 4)
               : `×${tooltipNumber(operand, 4)}`,
@@ -13402,8 +13434,8 @@ function equipmentTooltipGroups(
 
   if (item.item_type === "weapon") {
     const ranges = weaponTooltipRanges(item);
-    const baseTiming = simulationWeaponTiming(item, []);
-    const timing = simulationWeaponTiming(item, quirks);
+    const baseTiming = simulationWeaponTiming(item, [], []);
+    const timing = simulationWeaponTiming(item, quirks, modules);
     const baseExpectedCooldown = weaponExpectedCooldown(item, [], []);
     const expectedCooldown = weaponExpectedCooldown(item, quirks, modules);
     const heat = simulationWeaponHeat(item, quirks);
@@ -13470,17 +13502,28 @@ function equipmentTooltipGroups(
     groups.push(rangeRows);
     const firingProfile = effectiveWeaponFiringProfile(item, modules);
     const firingShots = firingProfile.firingShots;
+    const streamFire = firingProfile.modes.has("stream-fire");
     const pelletsPerShot = Math.max(1, Math.trunc(effectiveWeaponStats(item, modules).numPerShot));
     const displayedShots = pelletsPerShot > 1 ? pelletsPerShot : firingShots;
     const shotInterval = firingProfile.shotDelay;
     const ammoInfoRows = [];
-    if (firingProfile.shotgun || firingProfile.singleProjectile) {
+    if (streamFire) {
+      ammoInfoRows.push([
+        "SHOTS",
+        tooltipFinalQuirkValue(stats.numFiring, firingShots, 0),
+      ]);
+    } else if (firingProfile.shotgun || firingProfile.singleProjectile) {
       ammoInfoRows.push(["SHOTS", firingProfile.displayShots]);
     } else if (displayedShots > 1) {
       ammoInfoRows.push(["SHOTS", tooltipNumber(displayedShots, 0)]);
     }
-    if (firingShots > 1 && shotInterval > 0) {
-      ammoInfoRows.push(["SHOT INTERVAL", tooltipNumber(shotInterval, 4, " s")]);
+    if (weaponFiringEventCount(item, modules) > 1 && shotInterval > 0) {
+      ammoInfoRows.push([
+        "SHOT INTERVAL",
+        firingProfile.shotgun || streamFire
+          ? tooltipFinalQuirkValue(stats.volleydelay, shotInterval, 4, " s")
+          : tooltipNumber(shotInterval, 4, " s"),
+      ]);
     }
     if (ammoInfoRows.length) groups.push(ammoInfoRows);
     const weaponDetailRows = [];
@@ -15761,6 +15804,7 @@ if (globalThis.__MWOLAB_TEST__) {
     effectiveWeaponFiringProfile,
     simulationWeaponTiming,
     collectSimulationWeapons,
+    mechSummaryAmmoGroups,
     isStreakSrm,
     weaponVolleySize,
     weaponFiringEventCount,

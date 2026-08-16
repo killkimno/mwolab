@@ -1301,8 +1301,11 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.ok(labels.includes("AC / UAC FIRING MODE"));
     assert.equal(rows.find(([label]) => label === "HAG / GAUSS FIRING MODE")[1], "SHOTGUN");
     assert.equal(rows.find(([label]) => label === "AC / UAC FIRING MODE")[1], "SINGLE PROJECTILE");
-    assert.ok(labels.some((label) => label.endsWith("PELLETS / SHOT")));
-    assert.ok(labels.some((label) => label.endsWith("DAMAGE / PROJECTILE")));
+    assert.ok(!labels.some((label) => label.endsWith("PELLETS / SHOT")));
+    assert.ok(!labels.some((label) => label.endsWith("DAMAGE / PROJECTILE")));
+    assert.ok(!labels.some((label) => label.endsWith("PROJECTILES")));
+    assert.ok(!labels.some((label) => label.endsWith("SPREAD")));
+    assert.equal(rows.find(([label]) => label === "C.HAG INTERVAL")[1], "×0.7");
     assert.ok(!labels.includes("DAMAGE"));
     assert.ok(!labels.includes("SHOTS"));
 
@@ -1321,18 +1324,16 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.ok(hagEffects.sources[0].effects.some((effect) => (
       effect.label === "FIRING MODE" && effect.value_text === "SHOTGUN"
     )));
+    assert.ok(!hagEffects.sources[0].effects.some((effect) => effect.label === "PELLETS / SHOT"));
+    assert.ok(!hagEffects.sources[0].effects.some((effect) => effect.label === "DAMAGE / PROJECTILE"));
+    assert.ok(!hagEffects.sources[0].effects.some((effect) => effect.label === "SPREAD"));
     assert.ok(hagEffects.sources[0].effects.some((effect) => (
-      effect.label === "PELLETS / SHOT" && effect.value_text === "+3"
-    )));
-    assert.ok(hagEffects.sources[0].effects.some((effect) => (
-      effect.label === "DAMAGE / PROJECTILE" && effect.value_text === "×0.34"
+      effect.label === "C.HAG INTERVAL" && effect.value_text === "×0.7"
     )));
     assert.ok(uacEffects.sources[0].effects.some((effect) => (
       effect.label === "FIRING MODE" && effect.value_text === "SINGLE PROJECTILE"
     )));
-    assert.ok(uacEffects.sources[0].effects.some((effect) => (
-      effect.label === "PROJECTILES" && effect.value_text === "-3"
-    )));
+    assert.ok(!uacEffects.sources[0].effects.some((effect) => effect.label === "PROJECTILES"));
   });
 
   await t.test("Modified Ballistic Loader는 모든 일치 필터를 적용해 AC/UAC와 Gauss/HAG를 변환한다", () => {
@@ -1418,7 +1419,8 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     const hagRows = Object.fromEntries(api.equipmentTooltipGroups(hag20, 0, [], [loader]).flat());
     assert.equal(gaussRows.SHOTS, "1 X 4");
     assert.equal(hagRows.SHOTS, "4 X 3");
-    assert.equal(hagRows["SHOT INTERVAL"], "0.091 s");
+    assert.match(hagRows["SHOT INTERVAL"].html, /equipment-tooltip-final quirk-applied/);
+    assert.match(hagRows["SHOT INTERVAL"].html, /0\.091 s/);
 
     const singleCases = [
       ["ClanUltraAutoCannon5", 2, 2.5, -1, 2],
@@ -1537,14 +1539,24 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     const commonEffects = api.collectTargetComputerWeaponEffects(hag20, [allShotgunLoader]);
     closeTo(commonEffects.totals.speedBonus, 0.05);
     closeTo(commonEffects.totals.criticalChance[0], 0.0114);
-    assert.equal(commonEffects.totals.applyCriticalChanceToSentinel, true);
     const criticalHtml = api.weaponTooltipCriticalChance(hag20, commonEffects.totals).html;
     assert.match(criticalHtml, /18\.1%/);
-    assert.match(criticalHtml, /-99\.4%/);
-    assert.match(criticalHtml, /-99\.9%/);
+    assert.doesNotMatch(criticalHtml, /-99\.4%/);
+    assert.doesNotMatch(criticalHtml, /-99\.9%/);
+    assert.equal((criticalHtml.match(/>X<\/span>/g) || []).length, 2);
   });
 
   await t.test("Modified Missile Loader는 LRM과 ATM의 volley를 stream fire로 표시한다", () => {
+    const filterSpecs = [
+      [["ClanLRM20", "ClanLRM20_Artemis"], 0.2, -4.35, -12],
+      [["ClanLRM15", "ClanLRM15_Artemis"], 0.2833, -3.9667, -9],
+      [["ClanLRM10", "ClanLRM10_Artemis"], 0.45, -3.5, -6],
+      [["ClanLRM5", "ClanLRM5_Artemis"], 0.95, -2.5, -3],
+      [["ClanATM12"], 0.1166, -4.8333, -4],
+      [["ClanATM9"], 0.1722, -4.7778, -3],
+      [["ClanATM6"], 0.2833, -3.666, -2],
+      [["ClanATM3"], 0.641, -2.334, -1],
+    ];
     const loader = {
       id: 9032,
       item_type: "module",
@@ -1552,18 +1564,18 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
       display_name: "Modified Missile Loader",
       ctype: "CTargetingComputerStats",
       stats: { slots: 1, tons: 1, health: 99999, amountAllowed: 0 },
-      weapon_stat_filters: [{
+      weapon_stat_filters: filterSpecs.map(([compatibleWeapons, delay, cooldown, reduction]) => ({
         tag: "MissileWeapons",
-        compatible_weapons: ["ClanLRM20", "ClanLRM20_Artemis", "ClanATM12"],
+        compatible_weapons: compatibleWeapons,
         weapon_stats: [
-          { operation: "+", volleydelay: 0.2 },
-          { operation: "+", cooldown: -4.35 },
-          { operation: "+", numFiring: -12 },
-          { operation: "+", ammoPerShot: -12 },
+          { operation: "+", volleydelay: delay },
+          { operation: "+", cooldown },
+          { operation: "+", numFiring: reduction },
+          { operation: "+", ammoPerShot: reduction },
           { operation: "+", MinReactivationTime: 0.15 },
         ],
         ranges: [],
-      }],
+      })),
     };
     const rows = api.equipmentTooltipGroups(loader, 0, []).flat();
     assert.deepEqual(
@@ -1572,46 +1584,154 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     );
     assert.ok(!Array.from(rows, ([label]) => label).includes("SENSOR RANGE"));
 
-    const lrm = weapon({
-      name: "ClanLRM20",
-      hardpoint_type: "missile",
-      stats: {
-        ammoType: "ClanLRMAmmo",
-        ammoPerShot: 20,
-        numFiring: 20,
-        damage: 1,
-        volleydelay: 0,
-      },
-    });
-    const artemisLrm = weapon({ name: "ClanLRM20_Artemis", hardpoint_type: "missile" });
-    const atm = weapon({ name: "ClanATM12", hardpoint_type: "missile" });
+    const cases = [
+      ["ClanLRM20", 20, 1, 0.05, 4.6, 2, 8, 0.25, 0.25, 0],
+      ["ClanLRM20_Artemis", 20, 1, 0.05, 4.6, 2, 8, 0.25, 0.25, 0],
+      ["ClanLRM15", 15, 1, 0.05, 4.3, 2, 6, 0.3333, 0.3333, 1],
+      ["ClanLRM15_Artemis", 15, 1, 0.05, 4.3, 2, 6, 0.3333, 0.3333, 1],
+      ["ClanLRM10", 10, 1, 0.05, 4, 2, 4, 0.5, 0.5, 2],
+      ["ClanLRM10_Artemis", 10, 1, 0.05, 4, 2, 4, 0.5, 0.5, 2],
+      ["ClanLRM5", 5, 1, 0.05, 3.5, 2, 2, 1, 1, 3],
+      ["ClanLRM5_Artemis", 5, 1, 0.05, 3.5, 2, 2, 1, 1, 3],
+      ["ClanATM12", 12, 2, 0.05, 5, 1, 8, 0.1666, 0.1667, 4],
+      ["ClanATM9", 9, 2, 0.05, 5, 1, 6, 0.2222, 0.2222, 5],
+      ["ClanATM6", 6, 2, 0.05, 4, 1, 4, 0.3333, 0.334, 6],
+      ["ClanATM3", 3, 2, 0.025, 3, 1, 2, 0.666, 0.666, 7],
+    ];
+    const items = cases.map(([
+      name,
+      rawShots,
+      damage,
+      rawDelay,
+      rawCooldown,
+      volleySize,
+      finalShots,
+      finalDelay,
+      finalCooldown,
+      filterIndex,
+    ]) => ({
+      item: weapon({
+        name,
+        hardpoint_type: "missile",
+        stats: {
+          ammoType: name.startsWith("ClanATM") ? "ClanATMAmmo" : "ClanLRMAmmo",
+          ammoPerShot: rawShots,
+          numFiring: rawShots,
+          damage,
+          volleydelay: rawDelay,
+          cooldown: rawCooldown,
+          volleysize: volleySize,
+          projectileclass: "javelin",
+        },
+      }),
+      rawShots,
+      damage,
+      finalShots,
+      finalDelay,
+      finalCooldown,
+      volleySize,
+      filterIndex,
+    }));
     const unrelated = weapon({ name: "ClanSRM6", hardpoint_type: "missile" });
     const innerSphereLrm = weapon({ name: "LRM20", hardpoint_type: "missile" });
-    [lrm, artemisLrm, atm].forEach((item) => {
+    items.forEach(({ item, rawShots, damage, finalShots, finalDelay, finalCooldown, volleySize, filterIndex }) => {
       const effects = api.collectTargetComputerWeaponEffects(item, [loader]);
       assert.equal(effects.sources[0].display_name, "Modified Missile Loader");
-      assert.ok(effects.sources[0].effects.some((effect) => (
-        effect.label === "FIRING MODE" && effect.value_text === "STREAM FIRE"
-      )));
+      assert.deepEqual(
+        Array.from(effects.sources[0].effects, (effect) => [effect.label, effect.value_text]),
+        [["FIRING MODE", "STREAM FIRE"]],
+      );
+      const effective = api.effectiveWeaponStats(item, [loader]);
+      assert.equal(effective.numFiring, finalShots, item.name);
+      assert.equal(effective.ammoPerShot, finalShots, item.name);
+      closeTo(effective.volleydelay, finalDelay);
+      closeTo(effective.cooldown, finalCooldown);
+      closeTo(effective.minReactivationTime, 0.15);
+      assert.deepEqual(Array.from(effective.matchedFilterIndexes), [filterIndex]);
+      assert.deepEqual(
+        Array.from(effective.contributions, (entry) => entry.field),
+        ["volleydelay", "cooldown", "numFiring", "ammoPerShot", "minReactivationTime"],
+      );
+      assert.equal(api.weaponAmmoPerTrigger(item, [loader]), finalShots, item.name);
+      closeTo(api.weaponDirectDamage(item, [loader]), damage * finalShots);
+      closeTo(api.simulationWeaponTiming(item, [], [loader]).cooldown, finalCooldown);
+      closeTo(api.effectiveWeaponFiringProfile(item, [loader]).shotDelay, finalDelay);
+      const eventCount = Math.ceil(finalShots / volleySize);
+      assert.equal(api.weaponFiringEventCount(item, [loader]), eventCount, item.name);
+      closeTo(api.weaponFiringTime(item, [loader]), Math.max(0, eventCount - 1) * finalDelay);
+      const finalCycle = api.weaponExpectedCooldown(item, [], [loader])
+        ?? api.simulationWeaponTiming(item, [], [loader]).cooldown;
+      closeTo(finalCycle, Math.max(0, eventCount - 1) * finalDelay + finalCooldown);
+      assert.equal(api.effectiveWeaponStats(item, []).numFiring, rawShots, item.name);
+      assert.equal(api.weaponAmmoPerTrigger(item, []), rawShots, item.name);
+      const tooltipRows = Object.fromEntries(api.equipmentTooltipGroups(item, 0, [], [loader]).flat());
+      assert.match(tooltipRows.DAMAGE.html, /quirk-applied/, item.name);
+      assert.match(tooltipRows.SHOTS.html, /quirk-applied/, item.name);
+      assert.equal(typeof tooltipRows.COOLDOWN, "object", item.name);
+      assert.match(tooltipRows.COOLDOWN.final, / s$/, item.name);
+      if (eventCount > 1) {
+        assert.match(tooltipRows["SHOT INTERVAL"].html, /quirk-applied/, item.name);
+      } else {
+        assert.equal(tooltipRows["SHOT INTERVAL"], undefined, item.name);
+      }
     });
     assert.equal(api.collectTargetComputerWeaponEffects(unrelated, [loader]).sources.length, 0);
     assert.equal(api.collectTargetComputerWeaponEffects(innerSphereLrm, [loader]).sources.length, 0);
-    const nagaNumericSnapshot = api.effectiveWeaponStats(lrm, [loader]);
-    assert.equal(nagaNumericSnapshot.damage, 1);
-    assert.equal(nagaNumericSnapshot.numFiring, 20);
-    assert.equal(nagaNumericSnapshot.numPerShot, 0);
-    assert.equal(nagaNumericSnapshot.volleydelay, 0);
-    assert.deepEqual(Array.from(nagaNumericSnapshot.matchedFilterIndexes), []);
-    assert.equal(api.weaponAmmoPerTrigger(lrm, [loader]), 20);
+    assert.equal(api.effectiveWeaponStats(unrelated, [loader]).matchedFilterIndexes.length, 0);
+    assert.equal(api.effectiveWeaponStats(innerSphereLrm, [loader]).matchedFilterIndexes.length, 0);
 
-    const incompleteFilter = {
+    const orderedFilters = {
+      ...loader,
+      weapon_stat_filters: [
+        loader.weapon_stat_filters[0],
+        {
+          tag: "MissileWeapons",
+          compatible_weapons: ["ClanLRM20"],
+          weapon_stats: [{ operation: "+", cooldown: 0.1 }],
+          ranges: [],
+        },
+      ],
+    };
+    const lrm20 = items[0].item;
+    const orderedSnapshot = api.effectiveWeaponStats(lrm20, [orderedFilters]);
+    assert.deepEqual(Array.from(orderedSnapshot.matchedFilterIndexes), [0, 1]);
+    closeTo(orderedSnapshot.cooldown, 0.35);
+    assert.equal(orderedSnapshot.contributions.at(-1).filterIndex, 1);
+    closeTo(
+      api.simulationWeaponTiming(lrm20, [quirk("all_cooldown_multiplier", -0.1)], [loader]).cooldown,
+      0.225,
+    );
+
+    const occurrenceLoader = {
+      ...loader,
+      weapon_stat_filters: [{
+        tag: "MissileWeapons",
+        compatible_weapons: ["ClanLRM20"],
+        weapon_stats: [{ operation: "+", cooldown: 0.1 }],
+        ranges: [],
+      }],
+    };
+    const occurrenceSnapshot = api.effectiveWeaponStats(lrm20, [occurrenceLoader, occurrenceLoader]);
+    closeTo(occurrenceSnapshot.cooldown, 4.8);
+    assert.deepEqual(
+      Array.from(occurrenceSnapshot.contributions, (entry) => entry.moduleOccurrence),
+      [0, 1],
+    );
+
+    const canonicalLoader = {
       ...loader,
       weapon_stat_filters: [{
         ...loader.weapon_stat_filters[0],
-        weapon_stats: [{ operation: "+", numFiring: -12 }],
+        compatible_weapons: ["ClanLRM20"],
+        weapon_stats: [{ operation: "+", MinReactivationTime: 0.15 }],
       }],
     };
-    assert.equal(api.collectTargetComputerWeaponEffects(lrm, [incompleteFilter]).sources.length, 0);
+    const sourceWithLegacyCase = weapon({
+      name: "ClanLRM20",
+      hardpoint_type: "missile",
+      stats: { MinReactivationTIme: 0.05 },
+    });
+    closeTo(api.effectiveWeaponStats(sourceWithLegacyCase, [canonicalLoader]).minReactivationTime, 0.2);
   });
 
   await t.test("Artemis와 Railgun Capacitor는 실제 계산값을 장비 출처로 표시한다", () => {
@@ -2705,4 +2825,123 @@ test("고정 9031은 유효 정의에서 BANE 무기 계산과 시뮬레이션�
   assert.equal(simulationWeapons[0].shotCount, 4);
   closeTo(simulationWeapons[0].shotDelay, 0.091);
   closeTo(simulationWeapons[0].firingTime, 0.273);
+});
+
+test("고정 9032는 AMAROK 무기·탄약·시뮬레이션에 공용 Modifier로 전달된다", () => {
+  const engine = {
+    id: 300,
+    item_type: "engine",
+    name: "ClanEngine_400",
+    faction: "Clan",
+    stats: { tons: 15, slots: 6, rating: 400, heatsinks: 10, sideSlots: 0 },
+  };
+  const loader = {
+    id: 9032,
+    item_type: "module",
+    name: "NagaHeroComputer",
+    display_name: "Modified Missile Loader",
+    faction: "Clan",
+    stats: { tons: 1, slots: 1, health: 99999, amountAllowed: 0 },
+    weapon_stat_filters: [{
+      tag: "MissileWeapons",
+      compatible_weapons: ["ClanLRM20", "ClanLRM20_Artemis"],
+      weapon_stats: [
+        { operation: "+", volleydelay: 0.2 },
+        { operation: "+", cooldown: -4.35 },
+        { operation: "+", numFiring: -12 },
+        { operation: "+", ammoPerShot: -12 },
+        { operation: "+", MinReactivationTime: 0.15 },
+      ],
+      ranges: [],
+    }],
+  };
+  const lrm20 = weapon({
+    id: 301,
+    name: "ClanLRM20",
+    display_name: "C-LRM 20",
+    hardpoint_type: "missile",
+    faction: "Clan",
+    stats: {
+      tons: 5,
+      slots: 4,
+      ammoType: "ClanLRMAmmo",
+      ammoPerShot: 20,
+      numFiring: 20,
+      damage: 1,
+      heat: 6,
+      cooldown: 4.6,
+      volleydelay: 0.05,
+      volleysize: 2,
+      projectileclass: "javelin",
+    },
+  });
+  const ammo = {
+    id: 302,
+    item_type: "ammo",
+    name: "ClanLRMAmmo",
+    display_name: "C-LRM AMMO",
+    faction: "Clan",
+    stats: { type: "ClanLRMAmmo", numShots: 100, tons: 1, slots: 1 },
+  };
+  const structure = { id: 303, item_type: "upgrade", name: "ClanStandardStructure", faction: "Clan", stats: { weightPerTon: 0.1 } };
+  const armor = { id: 304, item_type: "upgrade", name: "ClanStandardArmor", faction: "Clan", stats: { armorPerTon: 32 } };
+  resetEquipment({ 300: engine, 301: lrm20, 302: ammo, 303: structure, 304: armor, 9032: loader });
+  const componentNames = [
+    "head", "centre_torso", "left_torso", "right_torso",
+    "left_arm", "right_arm", "left_leg", "right_leg",
+  ];
+  const definitionComponents = Object.fromEntries(componentNames.map((name) => [name, {
+    hp: 20,
+    slots: 12,
+    hardpoints: name === "left_arm" ? [{ hardpoint_type: "missile", weapon_slots: 1 }] : [],
+    internals: [],
+    fixed: name === "centre_torso" ? [9032] : [],
+  }]));
+  api.state.loadouts = {};
+  api.state.omnipods = {};
+  api.state.selectedMech = {
+    id: 3839,
+    name: "nga-am",
+    stock_loadout: "nga-am-test",
+    faction: "Clan",
+    definition: {
+      stats: { MaxTons: 100, MinEngineRating: 200, MaxEngineRating: 400, MaxJumpJets: 0 },
+      components: definitionComponents,
+      quirks: [],
+    },
+  };
+  api.state.currentBuild = {
+    components: Object.fromEntries(componentNames.map((name) => [name, {
+      armor: 0,
+      items: name === "centre_torso"
+        ? [{ item_id: 300 }]
+        : name === "left_arm"
+          ? [{ item_id: 301 }, { item_id: 302 }]
+          : [],
+    }])),
+    engineHeatSinks: [],
+    rearArmor: {},
+    upgrades: {
+      structure: { ItemID: 303 },
+      armor: { ItemID: 304 },
+      artemis: { Equipped: false },
+    },
+  };
+
+  const build = api.calculateBuild();
+  closeTo(build.alpha, 8);
+  assert.equal(build.ammo, 100);
+  const simulationWeapons = api.collectSimulationWeapons();
+  assert.equal(simulationWeapons.length, 1);
+  closeTo(simulationWeapons[0].directDamage, 8);
+  assert.equal(simulationWeapons[0].shotCount, 8);
+  assert.equal(simulationWeapons[0].volleySize, 2);
+  closeTo(simulationWeapons[0].shotDelay, 0.25);
+  closeTo(simulationWeapons[0].firingTime, 0.75);
+  closeTo(simulationWeapons[0].cooldown, 0.25);
+  closeTo(simulationWeapons[0].cycle, 1);
+  const ammoGroups = api.mechSummaryAmmoGroups(simulationWeapons);
+  assert.equal(ammoGroups.length, 1);
+  assert.equal(ammoGroups[0].volleys, 12);
+  closeTo(ammoGroups[0].totalDamage, 96);
 });
