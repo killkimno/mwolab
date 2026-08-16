@@ -713,11 +713,42 @@ test("탄약·Artemis·하드포인트 공식", async (t) => {
     assert.equal(api.weaponAmmoPerTrigger(weapon({ stats: {} })), 0);
   });
 
-  await t.test("탄약 쿼크는 정규화한 탄종과 톤수를 기반으로 발수를 늘린다", () => {
+  await t.test("탄약 쿼크는 정규화한 탄종과 톤수를 기반으로 발수를 늘리거나 줄인다", () => {
     const ammo = { item_type: "ammo", name: "Clan LRM Ammo", stats: { type: "ClanLRMAmmo", numShots: 120, tons: 0.5 } };
     assert.equal(api.ammoCapacityQuirkKey(ammo), "clrm");
     assert.equal(api.ammoCapacityQuirkBonus(ammo, [quirk("ammocapacity_clrm_additive", 20)]), 20);
     assert.equal(api.effectiveAmmoShots(ammo, [quirk("AmmoCapacity_CLRM_Additive", 20)]), 130);
+
+    const reductions = [
+      ["ClanUltraAC5Ammo", "cultraac5", -40, 80, 40, 40, 20],
+      ["ClanUltraAC10Ammo", "cultraac10", -46, 69, 33, 23, 10],
+      ["ClanUltraAC20Ammo", "cultraac20", -30, 40, 20, 10, 5],
+      ["ClanAC10Ammo", "cac10", -23, 46, 23, 23, 11],
+      ["ClanAC20Ammo", "cac20", -24, 36, 18, 12, 6],
+    ];
+    reductions.forEach(([type, key, value, fullBase, halfBase, fullFinal, halfFinal]) => {
+      const full = { item_type: "ammo", name: type, stats: { type, numShots: fullBase, tons: 1 } };
+      const half = { item_type: "ammo", name: `${type}Half`, stats: { type, numShots: halfBase, tons: 0.5 } };
+      const matchingQuirk = [quirk(`ammocapacity_${key}_additive`, value)];
+      assert.equal(api.ammoCapacityQuirkBonus(full, matchingQuirk), value, `${key}: signed bonus`);
+      assert.equal(api.effectiveAmmoShots(full, matchingQuirk), fullFinal, `${key}: full ton`);
+      assert.equal(api.effectiveAmmoShots(half, matchingQuirk), halfFinal, `${key}: half ton`);
+    });
+
+    const halfUac20 = { item_type: "ammo", name: "C-UAC/20 AMMO (1/2)", stats: { type: "ClanUltraAC20Ammo", numShots: 20, tons: 0.5 } };
+    const reduction = [quirk("ammocapacity_cultraac20_additive", -30)];
+    const applied = api.collectEquipmentQuirkEffects(halfUac20, reduction).applied[0];
+    assert.equal(applied.effective_value, -30);
+    assert.equal(applied.display_value, -15);
+    assert.match(applied.display_value_text, /-15/);
+    assert.equal(api.effectiveAmmoShots(halfUac20, [quirk("ammocapacity_cac20_additive", -24)]), 20);
+
+    const fractional = { item_type: "ammo", name: "FRACTIONAL", stats: { type: "ClanAC20Ammo", numShots: 10, tons: 0.5 } };
+    assert.equal(api.effectiveAmmoShots(fractional, [quirk("ammocapacity_cac20_additive", -0.1)]), 9);
+    assert.equal(api.collectEquipmentQuirkEffects(
+      fractional,
+      [quirk("ammocapacity_cac20_additive", 0.1)],
+    ).applied.length, 0);
   });
 
   await t.test("하드포인트 수는 weapon_slots를 합산하고 누락 시 1을 사용한다", () => {
@@ -1270,6 +1301,8 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.ok(labels.includes("AC / UAC FIRING MODE"));
     assert.equal(rows.find(([label]) => label === "HAG / GAUSS FIRING MODE")[1], "SHOTGUN");
     assert.equal(rows.find(([label]) => label === "AC / UAC FIRING MODE")[1], "SINGLE PROJECTILE");
+    assert.ok(labels.some((label) => label.endsWith("PELLETS / SHOT")));
+    assert.ok(labels.some((label) => label.endsWith("DAMAGE / PROJECTILE")));
     assert.ok(!labels.includes("DAMAGE"));
     assert.ok(!labels.includes("SHOTS"));
 
@@ -1288,9 +1321,227 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.ok(hagEffects.sources[0].effects.some((effect) => (
       effect.label === "FIRING MODE" && effect.value_text === "SHOTGUN"
     )));
+    assert.ok(hagEffects.sources[0].effects.some((effect) => (
+      effect.label === "PELLETS / SHOT" && effect.value_text === "+3"
+    )));
+    assert.ok(hagEffects.sources[0].effects.some((effect) => (
+      effect.label === "DAMAGE / PROJECTILE" && effect.value_text === "×0.34"
+    )));
     assert.ok(uacEffects.sources[0].effects.some((effect) => (
       effect.label === "FIRING MODE" && effect.value_text === "SINGLE PROJECTILE"
     )));
+    assert.ok(uacEffects.sources[0].effects.some((effect) => (
+      effect.label === "PROJECTILES" && effect.value_text === "-3"
+    )));
+  });
+
+  await t.test("Modified Ballistic Loader는 모든 일치 필터를 적용해 AC/UAC와 Gauss/HAG를 변환한다", () => {
+    const loader = {
+      id: 9031,
+      item_type: "module",
+      name: "BaneHeroComputer",
+      display_name: "Modified Ballistic Loader",
+      weapon_stat_filters: [
+        {
+          compatible_weapons: ["ClanUltraAutoCannon20"],
+          weapon_stats: [
+            { operation: "+", numFiring: -3 },
+            { operation: "*", damage: 4 },
+          ],
+        },
+        {
+          compatible_weapons: ["ClanGaussRifle"],
+          weapon_stats: [
+            { operation: "+", spread: 0.25 },
+            { operation: "+", numPerShot: 4 },
+            { operation: "*", damage: 0.25 },
+          ],
+        },
+        {
+          compatible_weapons: ["ClanHyperAssaultGaussRifle20"],
+          weapon_stats: [
+            { operation: "+", spread: 0.5 },
+            { operation: "+", numPerShot: 3 },
+            { operation: "*", damage: 0.34 },
+            { operation: "*", volleydelay: 0.7 },
+          ],
+        },
+      ],
+    };
+    const uac = weapon({
+      name: "ClanUltraAutoCannon20",
+      hardpoint_type: "ballistic",
+      stats: {
+        ammoType: "ClanUltraAC20Ammo",
+        ammoPerShot: 1,
+        numFiring: 4,
+        damage: 5,
+        volleydelay: 0.11,
+      },
+    });
+    const gauss = weapon({
+      name: "ClanGaussRifle",
+      hardpoint_type: "ballistic",
+      stats: { ammoType: "ClanGaussAmmo", ammoPerShot: 1, numFiring: 1, damage: 15, volleydelay: 0, projectileclass: "bullet" },
+    });
+    const hag20 = weapon({
+      name: "ClanHyperAssaultGaussRifle20",
+      hardpoint_type: "ballistic",
+      stats: {
+        ammoType: "ClanHAG20Ammo",
+        ammoPerShot: 1,
+        numFiring: 4,
+        damage: 4,
+        volleydelay: 0.13,
+        projectileclass: "bullet",
+        critChanceIncrease: "0.17,-1,-1",
+      },
+    });
+
+    assert.equal(api.weaponDirectDamage(uac), 20);
+    assert.equal(api.weaponAmmoPerTrigger(uac, []), 4);
+    assert.equal(api.weaponAmmoPerTrigger(uac, [loader]), 1);
+    assert.equal(api.effectiveWeaponFiringProfile(uac, [loader]).firingShots, 1);
+    assert.equal(api.weaponFiringTime(uac, [loader]), 0);
+    assert.ok(api.weaponExpectedCooldown(uac, [], [loader]) < api.weaponExpectedCooldown(uac, [], []));
+    const uacRows = Object.fromEntries(api.equipmentTooltipGroups(uac, 0, [], [loader]).flat());
+    assert.equal(uacRows.SHOTS, "1");
+    assert.equal(uacRows["SHOT INTERVAL"], undefined);
+
+    closeTo(api.weaponDirectDamage(gauss, [loader]), 15);
+    closeTo(api.weaponDirectDamage(hag20, [loader]), 16.32);
+    assert.equal(api.weaponAmmoPerTrigger(gauss, [loader]), 1);
+    assert.equal(api.weaponAmmoPerTrigger(hag20, [loader]), 4);
+    closeTo(api.weaponFiringTime(hag20, [loader]), 0.273);
+    assert.ok(api.weaponExpectedCooldown(hag20, [], [loader]) < api.weaponExpectedCooldown(hag20, [], []));
+    const gaussRows = Object.fromEntries(api.equipmentTooltipGroups(gauss, 0, [], [loader]).flat());
+    const hagRows = Object.fromEntries(api.equipmentTooltipGroups(hag20, 0, [], [loader]).flat());
+    assert.equal(gaussRows.SHOTS, "1 X 4");
+    assert.equal(hagRows.SHOTS, "4 X 3");
+    assert.equal(hagRows["SHOT INTERVAL"], "0.091 s");
+
+    const singleCases = [
+      ["ClanUltraAutoCannon5", 2, 2.5, -1, 2],
+      ["ClanUltraAutoCannon10", 3, 3.3334, -2, 3],
+      ["ClanUltraAutoCannon20", 4, 5, -3, 4],
+      ["ClanAutoCannon10", 2, 5, -1, 2],
+      ["ClanAutoCannon20", 3, 6.6666, -2, 3],
+    ];
+    const allSingleLoader = {
+      ...loader,
+      weapon_stat_filters: [
+        {
+          compatible_weapons: singleCases.map(([name]) => name),
+          weapon_stats: [
+            { operation: "+", critChanceIncrease: "0.0114,0.0064,0.0014" },
+            { operation: "*", speed: 1.05 },
+          ],
+        },
+        ...singleCases.map(([name, , , delta, multiplier]) => ({
+          compatible_weapons: [name],
+          weapon_stats: [
+            { operation: "+", numFiring: delta },
+            { operation: "*", damage: multiplier },
+          ],
+        })),
+      ],
+    };
+    singleCases.forEach(([name, shots, damage], index) => {
+      const item = weapon({
+        name,
+        hardpoint_type: "ballistic",
+        stats: { ammoType: `${name}Ammo`, ammoPerShot: 1, numFiring: shots, damage, volleydelay: 0.11 },
+      });
+      const effective = api.effectiveWeaponStats(item, [allSingleLoader]);
+      assert.deepEqual(Array.from(effective.matchedFilterIndexes), [0, index + 1], name);
+      closeTo(effective.damage, damage * singleCases[index][4]);
+      assert.equal(effective.numFiring, 1, name);
+      closeTo(api.weaponDirectDamage(item, [allSingleLoader]), shots * damage);
+      assert.equal(api.effectiveWeaponFiringProfile(item, [allSingleLoader]).firingShots, 1, name);
+      assert.equal(api.weaponAmmoPerTrigger(item, [allSingleLoader]), 1, name);
+      assert.equal(api.weaponFiringTime(item, [allSingleLoader]), 0, name);
+      const rows = Object.fromEntries(api.equipmentTooltipGroups(item, 0, [], [allSingleLoader]).flat());
+      assert.equal(rows.SHOTS, "1", name);
+      assert.equal(rows["SHOT INTERVAL"], undefined, name);
+      const baseExpected = api.weaponExpectedCooldown(item, [], []);
+      const finalExpected = api.weaponExpectedCooldown(item, [], [allSingleLoader]);
+      if (name.includes("Ultra")) assert.ok(finalExpected < baseExpected, name);
+      else assert.equal(finalExpected, null, name);
+    });
+
+    const unmatched = weapon({
+      name: "ClanUltraAutoCannon2",
+      hardpoint_type: "ballistic",
+      stats: { ammoType: "ClanUltraAC2Ammo", ammoPerShot: 1, numFiring: 2, damage: 1, volleydelay: 0.11 },
+    });
+    assert.equal(api.weaponAmmoPerTrigger(unmatched, [allSingleLoader]), 2);
+    assert.equal(api.weaponFiringTime(unmatched, [allSingleLoader]), 0.11);
+    assert.equal(
+      Object.fromEntries(api.equipmentTooltipGroups(unmatched, 0, [], [allSingleLoader]).flat())["SHOT INTERVAL"],
+      "0.11 s",
+    );
+
+    const shotgunCases = [
+      ["ClanGaussRifle", 1, 15, 0],
+      ["ClanHyperAssaultGaussRifle20", 4, 4, 0.13],
+      ["ClanHyperAssaultGaussRifle30", 6, 4, 0.12],
+      ["ClanHyperAssaultGaussRifle40", 8, 4, 0.11],
+    ];
+    const allShotgunLoader = {
+      ...loader,
+      weapon_stat_filters: [
+        {
+          compatible_weapons: shotgunCases.map(([name]) => name),
+          weapon_stats: [
+            { operation: "+", critChanceIncrease: "0.0114,0.0064,0.0014" },
+            { operation: "*", speed: 1.05 },
+          ],
+        },
+        ...shotgunCases.map(([name]) => ({
+          compatible_weapons: [name],
+          weapon_stats: [
+            ...(name === "ClanGaussRifle" ? [{ operation: "+", spread: 0.25 }] : [{ operation: "+", spread: 0.5 }]),
+            { operation: "+", numPerShot: name === "ClanGaussRifle" ? 4 : 3 },
+            { operation: "*", damage: name === "ClanGaussRifle" ? 0.25 : 0.34 },
+            ...(name === "ClanGaussRifle" ? [] : [{ operation: "*", volleydelay: 0.7 }]),
+          ],
+        })),
+      ],
+    };
+    shotgunCases.forEach(([name, shots, damage, delay], index) => {
+      const item = weapon({
+        name,
+        hardpoint_type: "ballistic",
+        stats: { ammoType: `${name}Ammo`, ammoPerShot: 1, numFiring: shots, damage, volleydelay: delay, projectileclass: "bullet" },
+      });
+      const effective = api.effectiveWeaponStats(item, [allShotgunLoader]);
+      assert.deepEqual(Array.from(effective.matchedFilterIndexes), [0, index + 1], name);
+      const pellets = name === "ClanGaussRifle" ? 4 : 3;
+      const damageMultiplier = name === "ClanGaussRifle" ? 0.25 : 0.34;
+      closeTo(effective.damage, damage * damageMultiplier);
+      assert.equal(effective.numPerShot, pellets, name);
+      closeTo(effective.spread, name === "ClanGaussRifle" ? 0.25 : 0.5);
+      closeTo(effective.volleydelay, name === "ClanGaussRifle" ? delay : delay * 0.7);
+      closeTo(api.weaponDirectDamage(item, [allShotgunLoader]), shots * damage * damageMultiplier * pellets);
+      assert.equal(api.weaponAmmoPerTrigger(item, [allShotgunLoader]), shots, name);
+      closeTo(
+        api.weaponFiringTime(item, [allShotgunLoader]),
+        Math.max(0, shots - 1) * (name === "ClanGaussRifle" ? delay : delay * 0.7),
+      );
+      assert.equal(
+        Object.fromEntries(api.equipmentTooltipGroups(item, 0, [], [allShotgunLoader]).flat()).SHOTS,
+        `${shots} X ${pellets}`,
+        name,
+      );
+    });
+    const commonEffects = api.collectTargetComputerWeaponEffects(hag20, [allShotgunLoader]);
+    closeTo(commonEffects.totals.speedBonus, 0.05);
+    closeTo(commonEffects.totals.criticalChance[0], 0.0114);
+    assert.equal(commonEffects.totals.applyCriticalChanceToSentinel, true);
+    const criticalHtml = api.weaponTooltipCriticalChance(hag20, commonEffects.totals).html;
+    assert.match(criticalHtml, /18\.1%/);
+    assert.match(criticalHtml, /-99\.4%/);
+    assert.match(criticalHtml, /-99\.9%/);
   });
 
   await t.test("Modified Missile Loader는 LRM과 ATM의 volley를 stream fire로 표시한다", () => {
@@ -1321,7 +1572,17 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     );
     assert.ok(!Array.from(rows, ([label]) => label).includes("SENSOR RANGE"));
 
-    const lrm = weapon({ name: "ClanLRM20", hardpoint_type: "missile" });
+    const lrm = weapon({
+      name: "ClanLRM20",
+      hardpoint_type: "missile",
+      stats: {
+        ammoType: "ClanLRMAmmo",
+        ammoPerShot: 20,
+        numFiring: 20,
+        damage: 1,
+        volleydelay: 0,
+      },
+    });
     const artemisLrm = weapon({ name: "ClanLRM20_Artemis", hardpoint_type: "missile" });
     const atm = weapon({ name: "ClanATM12", hardpoint_type: "missile" });
     const unrelated = weapon({ name: "ClanSRM6", hardpoint_type: "missile" });
@@ -1335,6 +1596,13 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     });
     assert.equal(api.collectTargetComputerWeaponEffects(unrelated, [loader]).sources.length, 0);
     assert.equal(api.collectTargetComputerWeaponEffects(innerSphereLrm, [loader]).sources.length, 0);
+    const nagaNumericSnapshot = api.effectiveWeaponStats(lrm, [loader]);
+    assert.equal(nagaNumericSnapshot.damage, 1);
+    assert.equal(nagaNumericSnapshot.numFiring, 20);
+    assert.equal(nagaNumericSnapshot.numPerShot, 0);
+    assert.equal(nagaNumericSnapshot.volleydelay, 0);
+    assert.deepEqual(Array.from(nagaNumericSnapshot.matchedFilterIndexes), []);
+    assert.equal(api.weaponAmmoPerTrigger(lrm, [loader]), 20);
 
     const incompleteFilter = {
       ...loader,
@@ -2327,4 +2595,114 @@ test("빌드 집계 공식은 개별 공식과 같은 최종값을 만든다", (
   assert.equal(result.totalHeatSinkCount, 10);
   assert.equal(result.currentSlotUsage, 7);
   assert.equal(result.warnings.some((warning) => warning.includes("Tonnage")), false);
+});
+
+test("고정 9031은 유효 정의에서 BANE 무기 계산과 시뮬레이션에 전달된다", () => {
+  const engine = {
+    id: 200,
+    item_type: "engine",
+    name: "ClanEngine_300",
+    faction: "Clan",
+    stats: { tons: 10, slots: 6, rating: 300, heatsinks: 10, sideSlots: 0 },
+  };
+  const loader = {
+    id: 9031,
+    item_type: "module",
+    name: "BaneHeroComputer",
+    display_name: "Modified Ballistic Loader",
+    faction: "Clan",
+    stats: { tons: 1, slots: 1, health: 99999, amountAllowed: 1 },
+    weapon_stat_filters: [
+      {
+        tag: "ProjectileWeapons",
+        compatible_weapons: ["ClanHyperAssaultGaussRifle20"],
+        weapon_stats: [
+          { operation: "+", critChanceIncrease: "0.0114,0.0064,0.0014" },
+          { operation: "*", speed: 1.05 },
+        ],
+      },
+      {
+        tag: "ProjectileWeapons",
+        compatible_weapons: ["ClanHyperAssaultGaussRifle20"],
+        weapon_stats: [
+          { operation: "+", spread: 0.5 },
+          { operation: "+", numPerShot: 3 },
+          { operation: "*", damage: 0.34 },
+          { operation: "*", volleydelay: 0.7 },
+        ],
+      },
+    ],
+  };
+  const hag20 = weapon({
+    id: 201,
+    name: "ClanHyperAssaultGaussRifle20",
+    display_name: "HAG/20",
+    hardpoint_type: "ballistic",
+    faction: "Clan",
+    stats: {
+      tons: 10,
+      slots: 8,
+      ammoType: "ClanHAG20Ammo",
+      ammoPerShot: 1,
+      numFiring: 4,
+      damage: 4,
+      heat: 4,
+      cooldown: 3,
+      volleydelay: 0.13,
+      projectileclass: "bullet",
+      speed: 2000,
+    },
+  });
+  const structure = { id: 202, item_type: "upgrade", name: "ClanStandardStructure", faction: "Clan", stats: { weightPerTon: 0.1 } };
+  const armor = { id: 203, item_type: "upgrade", name: "ClanStandardArmor", faction: "Clan", stats: { armorPerTon: 32 } };
+  resetEquipment({ 200: engine, 201: hag20, 202: structure, 203: armor, 9031: loader });
+  const componentNames = [
+    "head", "centre_torso", "left_torso", "right_torso",
+    "left_arm", "right_arm", "left_leg", "right_leg",
+  ];
+  const definitionComponents = Object.fromEntries(componentNames.map((name) => [name, {
+    hp: 20,
+    slots: 12,
+    hardpoints: name === "left_arm" ? [{ hardpoint_type: "ballistic", weapon_slots: 1 }] : [],
+    internals: [],
+    fixed: name === "head" ? [9031] : [],
+  }]));
+  api.state.loadouts = {};
+  api.state.omnipods = {};
+  api.state.selectedMech = {
+    id: 3752,
+    name: "bane-l",
+    stock_loadout: "bane-l-test",
+    faction: "Clan",
+    definition: {
+      stats: { MaxTons: 100, MinEngineRating: 200, MaxEngineRating: 400, MaxJumpJets: 0 },
+      components: definitionComponents,
+      quirks: [],
+    },
+  };
+  api.state.currentBuild = {
+    components: Object.fromEntries(componentNames.map((name) => [name, {
+      armor: 0,
+      items: name === "centre_torso"
+        ? [{ item_id: 200 }]
+        : name === "left_arm"
+          ? [{ item_id: 201 }]
+          : [],
+    }])),
+    engineHeatSinks: [],
+    rearArmor: {},
+    upgrades: {
+      structure: { ItemID: 202 },
+      armor: { ItemID: 203 },
+      artemis: { Equipped: false },
+    },
+  };
+
+  closeTo(api.calculateBuild().alpha, 16.32);
+  const simulationWeapons = api.collectSimulationWeapons();
+  assert.equal(simulationWeapons.length, 1);
+  closeTo(simulationWeapons[0].directDamage, 16.32);
+  assert.equal(simulationWeapons[0].shotCount, 4);
+  closeTo(simulationWeapons[0].shotDelay, 0.091);
+  closeTo(simulationWeapons[0].firingTime, 0.273);
 });
