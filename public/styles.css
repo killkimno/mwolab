@@ -7951,7 +7951,7 @@ body.pointer-drag-active * {
 
 .equipment-tooltip-equipment-source-title {
   padding: 0.25rem 0.35rem;
-  color: #d7e2e5;
+  color: #70b8cf;
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.035em;
@@ -7965,7 +7965,6 @@ body.pointer-drag-active * {
   min-height: 1.65rem;
   padding: 0.22rem 0.35rem 0.22rem 0.65rem;
   background: #111719;
-  color: #9fcfdc;
   font-size: 0.73rem;
 }
 

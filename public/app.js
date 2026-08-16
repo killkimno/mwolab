@@ -7907,6 +7907,57 @@ function targetComputerEffectScope(module, filter) {
   return tag.replace(/Weapons$/i, "").toUpperCase();
 }
 
+function weaponFilterFunctionMode(filter) {
+  const stats = filter?.weapon_stats || [];
+  const hasPositivePelletAddition = stats.some((entry) => (
+    String(entry.operation || "") === "+"
+    && entry.numPerShot !== undefined
+    && number(entry.numPerShot) > 0
+  ));
+  const hasReducedPelletDamage = stats.some((entry) => (
+    String(entry.operation || "") === "*"
+    && entry.damage !== undefined
+    && number(entry.damage) > 0
+    && number(entry.damage) < 1
+  ));
+  if (hasPositivePelletAddition && hasReducedPelletDamage) return "shotgun";
+
+  const hasFiringCountReduction = stats.some((entry) => (
+    String(entry.operation || "") === "+"
+    && entry.numFiring !== undefined
+    && number(entry.numFiring) < 0
+  ));
+  const hasIncreasedProjectileDamage = stats.some((entry) => (
+    String(entry.operation || "") === "*"
+    && entry.damage !== undefined
+    && number(entry.damage) > 1
+  ));
+  if (hasFiringCountReduction && hasIncreasedProjectileDamage) return "single-projectile";
+
+  const hasVolleyDelayAddition = stats.some((entry) => (
+    String(entry.operation || "") === "+"
+    && entry.volleydelay !== undefined
+    && number(entry.volleydelay) > 0
+  ));
+  const hasAmmoPerShotReduction = stats.some((entry) => (
+    String(entry.operation || "") === "+"
+    && entry.ammoPerShot !== undefined
+    && number(entry.ammoPerShot) < 0
+  ));
+  return hasVolleyDelayAddition && hasFiringCountReduction && hasAmmoPerShotReduction
+    ? "stream-fire"
+    : "";
+}
+
+function weaponFunctionModeText(mode) {
+  if (mode === "shotgun") return "SHOTGUN";
+  return mode === "stream-fire" ? "STREAM FIRE" : "SINGLE PROJECTILE";
+}
+
+function hasWeaponFilterFunctionMode(item) {
+  return (item?.weapon_stat_filters || []).some((filter) => weaponFilterFunctionMode(filter));
+}
+
 function signedEquipmentEffectText(value, digits = 1, unit = "") {
   const numeric = number(value);
   return `${numeric > 0 ? "+" : ""}${tooltipNumber(numeric, digits, unit)}`;
@@ -7928,6 +7979,7 @@ function collectTargetComputerWeaponEffects(item, modules = installedMechItems("
       range: new Map(),
       velocity: new Map(),
     };
+    const functionModes = new Set();
     const addDisplayValue = (kind, scope, value) => {
       if (Math.abs(value) < 0.0001) return;
       displayValues[kind].set(scope, number(displayValues[kind].get(scope)) + value);
@@ -7936,6 +7988,8 @@ function collectTargetComputerWeaponEffects(item, modules = installedMechItems("
     (module.weapon_stat_filters || []).forEach((filter) => {
       if (!targetComputerFilterMatchesWeapon(filter, item)) return;
       const scope = targetComputerEffectScope(module, filter);
+      const functionMode = weaponFilterFunctionMode(filter);
+      if (functionMode) functionModes.add(functionMode);
       (filter.ranges || []).forEach((range) => {
         const multiplier = number(range.multiplier, 1);
         if (multiplier > 0) {
@@ -7967,6 +8021,12 @@ function collectTargetComputerWeaponEffects(item, modules = installedMechItems("
     });
 
     const effects = [
+      ...Array.from(functionModes, (mode) => ({
+        key: "firingMode",
+        label: "FIRING MODE",
+        value: mode,
+        value_text: weaponFunctionModeText(mode),
+      })),
       ...Array.from(displayValues.criticalChance, ([scope, value]) => ({
         key: "criticalChance",
         label: `${scope} CRITICAL CHANCE`,
@@ -13184,7 +13244,15 @@ function targetComputerTooltipRows(item) {
       }
     });
   });
-  return rows;
+  const functionModes = new Set(
+    (item?.weapon_stat_filters || []).map(weaponFilterFunctionMode).filter(Boolean),
+  );
+  return [
+    ...(functionModes.has("shotgun") ? [["HAG / GAUSS FIRING MODE", "SHOTGUN"]] : []),
+    ...(functionModes.has("single-projectile") ? [["AC / UAC FIRING MODE", "SINGLE PROJECTILE"]] : []),
+    ...(functionModes.has("stream-fire") ? [["LRM / ATM VOLLEY", "STREAM FIRE"]] : []),
+    ...rows,
+  ];
 }
 
 function equipmentTooltipGroups(
@@ -13344,7 +13412,9 @@ function equipmentTooltipGroups(
     ]);
   } else if (item.item_type === "masc") {
     groups.push(...mascTooltipMovementGroups(item, effectiveQuirkValues));
-  } else if (equipmentLimitGroup(item) === "target-computer") {
+  } else if (equipmentLimitGroup(item) === "target-computer"
+    || (equipmentLimitGroup(item) === ""
+      && (isEquipmentInfoTargetComputer(item) || hasWeaponFilterFunctionMode(item)))) {
     const advancedSensorPackage = isAdvancedSensorPackage(item);
     if (advancedSensorPackage) groups.push([
       ["ZOOM LEVEL 1 BOOST", tooltipNumber(100, 0, "%")],
@@ -13354,11 +13424,15 @@ function equipmentTooltipGroups(
       ["TARGETING GAIN TIME BOOST", tooltipNumber(42.5, 1, "%")],
       ...targetComputerTooltipRows(item),
     ]);
-    groups.push([
+    const moduleRows = [
       ["HEALTH", tooltipNumber(stats.health, 1)],
       ["MAX EQUIPPED", tooltipNumber(stats.amountAllowed, 0)],
-      ["SENSOR RANGE", advancedSensorPackage ? "-" : tooltipNumber(targetEquipmentSensorRangeBonus(item) * 100, 2, "%")],
+    ];
+    if (advancedSensorPackage || isEquipmentInfoTargetComputer(item)) moduleRows.push([
+      "SENSOR RANGE",
+      advancedSensorPackage ? "-" : tooltipNumber(equipmentInfoModuleSensorRangeBonus(item) * 100, 2, "%"),
     ]);
+    groups.push(moduleRows);
     if (!advancedSensorPackage) groups.push(targetComputerTooltipRows(item));
   } else if (equipmentLimitGroup(item) === "active-probe") {
     groups.push([
@@ -13479,7 +13553,7 @@ function equipmentTooltipAppliedEffectsHtml(
         <div class="equipment-tooltip-equipment-sources${applied.length ? " has-quirks" : ""}">
           ${equipmentSources.map((source) => `
             <div class="equipment-tooltip-equipment-source">
-              <div class="equipment-tooltip-equipment-source-title ${equipmentToneClass}">${escapeHtml(source.display_name || source.name)}</div>
+              <div class="equipment-tooltip-equipment-source-title">${escapeHtml(source.display_name || source.name)}</div>
               <div class="equipment-tooltip-equipment-effect-rows">
                 ${source.effects.map((effect) => `
                   <div class="equipment-tooltip-equipment-effect ${equipmentToneClass}">

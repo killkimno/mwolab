@@ -1143,7 +1143,7 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.match(html, /BEAM RANGE/);
     assert.match(html, /\+4%/);
     assert.doesNotMatch(html, /VELOCITY/);
-    assert.match(html, /equipment-tooltip-equipment-source-title quirk-tone-energy/);
+    assert.match(html, /class="equipment-tooltip-equipment-source-title">TARGETING COMP\. MK I/);
     assert.match(html, /equipment-tooltip-equipment-effect quirk-tone-energy/);
     assert.match(html, /strong class="quirk-value">\+1\.14%/);
 
@@ -1188,7 +1188,7 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
       ["PROJECTILE CRITICAL CHANCE", "PROJECTILE VELOCITY"],
     );
     const projectileHtml = api.equipmentTooltipAppliedEffectsHtml(projectile, [], result);
-    assert.match(projectileHtml, /equipment-tooltip-equipment-source-title quirk-tone-energy/);
+    assert.match(projectileHtml, /equipment-tooltip-equipment-effect quirk-tone-energy/);
     assert.equal(api.collectTargetComputerWeaponEffects(
       weapon({ name: "UnmatchedWeapon" }),
       [targetComputer],
@@ -1211,6 +1211,139 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
       "TAG RANGE",
     );
     assert.equal(api.collectTargetComputerWeaponEffects(laser, [asp]).sources.length, 0);
+  });
+
+  await t.test("Modified Ballistic Loader 자체 툴팁은 명시된 TC 효과를 표시한다", () => {
+    const loader = {
+      id: 9031,
+      item_type: "module",
+      name: "BaneHeroComputer",
+      display_name: "Modified Ballistic Loader",
+      ctype: "CTargetingComputerStats",
+      stats: { slots: 1, tons: 1, health: 99999, amountAllowed: 1 },
+      weapon_stat_filters: [
+        {
+          tag: "BeamWeapons",
+          compatible_weapons: ["MediumLaser"],
+          weapon_stats: [{ operation: "+", critChanceIncrease: "0.0114,0.0064,0.0014" }],
+          ranges: [{ multiplier: 1.04 }],
+        },
+        {
+          tag: "ProjectileWeapons",
+          compatible_weapons: ["ClanUltraAutoCannon20"],
+          weapon_stats: [
+            { operation: "+", critChanceIncrease: "0.0114,0.0064,0.0014" },
+            { operation: "*", speed: 1.05 },
+          ],
+          ranges: [],
+        },
+        {
+          tag: "ProjectileWeapons",
+          compatible_weapons: ["ClanHyperAssaultGaussRifle40"],
+          weapon_stats: [
+            { operation: "+", spread: 0.5 },
+            { operation: "+", numPerShot: 3 },
+            { operation: "*", damage: 0.34 },
+            { operation: "*", volleydelay: 0.7 },
+          ],
+          ranges: [],
+        },
+        {
+          tag: "ProjectileWeapons",
+          compatible_weapons: ["ClanUltraAutoCannon20"],
+          weapon_stats: [
+            { operation: "+", numFiring: -3 },
+            { operation: "*", damage: 4 },
+          ],
+          ranges: [],
+        },
+      ],
+    };
+    const rows = api.equipmentTooltipGroups(loader, 0, []).flat();
+    const labels = Array.from(rows, ([label]) => label);
+    assert.ok(labels.includes("BEAM RANGE"));
+    assert.ok(labels.includes("BEAM CRITICAL CHANCE"));
+    assert.ok(labels.includes("PROJECTILE VELOCITY"));
+    assert.ok(labels.includes("PROJECTILE CRITICAL CHANCE"));
+    assert.ok(labels.includes("SENSOR RANGE"));
+    assert.ok(labels.includes("HAG / GAUSS FIRING MODE"));
+    assert.ok(labels.includes("AC / UAC FIRING MODE"));
+    assert.equal(rows.find(([label]) => label === "HAG / GAUSS FIRING MODE")[1], "SHOTGUN");
+    assert.equal(rows.find(([label]) => label === "AC / UAC FIRING MODE")[1], "SINGLE PROJECTILE");
+    assert.ok(!labels.includes("DAMAGE"));
+    assert.ok(!labels.includes("SHOTS"));
+
+    const hag = weapon({
+      name: "ClanHyperAssaultGaussRifle40",
+      hardpoint_type: "ballistic",
+      stats: { speed: 1000, projectileclass: "bullet" },
+    });
+    const uac = weapon({
+      name: "ClanUltraAutoCannon20",
+      hardpoint_type: "ballistic",
+      stats: { speed: 1000, projectileclass: "bullet" },
+    });
+    const hagEffects = api.collectTargetComputerWeaponEffects(hag, [loader]);
+    const uacEffects = api.collectTargetComputerWeaponEffects(uac, [loader]);
+    assert.ok(hagEffects.sources[0].effects.some((effect) => (
+      effect.label === "FIRING MODE" && effect.value_text === "SHOTGUN"
+    )));
+    assert.ok(uacEffects.sources[0].effects.some((effect) => (
+      effect.label === "FIRING MODE" && effect.value_text === "SINGLE PROJECTILE"
+    )));
+  });
+
+  await t.test("Modified Missile Loader는 LRM과 ATM의 volley를 stream fire로 표시한다", () => {
+    const loader = {
+      id: 9032,
+      item_type: "module",
+      name: "NagaHeroComputer",
+      display_name: "Modified Missile Loader",
+      ctype: "CTargetingComputerStats",
+      stats: { slots: 1, tons: 1, health: 99999, amountAllowed: 0 },
+      weapon_stat_filters: [{
+        tag: "MissileWeapons",
+        compatible_weapons: ["ClanLRM20", "ClanLRM20_Artemis", "ClanATM12"],
+        weapon_stats: [
+          { operation: "+", volleydelay: 0.2 },
+          { operation: "+", cooldown: -4.35 },
+          { operation: "+", numFiring: -12 },
+          { operation: "+", ammoPerShot: -12 },
+          { operation: "+", MinReactivationTime: 0.15 },
+        ],
+        ranges: [],
+      }],
+    };
+    const rows = api.equipmentTooltipGroups(loader, 0, []).flat();
+    assert.deepEqual(
+      Array.from(rows.find(([label]) => label === "LRM / ATM VOLLEY")),
+      ["LRM / ATM VOLLEY", "STREAM FIRE"],
+    );
+    assert.ok(!Array.from(rows, ([label]) => label).includes("SENSOR RANGE"));
+
+    const lrm = weapon({ name: "ClanLRM20", hardpoint_type: "missile" });
+    const artemisLrm = weapon({ name: "ClanLRM20_Artemis", hardpoint_type: "missile" });
+    const atm = weapon({ name: "ClanATM12", hardpoint_type: "missile" });
+    const unrelated = weapon({ name: "ClanSRM6", hardpoint_type: "missile" });
+    const innerSphereLrm = weapon({ name: "LRM20", hardpoint_type: "missile" });
+    [lrm, artemisLrm, atm].forEach((item) => {
+      const effects = api.collectTargetComputerWeaponEffects(item, [loader]);
+      assert.equal(effects.sources[0].display_name, "Modified Missile Loader");
+      assert.ok(effects.sources[0].effects.some((effect) => (
+        effect.label === "FIRING MODE" && effect.value_text === "STREAM FIRE"
+      )));
+    });
+    assert.equal(api.collectTargetComputerWeaponEffects(unrelated, [loader]).sources.length, 0);
+    assert.equal(api.collectTargetComputerWeaponEffects(innerSphereLrm, [loader]).sources.length, 0);
+
+    const incompleteFilter = {
+      ...loader,
+      weapon_stat_filters: [{
+        ...loader.weapon_stat_filters[0],
+        weapon_stats: [{ operation: "+", numFiring: -12 }],
+      }],
+    };
+    assert.equal(api.collectTargetComputerWeaponEffects(lrm, [incompleteFilter]).sources.length, 0);
   });
 
   await t.test("Artemis와 Railgun Capacitor는 실제 계산값을 장비 출처로 표시한다", () => {
@@ -1247,7 +1380,7 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.equal(artemisEffects.sources[0].effects[0].value_text, "-30%");
     assert.match(
       api.equipmentTooltipAppliedEffectsHtml(artemisWeapon, [], artemisEffects),
-      /equipment-tooltip-equipment-source-title quirk-tone-missile/,
+      /equipment-tooltip-equipment-effect quirk-tone-missile/,
     );
 
     api.state.currentBuild.upgrades.artemis.Equipped = false;
@@ -1283,7 +1416,7 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     );
     assert.match(
       api.equipmentTooltipAppliedEffectsHtml(railgun, [], railgunEffects),
-      /equipment-tooltip-equipment-source-title quirk-tone-ballistic/,
+      /equipment-tooltip-equipment-effect quirk-tone-ballistic/,
     );
   });
 
