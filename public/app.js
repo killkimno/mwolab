@@ -160,7 +160,9 @@ const TEXT = {
     "ui.quirkValues": "쿼크 수치 표시",
     "ui.allValues": "모든 수치 표시",
     "ui.simplifyAmmoQuirks": "탄약 쿼크 표시 간소화",
+    "ui.showWeaponTooltipQuirks": "장비 툴팁 적용 효과 표시",
     "ui.ammoQuirksActive": "탄약 쿼크 적용중",
+    "equipmentTooltip.appliedEffects": "적용 효과",
     "ui.on": "ON",
     "ui.off": "OFF",
     "ui.close": "닫기",
@@ -708,7 +710,9 @@ const TEXT = {
     "ui.quirkValues": "Show quirk value",
     "ui.allValues": "Show all values",
     "ui.simplifyAmmoQuirks": "Simplify ammo quirks",
+    "ui.showWeaponTooltipQuirks": "Show applied effects in item tooltips",
     "ui.ammoQuirksActive": "Ammo quirks active",
+    "equipmentTooltip.appliedEffects": "APPLIED EFFECTS",
     "ui.on": "ON",
     "ui.off": "OFF",
     "ui.close": "Close",
@@ -1702,6 +1706,7 @@ const RECOMMENDED_SKILL_GROUP_KEYS = Object.freeze([
 const QUIRK_VALUE_DISPLAY_STORAGE_KEY = "mwolab:quirk-value-display";
 const QUIRK_VALUE_DISPLAY_MODES = new Set(["final", "quirk", "all"]);
 const SIMPLIFY_AMMO_QUIRKS_STORAGE_KEY = "mwolab:simplify-ammo-quirks";
+const SHOW_WEAPON_TOOLTIP_QUIRKS_STORAGE_KEY = "mwolab:show-weapon-tooltip-quirks";
 
 function savedQuirkValueDisplayMode() {
   try {
@@ -1717,6 +1722,14 @@ function savedSimplifyAmmoQuirks() {
     return localStorage.getItem(SIMPLIFY_AMMO_QUIRKS_STORAGE_KEY) === "true";
   } catch {
     return false;
+  }
+}
+
+function savedShowWeaponTooltipQuirks() {
+  try {
+    return localStorage.getItem(SHOW_WEAPON_TOOLTIP_QUIRKS_STORAGE_KEY) !== "false";
+  } catch {
+    return true;
   }
 }
 
@@ -1748,6 +1761,7 @@ const state = {
   infoApplyQuirks: true,
   quirkValueDisplayMode: savedQuirkValueDisplayMode(),
   simplifyAmmoQuirks: savedSimplifyAmmoQuirks(),
+  showWeaponTooltipQuirks: savedShowWeaponTooltipQuirks(),
   compareMode: false,
   compareMechIds: [],
   compareBaselineMechId: null,
@@ -1912,7 +1926,7 @@ function weaponBaseDirectDamage(item) {
 }
 
 function alwaysAppliedWeaponModuleBonus(item) {
-  if (item?.item_type !== "weapon") return { damage: 0, heat: 0 };
+  if (item?.item_type !== "weapon") return { damage: 0, heat: 0, source: null };
   const cacheKey = String(item.id ?? item.name ?? "");
   const cached = state.alwaysAppliedWeaponModuleBonusCache.get(cacheKey);
   if (cached) return cached;
@@ -1933,7 +1947,16 @@ function alwaysAppliedWeaponModuleBonus(item) {
     normalizeFactionKey(candidate.faction) === normalizeFactionKey(item.faction)
   )) || matchingModules[0];
   const count = Math.max(0, Math.trunc(number(module?.stats?.amountAllowed)));
-  const bonus = { damage: 0, heat: 0 };
+  const bonus = {
+    damage: 0,
+    heat: 0,
+    source: module ? {
+      id: module.id,
+      name: module.name,
+      display_name: module.display_name || module.name,
+      count,
+    } : null,
+  };
   (module?.weapon_stat_filters || []).forEach((filter) => {
     if (!(filter.compatible_weapons || []).some((name) => normalizeLookupKey(name) === weaponKey)) return;
     (filter.weapon_stats || []).forEach((stats) => {
@@ -2125,15 +2148,19 @@ function isArtemisWeapon(item) {
   return isGuidanceWeapon(item) && /artemis/i.test(String(item.name || ""));
 }
 
+function artemisUpgradeItem() {
+  return Object.values(state.equipment?.items || {}).find((item) => (
+    item?.item_type === "upgrade"
+    && number(item.stats?.extraSlots) > 0
+    && Number.isFinite(Number(item.stats?.missileSpread))
+  )) || null;
+}
+
 function artemisSpreadMultiplier() {
   if (Number.isFinite(state.artemisSpreadMultiplierCache)) {
     return state.artemisSpreadMultiplierCache;
   }
-  const upgrade = Object.values(state.equipment?.items || {}).find((item) => (
-    item?.item_type === "upgrade"
-    && number(item.stats?.extraSlots) > 0
-    && Number.isFinite(Number(item.stats?.missileSpread))
-  ));
+  const upgrade = artemisUpgradeItem();
   const multiplier = Number(upgrade?.stats?.missileSpread);
   if (Number.isFinite(multiplier) && multiplier >= 0) {
     state.artemisSpreadMultiplierCache = multiplier;
@@ -2145,10 +2172,7 @@ function artemisSpreadMultiplier() {
 function weaponSpreadValues(item, quirks = []) {
   const base = number(item?.stats?.spread);
   if (!(base > 0)) return null;
-  const type = equipmentHardpointType(item);
-  const modifier = quirkSignedValue(quirks, "all_spread_multiplier")
-    + quirkSignedValue(quirks, `${type}_spread_multiplier`)
-    + simulationSpecificQuirkTotal(quirks, item, "_spread_multiplier", "signed");
+  const modifier = collectWeaponQuirkEffects(item, quirks).totals.spreadModifier;
   const artemisMultiplier = isArtemisWeapon(item) ? artemisSpreadMultiplier() : 1;
   return {
     base,
@@ -7498,22 +7522,377 @@ function simulationSpecificQuirkMatchesItem(prefix, item) {
     && Array.from(keys).some((key) => key.endsWith(prefix));
 }
 
+function directWeaponQuirkNamesForSuffix(suffix) {
+  if (suffix === "_cooldown_multiplier") return DIRECT_COOLDOWN_QUIRKS;
+  if (suffix === "_heat_multiplier") return DIRECT_HEAT_QUIRKS;
+  if (suffix === "_duration_multiplier") return DIRECT_DURATION_QUIRKS;
+  if (suffix === "_range_multiplier") return DIRECT_RANGE_QUIRKS;
+  if (suffix === "_velocity_multiplier") return DIRECT_VELOCITY_QUIRKS;
+  if (suffix === "_spread_multiplier") return DIRECT_SPREAD_QUIRKS;
+  return null;
+}
+
+function directionalQuirkValue(quirk, direction = "reduction") {
+  const value = number(quirk?.value);
+  if (direction === "signed") return value;
+  return direction === "reduction" ? Math.max(0, -value) : Math.max(0, value);
+}
+
+function simulationSpecificQuirkValue(quirk, item, suffix, direction = "reduction") {
+  const name = String(quirk?.name || "").toLowerCase();
+  if (!name.endsWith(suffix)) return 0;
+  if (directWeaponQuirkNamesForSuffix(suffix)?.has(name)) return 0;
+  if ([
+    "_cooldown_multiplier",
+    "_heat_multiplier",
+    "_range_multiplier",
+    "_velocity_multiplier",
+    "_spread_multiplier",
+  ].includes(suffix)
+    && name === `${equipmentHardpointType(item)}${suffix}`) return 0;
+  const prefix = normalizeLookupKey(name.slice(0, -suffix.length));
+  if (!prefix || !simulationSpecificQuirkMatchesItem(prefix, item)) return 0;
+  return directionalQuirkValue(quirk, direction);
+}
+
 function simulationSpecificQuirkTotal(quirks, item, suffix, direction = "reduction") {
-  return quirks.reduce((sum, quirk) => {
-    const name = String(quirk.name || "").toLowerCase();
-    if (!name.endsWith(suffix)) return sum;
-    if (suffix === "_cooldown_multiplier" && DIRECT_COOLDOWN_QUIRKS.has(name)) return sum;
-    if (suffix === "_heat_multiplier" && DIRECT_HEAT_QUIRKS.has(name)) return sum;
-    if (suffix === "_duration_multiplier" && DIRECT_DURATION_QUIRKS.has(name)) return sum;
-    if (suffix === "_range_multiplier" && DIRECT_RANGE_QUIRKS.has(name)) return sum;
-    if (suffix === "_velocity_multiplier" && DIRECT_VELOCITY_QUIRKS.has(name)) return sum;
-    if (suffix === "_spread_multiplier" && DIRECT_SPREAD_QUIRKS.has(name)) return sum;
-    const prefix = normalizeLookupKey(name.slice(0, -suffix.length));
-    if (!prefix || !simulationSpecificQuirkMatchesItem(prefix, item)) return sum;
-    const value = number(quirk.value);
-    if (direction === "signed") return sum + value;
-    return sum + (direction === "reduction" ? Math.max(0, -value) : Math.max(0, value));
-  }, 0);
+  return quirks.reduce(
+    (sum, quirk) => sum + simulationSpecificQuirkValue(quirk, item, suffix, direction),
+    0,
+  );
+}
+
+const normalizedQuirkEntriesCache = new WeakMap();
+
+function normalizedQuirkEntries(quirks = []) {
+  if (Array.isArray(quirks) && normalizedQuirkEntriesCache.has(quirks)) {
+    return normalizedQuirkEntriesCache.get(quirks);
+  }
+  const normalizedQuirksByName = new Map();
+  for (const quirk of quirks) {
+    const name = String(quirk?.name || "").toLowerCase();
+    if (!name) continue;
+    if (!normalizedQuirksByName.has(name)) {
+      normalizedQuirksByName.set(name, {
+        ...quirk,
+        name,
+        value: 0,
+        sources: new Set(),
+        contributions: [],
+      });
+    }
+    const entry = normalizedQuirksByName.get(name);
+    entry.value += number(quirk.value);
+    String(quirk.source_text || "").split(",").map((source) => source.trim()).filter(Boolean)
+      .forEach((source) => entry.sources.add(source));
+    Array.from(quirk.sources || []).forEach((source) => entry.sources.add(source));
+    (quirk.contributions || []).forEach((contribution) => {
+      entry.contributions.push(contribution);
+      if (contribution.source) entry.sources.add(contribution.source);
+    });
+  }
+  const normalizedQuirks = Array.from(normalizedQuirksByName.values()).map((quirk) => ({
+    ...quirk,
+    value_text: quirkValueText(quirk.name, quirk.value),
+    source_text: Array.from(quirk.sources).join(", "),
+  }));
+  if (Array.isArray(quirks)) normalizedQuirkEntriesCache.set(quirks, normalizedQuirks);
+  return normalizedQuirks;
+}
+
+const weaponQuirkEffectsCache = new WeakMap();
+
+function collectWeaponQuirkEffects(item, quirks = []) {
+  if (item && Array.isArray(quirks)) {
+    const cachedByItem = weaponQuirkEffectsCache.get(quirks);
+    const cached = cachedByItem?.get(item);
+    if (cached) return cached;
+  }
+
+  const totals = {
+    cooldownReduction: 0,
+    durationModifier: 0,
+    rofBonus: 0,
+    heatReduction: 0,
+    rangeBonus: 0,
+    velocityBonus: 0,
+    spreadModifier: 0,
+    damageAdditive: 0,
+    jamChanceReduction: 0,
+    jamDurationReduction: 0,
+    hslBonus: 0,
+  };
+  const normalizedQuirks = normalizedQuirkEntries(quirks);
+  const appliedByName = new Map();
+  const stats = item?.stats || {};
+  const type = equipmentHardpointType(item);
+  const continuousTiming = isSimulationContinuousDamagePerSecondWeapon(item);
+  const usesRofTiming = number(stats.rof) > 0;
+  const usesStandardTiming = !continuousTiming && !usesRofTiming;
+  const hasRange = (item?.ranges || []).some((range) => number(range.start) > 0);
+  const hasVelocity = number(stats.speed) > 0 && !isHitscanWeapon(item);
+  const hasSpread = number(stats.spread) > 0;
+  const ultraAutoCannon = isUltraAutoCannon(item);
+  const hasGhostHeat = Boolean(ghostHeatGroupKey(item));
+
+  const record = (quirk, effect, value, harmful = false) => {
+    if (Math.abs(value) < 0.0001) return;
+    const name = String(quirk?.name || "").toLowerCase();
+    if (!name) return;
+    if (!appliedByName.has(name)) {
+      appliedByName.set(name, {
+        ...quirk,
+        name,
+        effects: new Set(),
+        effective_value: 0,
+        harmful: false,
+      });
+    }
+    const entry = appliedByName.get(name);
+    entry.effects.add(effect);
+    entry.effective_value += value;
+    entry.harmful ||= harmful;
+  };
+
+  for (const quirk of normalizedQuirks) {
+    const name = String(quirk?.name || "").toLowerCase();
+    if (!name) continue;
+
+    if (usesStandardTiming && !isRocketLauncher(item) && number(stats.cooldown) > 0) {
+      let value = 0;
+      if (name === "all_cooldown_multiplier" || name === `${type}_cooldown_multiplier`) {
+        value += directionalQuirkValue(quirk, "reduction");
+      }
+      value += simulationSpecificQuirkValue(quirk, item, "_cooldown_multiplier", "reduction");
+      totals.cooldownReduction += value;
+      record(quirk, "cooldown", value);
+    }
+
+    if (usesStandardTiming && number(stats.duration) > 0) {
+      let value = 0;
+      if (name === "all_duration_multiplier" || (type === "energy" && name === "energy_duration_multiplier")) {
+        value += directionalQuirkValue(quirk, "signed");
+      }
+      value += simulationSpecificQuirkValue(quirk, item, "_duration_multiplier", "signed");
+      totals.durationModifier += value;
+      record(quirk, "duration", value, value > 0);
+    }
+
+    if (usesRofTiming) {
+      const value = simulationSpecificQuirkValue(quirk, item, "_rof_multiplier", "increase");
+      totals.rofBonus += value;
+      record(quirk, "rof", value);
+    }
+
+    let heatValue = 0;
+    if (name === "all_heat_multiplier" || name === `${type}_heat_multiplier`) {
+      heatValue += directionalQuirkValue(quirk, "reduction");
+    }
+    heatValue += simulationSpecificQuirkValue(quirk, item, "_heat_multiplier", "reduction");
+    totals.heatReduction += heatValue;
+    if (itemHeat(item) > 0) record(quirk, "heat", heatValue);
+
+    let rangeValue = 0;
+    if (name === "all_range_multiplier" || name === `${type}_range_multiplier`) {
+      rangeValue += directionalQuirkValue(quirk, "increase");
+    }
+    rangeValue += simulationSpecificQuirkValue(quirk, item, "_range_multiplier", "increase");
+    totals.rangeBonus += rangeValue;
+    if (hasRange) record(quirk, "range", rangeValue);
+
+    let velocityValue = 0;
+    if (name === "all_velocity_multiplier" || name === `${type}_velocity_multiplier`) {
+      velocityValue += directionalQuirkValue(quirk, "increase");
+    }
+    velocityValue += simulationSpecificQuirkValue(quirk, item, "_velocity_multiplier", "increase");
+    totals.velocityBonus += velocityValue;
+    if (hasVelocity) record(quirk, "velocity", velocityValue);
+
+    let spreadValue = 0;
+    if (name === "all_spread_multiplier" || name === `${type}_spread_multiplier`) {
+      spreadValue += directionalQuirkValue(quirk, "signed");
+    }
+    spreadValue += simulationSpecificQuirkValue(quirk, item, "_spread_multiplier", "signed");
+    totals.spreadModifier += spreadValue;
+    if (hasSpread) record(quirk, "spread", spreadValue, spreadValue > 0);
+
+    if (isAmsWeapon(item)) {
+      const value = simulationSpecificQuirkValue(quirk, item, "_damage_additive", "increase");
+      totals.damageAdditive += value;
+      record(quirk, "damage", value);
+    }
+
+    if (ultraAutoCannon && number(stats.JammingChance) > 0) {
+      let value = name === "all_jamchance_multiplier"
+        ? directionalQuirkValue(quirk, "reduction")
+        : 0;
+      value += simulationSpecificQuirkValue(quirk, item, "_jamchance_multiplier", "reduction");
+      totals.jamChanceReduction += value;
+      record(quirk, "jamChance", value);
+    }
+
+    if (ultraAutoCannon && number(stats.JammedTime) > 0) {
+      let value = name === "all_jamduration_multiplier"
+        ? directionalQuirkValue(quirk, "reduction")
+        : 0;
+      value += simulationSpecificQuirkValue(quirk, item, "_jamduration_multiplier", "reduction");
+      totals.jamDurationReduction += value;
+      record(quirk, "jamDuration", value);
+    }
+
+    if (name.endsWith("_minheatpenaltylevel_additive")) {
+      const suffix = "_minheatpenaltylevel_additive";
+      const prefix = normalizeLookupKey(name.slice(0, -suffix.length));
+      const matches = ["all", "weapon", "weapons"].includes(prefix)
+        || prefix === normalizeLookupKey(type)
+        || simulationSpecificQuirkMatchesItem(prefix, item);
+      const value = matches ? Math.max(0, number(quirk.value)) : 0;
+      totals.hslBonus += value;
+      if (hasGhostHeat) record(quirk, "hsl", value);
+    }
+  }
+
+  const result = {
+    totals,
+    applied: sortQuirksForDisplay(Array.from(appliedByName.values())).map((quirk) => ({
+      ...quirk,
+      effects: Array.from(quirk.effects),
+    })),
+  };
+  if (item && Array.isArray(quirks)) {
+    let cachedByItem = weaponQuirkEffectsCache.get(quirks);
+    if (!cachedByItem) {
+      cachedByItem = new WeakMap();
+      weaponQuirkEffectsCache.set(quirks, cachedByItem);
+    }
+    cachedByItem.set(item, result);
+  }
+  return result;
+}
+
+function collectEquipmentQuirkEffects(item, quirks = []) {
+  if (item?.item_type === "weapon") return collectWeaponQuirkEffects(item, quirks);
+
+  const appliedByName = new Map();
+  const normalizedQuirks = normalizedQuirkEntries(quirks);
+  const stats = item?.stats || {};
+  const record = (quirk, effect, value) => {
+    if (Math.abs(value) < 0.0001) return;
+    const name = String(quirk?.name || "").toLowerCase();
+    if (!name) return;
+    if (!appliedByName.has(name)) {
+      appliedByName.set(name, {
+        ...quirk,
+        name,
+        effects: new Set(),
+        effective_value: 0,
+        harmful: false,
+      });
+    }
+    const entry = appliedByName.get(name);
+    entry.effects.add(effect);
+    entry.effective_value += value;
+  };
+  const recordExact = (name, effect, direction, active) => {
+    if (!active) return;
+    const quirk = normalizedQuirks.find((entry) => entry.name === name);
+    if (!quirk) return;
+    record(quirk, effect, directionalQuirkValue(quirk, direction));
+  };
+
+  if (item?.item_type === "ammo") {
+    const ammoKey = ammoCapacityQuirkKey(item);
+    const baseShots = Math.max(0, number(stats.numShots));
+    const finalShots = effectiveAmmoShots(item, quirks);
+    if (ammoKey && finalShots > baseShots) {
+      normalizedQuirks.forEach((quirk) => {
+        const name = String(quirk.name || "");
+        if (!name.startsWith("ammocapacity_") || !name.endsWith("_additive")) return;
+        const prefix = normalizeLookupKey(
+          name.slice("ammocapacity_".length, -"_additive".length),
+        );
+        if (prefix !== ammoKey) return;
+        const value = directionalQuirkValue(quirk, "increase");
+        record(quirk, "ammoCapacity", value);
+        const applied = appliedByName.get(name);
+        if (applied) {
+          applied.display_value = value * Math.max(0, itemTons(item));
+          applied.display_value_text = quirkValueText(name, applied.display_value);
+        }
+      });
+    }
+  } else if (String(item?.ctype || "") === "CHeatSinkStats") {
+    recordExact(
+      "maxheat_multiplier",
+      "heatCapacity",
+      "increase",
+      Math.abs(number(stats.heatbase)) > 0,
+    );
+    recordExact(
+      "heatdissipation_multiplier",
+      "heatDissipation",
+      "increase",
+      number(stats.cooling) !== 0 || number(stats.engineCooling) !== 0,
+    );
+  } else if (item?.item_type === "engine") {
+    recordExact(
+      "mechtopspeed_multiplier",
+      "maxSpeed",
+      "signed",
+      engineTooltipMaxSpeed(item) > 0,
+    );
+  } else if (item?.item_type === "jumpjet") {
+    recordExact(
+      "jumpjets_burntime_multiplier",
+      "duration",
+      "increase",
+      number(stats.duration) !== 0,
+    );
+    recordExact(
+      "jumpjets_initialthrust_multiplier",
+      "initialThrust",
+      "increase",
+      number(stats.boost_instant) !== 0,
+    );
+  } else if (item?.item_type === "masc") {
+    const movement = movementInfo(quirkValues(quirks));
+    const engine = installedEngine();
+    recordExact(
+      "mechtopspeed_multiplier",
+      "mascSpeed",
+      "signed",
+      number(stats.BoostSpeed) !== 0 && engine && engineTooltipMaxSpeed(engine) > 0,
+    );
+    ["mechacceleration_multiplier", "accellerp_all_multiplier"].forEach((name) => {
+      recordExact(name, "mascAcceleration", "signed", number(stats.BoostAccel) !== 0 && movement.baseAcceleration !== 0);
+    });
+    ["mechdeceleration_multiplier", "decellerp_all_multiplier"].forEach((name) => {
+      recordExact(name, "mascDeceleration", "signed", number(stats.BoostDecel) !== 0 && movement.baseDeceleration !== 0);
+    });
+    ["turnrate_multiplier", "turnlerp_all_multiplier"].forEach((name) => {
+      recordExact(name, "mascTurn", "signed", number(stats.BoostTurn) !== 0 && movement.baseTurnSpeed !== 0);
+    });
+  } else if (isEcm(item)) {
+    recordExact(
+      "ecmtargetrangereduction_multiplier",
+      "ecmTargetRangeReduction",
+      "increase",
+      true,
+    );
+    recordExact(
+      "stealtharmorcooldown_multiplier",
+      "stealthArmorCooldown",
+      "reduction",
+      true,
+    );
+  }
+
+  return {
+    applied: sortQuirksForDisplay(Array.from(appliedByName.values())).map((quirk) => ({
+      ...quirk,
+      effects: Array.from(quirk.effects),
+    })),
+  };
 }
 
 function targetComputerFilterMatchesWeapon(filter, item) {
@@ -7522,38 +7901,166 @@ function targetComputerFilterMatchesWeapon(filter, item) {
     .some((name) => normalizeLookupKey(name) === weaponKey);
 }
 
-function targetComputerWeaponModifiers(item, modules = installedMechItems("module")) {
-  const result = {
+function targetComputerEffectScope(module, filter) {
+  const tag = String(filter?.tag || "WEAPONS");
+  if (isAdvancedSensorPackage(module) && tag.toLowerCase() === "beamweapons") return "TAG";
+  return tag.replace(/Weapons$/i, "").toUpperCase();
+}
+
+function signedEquipmentEffectText(value, digits = 1, unit = "") {
+  const numeric = number(value);
+  return `${numeric > 0 ? "+" : ""}${tooltipNumber(numeric, digits, unit)}`;
+}
+
+function collectTargetComputerWeaponEffects(item, modules = installedMechItems("module")) {
+  const totals = {
     rangeBonus: 0,
     speedBonus: 0,
     criticalChance: [0, 0, 0],
   };
+  const sources = [];
+  const hasRange = (item?.ranges || []).some((range) => number(range.start) > 0);
+  const hasVelocity = number(item?.stats?.speed) > 0 && !isHitscanWeapon(item);
+
   modules.forEach((module) => {
+    const displayValues = {
+      criticalChance: new Map(),
+      range: new Map(),
+      velocity: new Map(),
+    };
+    const addDisplayValue = (kind, scope, value) => {
+      if (Math.abs(value) < 0.0001) return;
+      displayValues[kind].set(scope, number(displayValues[kind].get(scope)) + value);
+    };
+
     (module.weapon_stat_filters || []).forEach((filter) => {
       if (!targetComputerFilterMatchesWeapon(filter, item)) return;
+      const scope = targetComputerEffectScope(module, filter);
       (filter.ranges || []).forEach((range) => {
         const multiplier = number(range.multiplier, 1);
-        if (multiplier > 0) result.rangeBonus += multiplier - 1;
+        if (multiplier > 0) {
+          const value = multiplier - 1;
+          totals.rangeBonus += value;
+          if (hasRange) addDisplayValue("range", scope, value);
+        }
       });
       (filter.weapon_stats || []).forEach((weaponStats) => {
         const operation = String(weaponStats.operation || "");
         if (operation === "*" && number(weaponStats.speed) > 0) {
-          result.speedBonus += number(weaponStats.speed, 1) - 1;
+          const value = number(weaponStats.speed, 1) - 1;
+          totals.speedBonus += value;
+          if (hasVelocity) addDisplayValue("velocity", scope, value);
         }
         if (operation === "+" && weaponStats.critChanceIncrease !== undefined) {
           String(weaponStats.critChanceIncrease).split(",").forEach((value, index) => {
-            if (index < result.criticalChance.length) result.criticalChance[index] += number(Number(value));
+            if (index < totals.criticalChance.length) {
+              totals.criticalChance[index] += number(Number(value));
+            }
           });
+          addDisplayValue(
+            "criticalChance",
+            scope,
+            number(Number(String(weaponStats.critChanceIncrease).split(",")[0])),
+          );
         }
       });
     });
+
+    const effects = [
+      ...Array.from(displayValues.criticalChance, ([scope, value]) => ({
+        key: "criticalChance",
+        label: `${scope} CRITICAL CHANCE`,
+        value,
+        value_text: signedEquipmentEffectText(value * 100, 2, "%"),
+      })),
+      ...Array.from(displayValues.range, ([scope, value]) => ({
+        key: "range",
+        label: `${scope} RANGE`,
+        value,
+        value_text: signedEquipmentEffectText(value * 100, 1, "%"),
+      })),
+      ...Array.from(displayValues.velocity, ([scope, value]) => ({
+        key: "velocity",
+        label: `${scope} VELOCITY`,
+        value,
+        value_text: signedEquipmentEffectText(value * 100, 1, "%"),
+      })),
+    ];
+    if (effects.length) {
+      sources.push({
+        id: module.id,
+        name: module.name,
+        display_name: module.display_name || module.name,
+        effects,
+      });
+    }
   });
-  return result;
+  return { totals, sources };
+}
+
+function targetComputerWeaponModifiers(item, modules = installedMechItems("module")) {
+  return collectTargetComputerWeaponEffects(item, modules).totals;
+}
+
+function collectInstalledWeaponEquipmentEffects(item, modules = installedMechItems("module")) {
+  if (item?.item_type !== "weapon") return { sources: [] };
+  const sources = [...collectTargetComputerWeaponEffects(item, modules).sources];
+  const artemisMultiplier = artemisSpreadMultiplier();
+  const artemisUpgrade = artemisUpgradeItem();
+  if (artemisEquipped()
+    && isArtemisWeapon(item)
+    && number(item.stats?.spread) > 0
+    && artemisUpgrade
+    && Math.abs(artemisMultiplier - 1) >= 0.0001) {
+    sources.push({
+      id: artemisUpgrade.id,
+      name: artemisUpgrade.name,
+      display_name: artemisUpgrade.display_name || artemisUpgrade.name || "ARTEMIS",
+      effects: [{
+        key: "spread",
+        label: "MISSILE SPREAD",
+        value: artemisMultiplier - 1,
+        value_text: signedEquipmentEffectText((artemisMultiplier - 1) * 100, 1, "%"),
+      }],
+    });
+  }
+
+  const moduleBonus = alwaysAppliedWeaponModuleBonus(item);
+  if (moduleBonus.source && (moduleBonus.damage !== 0 || moduleBonus.heat !== 0)) {
+    const countSuffix = moduleBonus.source.count > 1 ? ` ×${moduleBonus.source.count}` : "";
+    sources.push({
+      ...moduleBonus.source,
+      display_name: `${moduleBonus.source.display_name}${countSuffix}`,
+      effects: [
+        moduleBonus.damage !== 0 ? {
+          key: "damage",
+          label: "DAMAGE",
+          value: moduleBonus.damage,
+          value_text: signedEquipmentEffectText(moduleBonus.damage, 1),
+        } : null,
+        moduleBonus.heat !== 0 ? {
+          key: "heat",
+          label: "HEAT",
+          value: moduleBonus.heat,
+          value_text: signedEquipmentEffectText(moduleBonus.heat, 1),
+        } : null,
+      ].filter(Boolean),
+    });
+  }
+
+  return { sources };
+}
+
+function weaponEquipmentEffectToneClass(item) {
+  const type = equipmentHardpointType(item);
+  if (type === "energy") return "quirk-tone-energy";
+  if (type === "missile") return "quirk-tone-missile";
+  if (type === "ballistic") return "quirk-tone-ballistic";
+  return "quirk-tone-default";
 }
 
 function simulationWeaponTiming(item, quirks) {
   const stats = item?.stats || {};
-  const type = equipmentHardpointType(item);
   if (isSimulationContinuousDamagePerSecondWeapon(item)) {
     return {
       duration: 0,
@@ -7564,7 +8071,7 @@ function simulationWeaponTiming(item, quirks) {
   }
   const rof = number(stats.rof);
   if (rof > 0) {
-    const rofBonus = simulationSpecificQuirkTotal(quirks, item, "_rof_multiplier", "increase");
+    const rofBonus = collectWeaponQuirkEffects(item, quirks).totals.rofBonus;
     const cycle = Math.max(0.016, 1 / (rof * (1 + rofBonus)));
     return {
       duration: 0,
@@ -7574,14 +8081,9 @@ function simulationWeaponTiming(item, quirks) {
     };
   }
 
-  const cooldownReduction = isRocketLauncher(item)
-    ? 0
-    : quirkReduction(quirks, "all_cooldown_multiplier")
-      + quirkReduction(quirks, `${type}_cooldown_multiplier`)
-      + simulationSpecificQuirkTotal(quirks, item, "_cooldown_multiplier");
-  const durationModifier = quirkSignedValue(quirks, "all_duration_multiplier")
-    + (type === "energy" ? quirkSignedValue(quirks, "energy_duration_multiplier") : 0)
-    + simulationSpecificQuirkTotal(quirks, item, "_duration_multiplier", "signed");
+  const effects = collectWeaponQuirkEffects(item, quirks).totals;
+  const cooldownReduction = effects.cooldownReduction;
+  const durationModifier = effects.durationModifier;
   const cooldown = Math.max(0, number(stats.cooldown) * Math.max(0, 1 - cooldownReduction));
   const duration = Math.max(0, number(stats.duration) * Math.max(0, 1 + durationModifier));
   return {
@@ -7647,21 +8149,12 @@ function simulationWeaponCycle(item, quirks) {
 }
 
 function simulationWeaponHeat(item, quirks) {
-  const type = equipmentHardpointType(item);
-  const heatReduction = quirkReduction(quirks, "all_heat_multiplier")
-    + quirkReduction(quirks, `${type}_heat_multiplier`)
-    + simulationSpecificQuirkTotal(quirks, item, "_heat_multiplier");
+  const heatReduction = collectWeaponQuirkEffects(item, quirks).totals.heatReduction;
   return Math.max(0, itemHeat(item) * Math.max(0, 1 - heatReduction));
 }
 
 function simulationWeaponRangeBonus(item, quirks) {
-  if (isAmsWeapon(item)) {
-    return simulationSpecificQuirkTotal(quirks, item, "_range_multiplier", "increase");
-  }
-  const type = equipmentHardpointType(item);
-  return quirkIncrease(quirks, "all_range_multiplier")
-    + quirkIncrease(quirks, `${type}_range_multiplier`)
-    + simulationSpecificQuirkTotal(quirks, item, "_range_multiplier", "increase");
+  return collectWeaponQuirkEffects(item, quirks).totals.rangeBonus;
 }
 
 function simulationWeaponRangeProfile(item, rangeBonus = 0, equipmentBonus = 0) {
@@ -8686,17 +9179,7 @@ function addSimulationHeat(weapon, shotCount = 1) {
 }
 
 function ghostHeatHslBonus(item, quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild)) {
-  const suffix = "_minheatpenaltylevel_additive";
-  const weaponType = equipmentHardpointType(item);
-  return quirks.reduce((sum, quirk) => {
-    const name = String(quirk.name || "").toLowerCase();
-    if (!name.endsWith(suffix)) return sum;
-    const prefix = normalizeLookupKey(name.slice(0, -suffix.length));
-    const matches = ["all", "weapon", "weapons"].includes(prefix)
-      || prefix === normalizeLookupKey(weaponType)
-      || simulationSpecificQuirkMatchesItem(prefix, item);
-    return matches ? sum + Math.max(0, number(quirk.value)) : sum;
-  }, 0);
+  return collectWeaponQuirkEffects(item, quirks).totals.hslBonus;
 }
 
 function ghostHeatWeaponExtra(item, weaponCount, heat = itemHeat(item), hslBonus = 0) {
@@ -12165,6 +12648,15 @@ function renderUiSettingsDialog() {
   simplifyAmmo.checked = state.simplifyAmmoQuirks;
   simplifyAmmo.closest(".ui-display-option")?.classList.toggle("active", simplifyAmmo.checked);
   $("simplify-ammo-quirks-state").textContent = t(simplifyAmmo.checked ? "ui.on" : "ui.off");
+  const showWeaponTooltipQuirks = $("show-weapon-tooltip-quirks");
+  showWeaponTooltipQuirks.checked = state.showWeaponTooltipQuirks;
+  showWeaponTooltipQuirks.closest(".ui-display-option")?.classList.toggle(
+    "active",
+    showWeaponTooltipQuirks.checked,
+  );
+  $("show-weapon-tooltip-quirks-state").textContent = t(
+    showWeaponTooltipQuirks.checked ? "ui.on" : "ui.off",
+  );
 }
 
 function openUiSettingsDialog() {
@@ -12209,6 +12701,20 @@ function setSimplifyAmmoQuirks(enabled) {
   if (state.selectedMech && state.currentBuild) {
     renderMechSummary(calculateBuild());
   }
+}
+
+function setShowWeaponTooltipQuirks(enabled) {
+  state.showWeaponTooltipQuirks = Boolean(enabled);
+  try {
+    localStorage.setItem(
+      SHOW_WEAPON_TOOLTIP_QUIRKS_STORAGE_KEY,
+      String(state.showWeaponTooltipQuirks),
+    );
+  } catch {
+    // Keep the selected mode for this session when storage is unavailable.
+  }
+  renderUiSettingsDialog();
+  if (activeEquipmentTooltipTarget) showEquipmentTooltip(activeEquipmentTooltipTarget);
 }
 
 function stripBuildArmor() {
@@ -12416,7 +12922,7 @@ function weaponDamagePerSecond(item, quirks = []) {
   const directDamage = weaponDirectDamage(item);
   const rof = number(item?.stats?.rof);
   if (!(rof > 0)) return { base: directDamage, final: directDamage };
-  const rofBonus = simulationSpecificQuirkTotal(quirks, item, "_rof_multiplier", "increase");
+  const rofBonus = collectWeaponQuirkEffects(item, quirks).totals.rofBonus;
   return {
     base: directDamage * rof,
     final: directDamage * rof * (1 + rofBonus),
@@ -12425,7 +12931,7 @@ function weaponDamagePerSecond(item, quirks = []) {
 
 function amsDamagePerSecond(item, quirks = []) {
   const base = Math.max(0, number(item?.stats?.damage));
-  const additive = simulationSpecificQuirkTotal(quirks, item, "_damage_additive", "increase");
+  const additive = collectWeaponQuirkEffects(item, quirks).totals.damageAdditive;
   return { base, final: base + additive };
 }
 
@@ -12607,10 +13113,9 @@ function atmTooltipDamageBands(item, rangeBonus = 0) {
 function ultraAutoCannonJamStats(item, quirks = []) {
   const baseChance = Math.max(0, number(item?.stats?.JammingChance));
   const baseDuration = Math.max(0, number(item?.stats?.JammedTime));
-  const chanceReduction = quirkReduction(quirks, "all_jamchance_multiplier")
-    + simulationSpecificQuirkTotal(quirks, item, "_jamchance_multiplier");
-  const durationReduction = quirkReduction(quirks, "all_jamduration_multiplier")
-    + simulationSpecificQuirkTotal(quirks, item, "_jamduration_multiplier");
+  const effects = collectWeaponQuirkEffects(item, quirks).totals;
+  const chanceReduction = effects.jamChanceReduction;
+  const durationReduction = effects.jamDurationReduction;
   return {
     baseChance,
     chance: Math.max(0, Math.min(1, baseChance * Math.max(0, 1 - chanceReduction))),
@@ -12682,10 +13187,13 @@ function targetComputerTooltipRows(item) {
   return rows;
 }
 
-function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
+function equipmentTooltipGroups(
+  item,
+  ghostHeatExtra = 0,
+  quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild),
+) {
   const stats = item?.stats || {};
-  const quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild);
-  const quirkValues = mechlabQuirkValues();
+  const effectiveQuirkValues = quirkValues(quirks);
   const groups = [[
       ["TONS", tooltipNumber(itemTons(item), 2)],
       ["SLOTS", tooltipNumber(effectiveItemSlots(item), 0)],
@@ -12693,7 +13201,6 @@ function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
 
   if (item.item_type === "weapon") {
     const ranges = weaponTooltipRanges(item);
-    const type = equipmentHardpointType(item);
     const baseTiming = simulationWeaponTiming(item, []);
     const timing = simulationWeaponTiming(item, quirks);
     const baseExpectedCooldown = weaponExpectedCooldown(item, []);
@@ -12702,9 +13209,7 @@ function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
     const rangeBonus = simulationWeaponRangeBonus(item, quirks);
     const targetComputer = targetComputerWeaponModifiers(item);
     const finalRangeMultiplier = Math.max(0, 1 + rangeBonus + targetComputer.rangeBonus);
-    const velocityBonus = quirkIncrease(quirks, "all_velocity_multiplier")
-      + quirkIncrease(quirks, `${type}_velocity_multiplier`)
-      + simulationSpecificQuirkTotal(quirks, item, "_velocity_multiplier", "increase");
+    const velocityBonus = collectWeaponQuirkEffects(item, quirks).totals.velocityBonus;
     const heatUnit = isContinuousPerSecondWeapon(item) ? "/s" : "";
     const timingRows = [
       ["DAMAGE", weaponDamageTooltipValue(item, quirks)],
@@ -12815,7 +13320,7 @@ function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
     ]);
   } else if (item.item_type === "engine") {
     const baseSpeed = engineTooltipMaxSpeed(item);
-    const finalSpeed = baseSpeed * quirkMultiplier(quirkValues, ["mechtopspeed_multiplier"]);
+    const finalSpeed = baseSpeed * quirkMultiplier(effectiveQuirkValues, ["mechtopspeed_multiplier"]);
     groups.push([
       ["ENGINE RATING", tooltipNumber(stats.rating, 0)],
       ["MAX SPEED", tooltipQuirkValue(baseSpeed, finalSpeed, 1, " kph")],
@@ -12838,7 +13343,7 @@ function equipmentTooltipGroups(item, ghostHeatExtra = 0) {
       ["FORWARD THRUST", tooltipNumber(stats.boost_fwd, 1)],
     ]);
   } else if (item.item_type === "masc") {
-    groups.push(...mascTooltipMovementGroups(item, quirkValues));
+    groups.push(...mascTooltipMovementGroups(item, effectiveQuirkValues));
   } else if (equipmentLimitGroup(item) === "target-computer") {
     const advancedSensorPackage = isAdvancedSensorPackage(item);
     if (advancedSensorPackage) groups.push([
@@ -12945,9 +13450,57 @@ function omnipodTooltipHtml(pod) {
   `;
 }
 
+function equipmentTooltipAppliedEffectsHtml(
+  item,
+  quirks,
+  equipmentEffects = null,
+) {
+  if (!state.showWeaponTooltipQuirks || !item) return "";
+  const applied = collectEquipmentQuirkEffects(item, quirks).applied;
+  const equipmentSources = item.item_type === "weapon"
+    ? (equipmentEffects || collectInstalledWeaponEquipmentEffects(item)).sources || []
+    : [];
+  const equipmentToneClass = weaponEquipmentEffectToneClass(item);
+  if (!applied.length && !equipmentSources.length) return "";
+  return `
+    <section class="equipment-tooltip-effects">
+      <div class="equipment-tooltip-effects-title">${escapeHtml(t("equipmentTooltip.appliedEffects"))}</div>
+      <div class="equipment-tooltip-effect-rows">
+        ${applied.map((quirk) => {
+          return `
+            <div class="equipment-tooltip-effect ${quirkToneClass(quirk)}${quirk.harmful ? " quirk-tone-harmful" : ""}">
+              <span>${escapeHtml(quirk.display_name || quirk.name)}</span>
+              <strong class="quirk-value">${escapeHtml(quirk.display_value_text || quirk.value_text || quirkValueText(quirk.name, quirk.value))}</strong>
+            </div>
+          `;
+        }).join("")}
+      </div>
+      ${equipmentSources.length ? `
+        <div class="equipment-tooltip-equipment-sources${applied.length ? " has-quirks" : ""}">
+          ${equipmentSources.map((source) => `
+            <div class="equipment-tooltip-equipment-source">
+              <div class="equipment-tooltip-equipment-source-title ${equipmentToneClass}">${escapeHtml(source.display_name || source.name)}</div>
+              <div class="equipment-tooltip-equipment-effect-rows">
+                ${source.effects.map((effect) => `
+                  <div class="equipment-tooltip-equipment-effect ${equipmentToneClass}">
+                    <span>${escapeHtml(effect.label)}</span>
+                    <strong class="quirk-value">${escapeHtml(effect.value_text)}</strong>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
 function equipmentTooltipHtml(item, ghostHeatExtra = 0) {
   const tone = equipmentTooltipTone(item);
-  const groups = equipmentTooltipGroups(item, ghostHeatExtra);
+  const quirks = mechlabEffectiveQuirks(state.selectedMech, state.currentBuild);
+  const groups = equipmentTooltipGroups(item, ghostHeatExtra, quirks);
+  const appliedEffects = equipmentTooltipAppliedEffectsHtml(item, quirks);
   const showDescription = item.item_type !== "weapon"
     && item.item_type !== "ammo"
     && item.item_type !== "engine"
@@ -12963,6 +13516,7 @@ function equipmentTooltipHtml(item, ghostHeatExtra = 0) {
           </div>
         `).join("")}
       </div>
+      ${appliedEffects}
       ${description ? `<p>${escapeHtml(description)}</p>` : ""}
     </div>
   `;
@@ -14415,6 +14969,9 @@ function bindEvents() {
   $("simplify-ammo-quirks").addEventListener("change", (event) => {
     setSimplifyAmmoQuirks(event.target.checked);
   });
+  $("show-weapon-tooltip-quirks").addEventListener("change", (event) => {
+    setShowWeaponTooltipQuirks(event.target.checked);
+  });
   $("close-build-actions-x").addEventListener("click", closeBuildActionsDialog);
   $("close-build-actions").addEventListener("click", closeBuildActionsDialog);
   $("build-actions-overlay").addEventListener("click", (event) => {
@@ -14982,6 +15539,10 @@ if (globalThis.__MWOLAB_TEST__) {
     mechSensorRange,
     weaponSpreadValues,
     simulationSpecificQuirkTotal,
+    collectWeaponQuirkEffects,
+    collectEquipmentQuirkEffects,
+    collectTargetComputerWeaponEffects,
+    collectInstalledWeaponEquipmentEffects,
     targetComputerWeaponModifiers,
     simulationWeaponTiming,
     isStreakSrm,
@@ -15027,6 +15588,10 @@ if (globalThis.__MWOLAB_TEST__) {
     weaponTooltipStatistics,
     weaponDamageTooltipValue,
     equipmentTooltipGroups,
+    equipmentTooltipHtml,
+    equipmentTooltipAppliedEffectsHtml,
+    setShowWeaponTooltipQuirks,
+    showEquipmentTooltip,
     weaponTooltipRanges,
     atmRangeBoundary,
     atmTooltipDamageBands,

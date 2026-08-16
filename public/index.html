@@ -6,7 +6,7 @@
     <title>mwolab - MechWarrior Online MechLab</title>
     <meta name="description" content="MWO MechLab and build planner for MechWarrior Online. Compare mechs, equipment, quirks, hardpoints, loadouts, damage, heat and mobility stats.">
     <meta name="robots" content="max-image-preview:none">
-  <link rel="stylesheet" href="styles.css?v=20260815-7">
+  <link rel="stylesheet" href="styles.css?v=20260816-2">
   </head>
   <body>
     <div id="app">
@@ -557,6 +557,11 @@
           <span data-i18n="ui.simplifyAmmoQuirks">탄약 쿼크 표시 간소화</span>
           <strong id="simplify-ammo-quirks-state" class="ui-toggle-state">OFF</strong>
         </label>
+        <label class="ui-display-option ui-toggle-option">
+          <input id="show-weapon-tooltip-quirks" type="checkbox">
+          <span data-i18n="ui.showWeaponTooltipQuirks">장비 툴팁 적용 효과 표시</span>
+          <strong id="show-weapon-tooltip-quirks-state" class="ui-toggle-state">ON</strong>
+        </label>
         <button id="close-ui-settings" class="build-actions-cancel" type="button" data-i18n="ui.close">닫기</button>
       </section>
     </div>
@@ -792,7 +797,7 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-  <script src="app.js?v=20260815-8"></script>
+  <script src="app.js?v=20260816-2"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->

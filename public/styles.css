@@ -7882,6 +7882,111 @@ body.pointer-drag-active * {
   line-height: 1.4;
 }
 
+.equipment-tooltip-effects {
+  border-top: 1px solid #29363a;
+  padding: 0.65rem 0.75rem 0.8rem;
+}
+
+.equipment-tooltip-effects-title {
+  margin-bottom: 0.4rem;
+  color: #70b8cf;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.equipment-tooltip-effect-rows {
+  display: grid;
+  gap: 1px;
+}
+
+.equipment-tooltip-effect {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.35rem;
+  background: #111719;
+  font-size: 0.75rem;
+}
+
+.equipment-tooltip-effect:nth-child(even) {
+  background: #192125;
+}
+
+.equipment-tooltip-effect span {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.equipment-tooltip-effect strong {
+  color: currentColor;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.equipment-tooltip-effect.quirk-tone-harmful strong {
+  color: var(--red);
+}
+
+.equipment-tooltip-equipment-sources {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.equipment-tooltip-equipment-sources.has-quirks {
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #29363a;
+}
+
+.equipment-tooltip-equipment-source {
+  display: grid;
+  gap: 1px;
+}
+
+.equipment-tooltip-equipment-source-title {
+  padding: 0.25rem 0.35rem;
+  color: #d7e2e5;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+}
+
+.equipment-tooltip-equipment-effect {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 1.65rem;
+  padding: 0.22rem 0.35rem 0.22rem 0.65rem;
+  background: #111719;
+  color: #9fcfdc;
+  font-size: 0.73rem;
+}
+
+.equipment-tooltip-equipment-effect:nth-child(even) {
+  background: #192125;
+}
+
+.equipment-tooltip-equipment-effect span {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.equipment-tooltip-equipment-effect strong {
+  color: #f0d36b;
+  font-size: 0.77rem;
+  white-space: nowrap;
+}
+
 .omnipod-tooltip-card {
   min-width: min(19rem, calc(100vw - 1rem));
 }

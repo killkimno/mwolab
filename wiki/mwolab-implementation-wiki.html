@@ -598,6 +598,7 @@
           <li>이름 있는 로컬 빌드: <code>mwolab:local-builds:v1</code>.</li>
           <li>쿼크 값 표시 방식: <code>mwolab:quirk-value-display</code>의 <code>final</code>, <code>quirk</code>, <code>all</code>.</li>
           <li>왼쪽 탄약 쿼크 표시 간소화: <code>mwolab:simplify-ammo-quirks</code>의 <code>true</code>, <code>false</code>.</li>
+          <li>장비 툴팁 적용 효과 표시: 기존 호환 키 <code>mwolab:show-weapon-tooltip-quirks</code>의 <code>true</code>, <code>false</code>. 저장값이 없거나 저장소를 읽을 수 없으면 기본 ON이다.</li>
           <li>서버 계정이나 원격 저장소는 사용하지 않는다.</li>
         </ul>
       </section>
@@ -717,6 +718,9 @@
           <li>ATM은 60~349m, 350~649m, 650~1100m의 피해 구간을 사용하며 사거리 쿼크는 구간 상한과 최대 사거리에 반영한다.</li>
           <li>산포, 크리티컬 확률·피해, 대상 발열, 차지 시간은 데이터가 있을 때 별도 통계로 표시한다.</li>
           <li>Ultra AC는 잼 지속시간과 잼 확률을 표시하며 관련 쿼크를 반영한다. 기대 DPM은 툴팁에 표시하지 않는다.</li>
+          <li>UI 설정의 장비 툴팁 적용 효과 표시가 ON이면 <code>collectEquipmentQuirkEffects</code>가 현재 피팅의 배리언트·옵니포드·세트·선택 스킬 중 해당 아이템에 기여하는 항목을 이름별로 합산해 값만 표시하며 이들의 출처는 표시하지 않는다. 무기는 기존 계산 수집기를 재사용하고, 비무기는 탄약 용량·실제 히트싱크·엔진·점프젯·MASC 툴팁 수치에 연결된 효과를 수집한다. ECM 장비는 <code>ecmtargetrangereduction_multiplier</code>와 <code>stealtharmorcooldown_multiplier</code>를 수신 효과로 수집한다. 탄약 효과 표시값은 쿼크 합산값에 탄약 톤수를 곱하므로 1톤은 원값, 0.5톤은 절반이며, 일반 센서·BAP와 공식상 무시되는 효과는 제외한다.</li>
+          <li><code>collectTargetComputerWeaponEffects</code>는 장착 모듈별 <code>weapon_stat_filters</code>와 무기 원본 이름을 정확히 매칭해 기존 사거리·탄속·크리티컬 합계와 장비별 표시 기여를 함께 만든다. 적용 효과 렌더러는 쿼크·스킬 뒤에 장비 표시명을 출처 제목으로 둔 그룹을 배치하며 장비명·효과명·수치에는 필터 태그가 아닌 대상 무기의 실제 하드포인트 계열에 맞는 <code>quirk-tone-*</code> 색을 적용한다. 크리티컬 확률은 <code>critChanceIncrease</code> CSV의 첫 번째 항목만 표시한다. Artemis 퍼짐과 항상 적용되는 Railgun Capacitor의 수량 합산 데미지·발열도 같은 최하단 장비 그룹으로 표시한다.</li>
+          <li>AMS와 Laser AMS의 사거리 계산 및 적용 효과 목록은 공용 <code>all_range_multiplier</code>와 장비 이름·별칭에 일치하는 AMS 전용 사거리 쿼크를 함께 합산한다.</li>
         </ul>
 
         <h3>탄약</h3>
@@ -984,6 +988,7 @@
             <tr><td>2026-07-31</td><td>최대 사거리 밖 무기는 토글 상태와 관계없이 무장 상세의 모든 발사·발열 계산에서 제외하도록 기본 규칙을 변경. 기존 사거리가 가능한 무기만 반영 토글은 무기 조합별 최대 DPS로 이름을 바꾸고 거리 슬라이더 색상 정규화에만 적용</td></tr>
             <tr><td>2026-08-09</td><td>정렬 UI를 중앙 모달 팝업으로 변경하고 배경 딤, 닫기 버튼, 바깥 영역·Esc 닫기, 기본·톤수·숫자 인식 알파벳순과 오름·내림차순, 진영별 표시 스위치를 추가. 로켓런처 발사체 수·쿨다운, SSRM 동시 발사, 연속형 무기의 초당 DAMAGE·HEAT·HPS·DPH, UAC 더블탭 예상 쿨다운을 명시적 데이터와 공용 계산 경로로 정리하고 전체 회귀 테스트를 70개 노드로 확대. 제품 사양·UI·무기·데이터 근거·구현 위키 문서의 소유 범위를 분리하고 Claude용 진입 문서를 추가</td></tr>
             <tr><td>2026-08-15</td><td>멕랩에 최대 10개의 세션 전용 피팅 탭을 추가. 탭별 멕·빌드 객체와 활성 탭 상태, 중복 멕 번호, 추가·교체 목록 모드, 왼쪽 우선 닫기, 마지막 탭 보호, 탭 ID 기반 History 복원을 적용하고 전체 목록 미리보기가 기존 피팅을 덮어쓰지 않도록 분리</td></tr>
+            <tr><td>2026-08-16</td><td>멕랩 무기·장비·탄약 툴팁에 현재 피팅에서 실제 비제로 기여하는 배리언트·옵니포드·세트·선택 스킬의 합산값을 적용 효과로 표시하고, 기본 ON인 브라우저 저장형 UI 설정 토글을 추가. 무기 계산과 적용 목록은 공통 효과 수집 결과를 사용하고 비무기는 탄약 용량·히트싱크·엔진·점프젯·MASC의 기존 툴팁 계산 경로를 연결. 무기에 실제 적용되는 Target Computer·Advanced Sensor Package·Artemis·Railgun Capacitor 효과는 쿼크 뒤 최하단에 장비 표시명을 출처 제목으로 묶고 Target Computer 크리티컬 확률은 첫 번째 항목만 표시</td></tr>
             <tr><td>2026-08-15</td><td>마지막 <code>+</code>를 현재 포커스 가능한 빈 탭 슬롯으로 변경. 다른 주 화면 왕복 중에도 빈 슬롯 인덱스를 유지하고 다음 멕 피팅과 IMPORT 결과가 기존 탭을 교체하지 않고 해당 슬롯을 채우도록 대상 결정 경로를 통합</td></tr>
             <tr><td>2026-08-15</td><td>멕랩 전체 목록의 IMPORT 옆에 채워진 피팅이 있을 때만 표시되는 RETURN 버튼을 추가하고 마지막 활성 피팅 탭으로 즉시 돌아가는 경로를 연결</td></tr>
             <tr><td>2026-08-15</td><td>피팅 중 여는 컴팩트 멕 목록 슬롯 오른쪽에 독립적인 새 탭 추가 + 버튼을 추가하고, 10개 한도 비활성화 및 하드포인트 태그 4개 단위 줄바꿈을 적용</td></tr>

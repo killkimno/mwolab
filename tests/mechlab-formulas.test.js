@@ -6,7 +6,13 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-function loadMechLab() {
+function loadMechLab({
+  storageValues = {},
+  storageReadError = false,
+  storageWriteError = false,
+  storageWrites = [],
+  elements = {},
+} = {}) {
   const quirkSource = fs.readFileSync(
     path.join(__dirname, "..", "public", "quirk-calculations.js"),
     "utf8",
@@ -35,14 +41,20 @@ function loadMechLab() {
     performance: { now: () => 0 },
     navigator: { language: "en", languages: ["en"] },
     localStorage: {
-      getItem: () => null,
-      setItem: () => {},
+      getItem: (key) => {
+        if (storageReadError) throw new Error("storage unavailable");
+        return Object.hasOwn(storageValues, key) ? storageValues[key] : null;
+      },
+      setItem: (key, value) => {
+        if (storageWriteError) throw new Error("storage unavailable");
+        storageWrites.push([key, value]);
+      },
       removeItem: () => {},
     },
     location: { protocol: "http:" },
     fetch: async () => { throw new Error("fetch must not run in unit tests"); },
     document: {
-      getElementById: () => null,
+      getElementById: (id) => elements[id] || null,
       querySelector: () => null,
       querySelectorAll: () => [],
       addEventListener: () => {},
@@ -54,6 +66,8 @@ function loadMechLab() {
     location: { href: "http://localhost/?lang=en", search: "?lang=en" },
     history: { pushState: () => {}, replaceState: () => {} },
     addEventListener: () => {},
+    innerWidth: 1280,
+    innerHeight: 720,
     setTimeout,
     clearTimeout,
   };
@@ -65,6 +79,62 @@ function loadMechLab() {
 }
 
 const api = loadMechLab();
+
+test("장비 툴팁 적용 효과 설정은 기본 ON이며 저장값을 복원한다", () => {
+  const key = "mwolab:show-weapon-tooltip-quirks";
+  assert.equal(api.state.showWeaponTooltipQuirks, true);
+  assert.equal(loadMechLab({ storageValues: { [key]: "true" } }).state.showWeaponTooltipQuirks, true);
+  assert.equal(loadMechLab({ storageValues: { [key]: "false" } }).state.showWeaponTooltipQuirks, false);
+  assert.equal(loadMechLab({ storageReadError: true }).state.showWeaponTooltipQuirks, true);
+});
+
+test("장비 툴팁 적용 효과 설정은 즉시 저장하고 열린 툴팁을 다시 렌더한다", () => {
+  const storageWrites = [];
+  const option = {
+    checked: true,
+    closest: () => ({ classList: { toggle: () => {} } }),
+  };
+  let tooltipRenderCount = 0;
+  const tooltip = {
+    hidden: true,
+    style: {},
+    offsetWidth: 240,
+    offsetHeight: 120,
+    classList: { toggle: () => {}, remove: () => {} },
+  };
+  Object.defineProperty(tooltip, "innerHTML", {
+    set: () => { tooltipRenderCount += 1; },
+  });
+  const elements = {
+    "simplify-ammo-quirks": option,
+    "simplify-ammo-quirks-state": { textContent: "" },
+    "show-weapon-tooltip-quirks": option,
+    "show-weapon-tooltip-quirks-state": { textContent: "" },
+    "equipment-tooltip": tooltip,
+  };
+  const settingsApi = loadMechLab({ storageWrites, elements });
+  settingsApi.state.equipment = {
+    items: {
+      "2000": { id: 2000, item_type: "ammo", name: "Ammo", stats: { numShots: 100, tons: 1 } },
+    },
+  };
+  const target = {
+    dataset: { tooltipItem: "2000" },
+    classList: { contains: () => false },
+    isConnected: true,
+    getBoundingClientRect: () => ({ left: 20, right: 120, top: 30 }),
+  };
+  settingsApi.showEquipmentTooltip(target);
+  const initialRenderCount = tooltipRenderCount;
+  settingsApi.setShowWeaponTooltipQuirks(false);
+  assert.equal(settingsApi.state.showWeaponTooltipQuirks, false);
+  assert.deepEqual(storageWrites.at(-1), ["mwolab:show-weapon-tooltip-quirks", "false"]);
+  assert.equal(tooltipRenderCount, initialRenderCount + 1);
+
+  const unavailableApi = loadMechLab({ storageWriteError: true, elements });
+  assert.doesNotThrow(() => unavailableApi.setShowWeaponTooltipQuirks(false));
+  assert.equal(unavailableApi.state.showWeaponTooltipQuirks, false);
+});
 
 test("쿼크 필터는 빈 수치를 보유 여부로, 입력 수치를 효과 크기 하한으로 적용한다", () => {
   const previousMode = api.state.mechQuirkFilterMode;
@@ -881,6 +951,482 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.equal(api.quirkReduction(quirks, "all_cooldown_multiplier"), 0.1);
     assert.equal(api.quirkIncrease(quirks, "all_range_multiplier"), 0.2);
     assert.equal(api.quirkSignedValue(quirks, "all_duration_multiplier"), 0.15);
+  });
+
+  await t.test("무기 적용 쿼크는 실제 효과를 합산하고 출처를 보존한다", () => {
+    const item = weapon({
+      name: "PPC",
+      aliases: "Energy,PPC",
+      stats: {
+        heat: 10,
+        cooldown: 4,
+        duration: 0.5,
+        projectileclass: "bullet",
+        speed: 1000,
+        spread: 2,
+        minheatpenaltylevel: 3,
+        heatpenalty: 7,
+        heatPenaltyID: 1,
+      },
+      ranges: [
+        { start: 0, damageModifier: 1 },
+        { start: 500, damageModifier: 1 },
+      ],
+    });
+    const effects = api.collectWeaponQuirkEffects(item, [
+      { name: "all_cooldown_multiplier", display_name: "Cooldown", value: -0.1, source_text: "Variant" },
+      { name: "ALL_COOLDOWN_MULTIPLIER", display_name: "Cooldown", value: -0.05, source_text: "SKILLS · firepower" },
+      { name: "energy_cooldown_multiplier", value: -0.1, source_text: "LEFT ARM" },
+      { name: "ppc_cooldown_multiplier", value: -0.05, source_text: "SET 8pc" },
+      { name: "ppc_duration_multiplier", value: 0.1, source_text: "Variant" },
+      { name: "energy_spread_multiplier", value: 0.1, source_text: "Variant" },
+      { name: "all_minheatpenaltylevel_additive", value: 1, source_text: "SKILLS · firepower" },
+    ]);
+    closeTo(effects.totals.cooldownReduction, 0.3);
+    closeTo(effects.totals.durationModifier, 0.1);
+    closeTo(effects.totals.spreadModifier, 0.1);
+    assert.equal(effects.totals.hslBonus, 1);
+    const cooldown = effects.applied.filter((entry) => entry.name === "all_cooldown_multiplier");
+    assert.equal(cooldown.length, 1);
+    closeTo(cooldown[0].value, -0.15);
+    assert.match(cooldown[0].source_text, /Variant/);
+    assert.match(cooldown[0].source_text, /SKILLS/);
+    assert.equal(effects.applied.find((entry) => entry.name === "ppc_duration_multiplier").harmful, true);
+    assert.equal(effects.applied.find((entry) => entry.name === "energy_spread_multiplier").harmful, true);
+  });
+
+  await t.test("무기 적용 쿼크는 무기별 예외와 대상 스탯 유무를 반영한다", () => {
+    const rocket = weapon({
+      name: "RocketLauncher10",
+      aliases: "Missile,RocketLauncher,RocketLauncher10",
+      hardpoint_type: "missile",
+      stats: { cooldown: 0.125, projectileclass: "missile" },
+    });
+    const rocketEffects = api.collectWeaponQuirkEffects(rocket, [
+      quirk("all_cooldown_multiplier", -0.1),
+      quirk("missile_cooldown_multiplier", -0.2),
+      quirk("rocketlauncher10_cooldown_multiplier", -0.3),
+    ]);
+    assert.equal(rocketEffects.totals.cooldownReduction, 0);
+    assert.equal(rocketEffects.applied.length, 0);
+
+    const ams = weapon({
+      name: "ClanAntiMissileSystem",
+      display_name: "C-AMS",
+      aliases: "AntiMissileSystem,ClanAntiMissileSystem",
+      hardpoint_type: "ams",
+      ctype: "WeaponAMS",
+      ranges: [{ start: 0 }, { start: 500 }],
+    });
+    const amsEffects = api.collectWeaponQuirkEffects(ams, [
+      quirk("all_range_multiplier", 0.2),
+      quirk("ams_range_multiplier", 0.05),
+      quirk("clanantimissilesystem_range_multiplier", 0.1),
+    ]);
+    closeTo(amsEffects.totals.rangeBonus, 0.35);
+    assert.deepEqual(
+      Array.from(amsEffects.applied, (entry) => entry.name).sort(),
+      [
+        "all_range_multiplier",
+        "ams_range_multiplier",
+        "clanantimissilesystem_range_multiplier",
+      ],
+    );
+
+    const laserAms = weapon({
+      name: "LaserAntiMissileSystem",
+      display_name: "LASER AMS",
+      aliases: "ISAntiMissileSystem,LaserAntiMissileSystem,ISLaserAntiMissileSystem",
+      hardpoint_type: "ams",
+      ctype: "WeaponAMS",
+      ranges: [{ start: 0 }, { start: 500 }],
+    });
+    const laserAmsEffects = api.collectWeaponQuirkEffects(laserAms, [
+      quirk("all_range_multiplier", 0.2),
+      quirk("ams_range_multiplier", 0.05),
+      quirk("laserantimissilesystem_range_multiplier", 0.1),
+    ]);
+    closeTo(laserAmsEffects.totals.rangeBonus, 0.35);
+    assert.deepEqual(
+      Array.from(laserAmsEffects.applied, (entry) => entry.name).sort(),
+      ["all_range_multiplier", "ams_range_multiplier", "laserantimissilesystem_range_multiplier"],
+    );
+
+    const hitscan = weapon({ stats: { speed: 1000, projectileclass: "" } });
+    const hitscanEffects = api.collectWeaponQuirkEffects(hitscan, [
+      quirk("all_velocity_multiplier", 0.2),
+    ]);
+    assert.equal(hitscanEffects.applied.length, 0);
+
+    const beam = weapon({
+      name: "ClanBeamLaser",
+      aliases: "Energy,Laser,ClanBeamLaser",
+      stats: { duration: -1, cooldown: 2 },
+    });
+    const beamEffects = api.collectWeaponQuirkEffects(beam, [
+      quirk("all_cooldown_multiplier", -0.2),
+      quirk("all_duration_multiplier", -0.2),
+    ]);
+    assert.equal(beamEffects.applied.length, 0);
+  });
+
+  await t.test("장비 툴팁 적용 효과 목록은 UI 설정으로 즉시 숨길 수 있다", () => {
+    const previous = api.state.showWeaponTooltipQuirks;
+    const item = weapon({ stats: { cooldown: 2 } });
+    const quirks = [{
+      name: "all_cooldown_multiplier",
+      display_name: "Cooldown",
+      value: -0.1,
+      source_text: "Variant, SKILLS · firepower",
+    }];
+    try {
+      api.state.showWeaponTooltipQuirks = true;
+      const visible = api.equipmentTooltipAppliedEffectsHtml(item, quirks);
+      assert.match(visible, /APPLIED EFFECTS/);
+      assert.match(visible, /Cooldown/);
+      assert.doesNotMatch(visible, /SKILLS/);
+      const equipmentOnly = {
+        sources: [{
+          display_name: "TARGETING COMP. MK I",
+          effects: [{ label: "BEAM RANGE", value_text: "+4%" }],
+        }],
+      };
+      assert.match(api.equipmentTooltipAppliedEffectsHtml(item, [], equipmentOnly), /TARGETING COMP\. MK I/);
+      api.state.showWeaponTooltipQuirks = false;
+      assert.equal(api.equipmentTooltipAppliedEffectsHtml(item, quirks), "");
+      assert.equal(api.equipmentTooltipAppliedEffectsHtml(item, [], equipmentOnly), "");
+    } finally {
+      api.state.showWeaponTooltipQuirks = previous;
+    }
+  });
+
+  await t.test("Target Computer 장비 효과는 출처별로 쿼크 다음에 표시한다", () => {
+    const beam = weapon({
+      name: "MediumLaser",
+      display_name: "MEDIUM LASER",
+      ranges: [{ start: 0 }, { start: 450 }],
+      stats: { projectileclass: "" },
+    });
+    const targetComputer = {
+      id: 9013,
+      name: "TargetingComputerMkI",
+      display_name: "TARGETING COMP. MK I",
+      weapon_stat_filters: [{
+        tag: "BeamWeapons",
+        compatible_weapons: ["MediumLaser"],
+        weapon_stats: [{
+          operation: "+",
+          critChanceIncrease: "0.0114,0.0064,0.0014",
+        }],
+        ranges: [{ multiplier: 1.04 }],
+      }],
+    };
+    const result = api.collectTargetComputerWeaponEffects(beam, [targetComputer]);
+    closeTo(result.totals.rangeBonus, 0.04);
+    closeTo(result.totals.criticalChance[0], 0.0114);
+    closeTo(api.targetComputerWeaponModifiers(beam, [targetComputer]).rangeBonus, 0.04);
+    assert.equal(result.sources.length, 1);
+    assert.deepEqual(
+      Array.from(result.sources[0].effects, (effect) => effect.label),
+      ["BEAM CRITICAL CHANCE", "BEAM RANGE"],
+    );
+
+    const html = api.equipmentTooltipAppliedEffectsHtml(beam, [{
+      name: "all_cooldown_multiplier",
+      display_name: "COOLDOWN",
+      value: -0.1,
+    }], result);
+    assert.ok(html.indexOf("COOLDOWN") < html.indexOf("TARGETING COMP. MK I"));
+    assert.match(html, /BEAM CRITICAL CHANCE/);
+    assert.match(html, /\+1\.14%/);
+    assert.doesNotMatch(html, /0\.64%|0\.14%/);
+    assert.match(html, /BEAM RANGE/);
+    assert.match(html, /\+4%/);
+    assert.doesNotMatch(html, /VELOCITY/);
+    assert.match(html, /equipment-tooltip-equipment-source-title quirk-tone-energy/);
+    assert.match(html, /equipment-tooltip-equipment-effect quirk-tone-energy/);
+    assert.match(html, /strong class="quirk-value">\+1\.14%/);
+
+    const secondComputer = {
+      ...targetComputer,
+      id: 9014,
+      display_name: "TARGETING COMP. MK II",
+      weapon_stat_filters: [{
+        ...targetComputer.weapon_stat_filters[0],
+        ranges: [{ multiplier: 1.05 }],
+      }],
+    };
+    const stacked = api.collectTargetComputerWeaponEffects(beam, [targetComputer, secondComputer]);
+    closeTo(stacked.totals.rangeBonus, 0.09);
+    assert.deepEqual(
+      Array.from(stacked.sources, (source) => source.display_name),
+      ["TARGETING COMP. MK I", "TARGETING COMP. MK II"],
+    );
+  });
+
+  await t.test("Projectile TC와 ASP는 실제로 일치하는 무기 효과만 표시한다", () => {
+    const projectile = weapon({
+      name: "PPC",
+      ranges: [{ start: 0 }, { start: 540 }],
+      stats: { speed: 1000, projectileclass: "ppc" },
+    });
+    const targetComputer = {
+      display_name: "TARGETING COMP. MK I",
+      weapon_stat_filters: [{
+        tag: "ProjectileWeapons",
+        compatible_weapons: ["PPC"],
+        weapon_stats: [
+          { operation: "+", critChanceIncrease: "0.0057,0.0032,0.0007" },
+          { operation: "*", speed: 1.1 },
+        ],
+        ranges: [],
+      }],
+    };
+    const result = api.collectTargetComputerWeaponEffects(projectile, [targetComputer]);
+    assert.deepEqual(
+      Array.from(result.sources[0].effects, (effect) => effect.label),
+      ["PROJECTILE CRITICAL CHANCE", "PROJECTILE VELOCITY"],
+    );
+    const projectileHtml = api.equipmentTooltipAppliedEffectsHtml(projectile, [], result);
+    assert.match(projectileHtml, /equipment-tooltip-equipment-source-title quirk-tone-energy/);
+    assert.equal(api.collectTargetComputerWeaponEffects(
+      weapon({ name: "UnmatchedWeapon" }),
+      [targetComputer],
+    ).sources.length, 0);
+
+    const tag = weapon({ name: "TAG", ranges: [{ start: 0 }, { start: 750 }] });
+    const laser = weapon({ name: "MediumLaser", ranges: [{ start: 0 }, { start: 450 }] });
+    const asp = {
+      name: "CCC",
+      display_name: "ADVANCED SENSOR PACKAGE",
+      weapon_stat_filters: [{
+        tag: "BeamWeapons",
+        compatible_weapons: ["TAG"],
+        weapon_stats: [],
+        ranges: [{ multiplier: 1.2 }],
+      }],
+    };
+    assert.equal(
+      api.collectTargetComputerWeaponEffects(tag, [asp]).sources[0].effects[0].label,
+      "TAG RANGE",
+    );
+    assert.equal(api.collectTargetComputerWeaponEffects(laser, [asp]).sources.length, 0);
+  });
+
+  await t.test("Artemis와 Railgun Capacitor는 실제 계산값을 장비 출처로 표시한다", () => {
+    const artemis = {
+      id: 3050,
+      item_type: "upgrade",
+      name: "Artemis",
+      display_name: "ARTEMIS",
+      stats: { extraSlots: 1, missileSpread: 0.7 },
+    };
+    const capacitor = {
+      id: 9033,
+      item_type: "module",
+      name: "RailgunCapacitorClan",
+      display_name: "RAILGUN CAPACITOR",
+      faction: "Clan",
+      stats: { amountAllowed: 2 },
+      weapon_stat_filters: [{
+        compatible_weapons: ["ClanRailGun"],
+        weapon_stats: [{ operation: "+", damage: 8, heat: 4 }],
+      }],
+    };
+    const artemisWeapon = weapon({
+      id: 401,
+      name: "LRM10_Artemis",
+      hardpoint_type: "missile",
+      stats: { spread: 2, artemisAmmoType: "LRMAmmoArtemis" },
+    });
+    resetEquipment({ 3050: artemis, 9033: capacitor });
+    api.state.currentBuild.upgrades.artemis.Equipped = true;
+    const artemisEffects = api.collectInstalledWeaponEquipmentEffects(artemisWeapon, []);
+    assert.equal(artemisEffects.sources.length, 1);
+    assert.equal(artemisEffects.sources[0].display_name, "ARTEMIS");
+    assert.equal(artemisEffects.sources[0].effects[0].value_text, "-30%");
+    assert.match(
+      api.equipmentTooltipAppliedEffectsHtml(artemisWeapon, [], artemisEffects),
+      /equipment-tooltip-equipment-source-title quirk-tone-missile/,
+    );
+
+    api.state.currentBuild.upgrades.artemis.Equipped = false;
+    assert.equal(api.collectInstalledWeaponEquipmentEffects(artemisWeapon, []).sources.length, 0);
+    const builtInArtemis = weapon({
+      name: "BuiltInArtemis",
+      hardpoint_type: "missile",
+      stats: { spread: 2, artemisAmmoType: "LRMAmmoArtemis", alwaysHasArtemis: 1 },
+    });
+    api.state.currentBuild.upgrades.artemis.Equipped = true;
+    assert.equal(api.collectInstalledWeaponEquipmentEffects(builtInArtemis, []).sources.length, 0);
+
+    const railgun = weapon({
+      id: 402,
+      name: "ClanRailGun",
+      faction: "Clan",
+      hardpoint_type: "ballistic",
+      stats: { damage: 10, heat: 5 },
+    });
+    api.state.currentBuild.upgrades.artemis.Equipped = false;
+    const railgunEffects = api.collectInstalledWeaponEquipmentEffects(railgun, []);
+    assert.equal(railgunEffects.sources.length, 1);
+    assert.equal(railgunEffects.sources[0].display_name, "RAILGUN CAPACITOR ×2");
+    assert.deepEqual(
+      Array.from(railgunEffects.sources[0].effects, (effect) => [effect.label, effect.value_text]),
+      [["DAMAGE", "+16"], ["HEAT", "+8"]],
+    );
+    assert.equal(api.weaponDirectDamage(railgun), 26);
+    assert.equal(api.itemHeat(railgun), 13);
+    assert.match(
+      api.equipmentTooltipAppliedEffectsHtml(railgun, [], railgunEffects),
+      /APPLIED EFFECTS[\s\S]*RAILGUN CAPACITOR ×2[\s\S]*DAMAGE[\s\S]*HEAT/,
+    );
+    assert.match(
+      api.equipmentTooltipAppliedEffectsHtml(railgun, [], railgunEffects),
+      /equipment-tooltip-equipment-source-title quirk-tone-ballistic/,
+    );
+  });
+
+  await t.test("탄약과 장비는 실제 툴팁 수치를 바꾸는 효과만 표시한다", () => {
+    const ammo = {
+      item_type: "ammo",
+      name: "Clan LRM Ammo",
+      stats: { type: "ClanLRMAmmo", numShots: 120, tons: 0.5 },
+    };
+    const ammoEffects = api.collectEquipmentQuirkEffects(ammo, [
+      quirk("ammocapacity_clrm_additive", 20),
+      quirk("ammocapacity_csrm_additive", 20),
+    ]);
+    assert.deepEqual(
+      Array.from(ammoEffects.applied, (entry) => entry.name),
+      ["ammocapacity_clrm_additive"],
+    );
+    assert.equal(ammoEffects.applied[0].display_value_text, "+10");
+    const halfTonHtml = api.equipmentTooltipAppliedEffectsHtml(ammo, [
+      quirk("ammocapacity_clrm_additive", 20),
+    ]);
+    assert.match(halfTonHtml, />\+10<\/strong>/);
+    assert.doesNotMatch(halfTonHtml, />\+20<\/strong>/);
+    assert.equal(api.collectEquipmentQuirkEffects(ammo, [
+      quirk("ammocapacity_clrm_additive", 0.5),
+    ]).applied.length, 0);
+
+    const artemisAmmo = {
+      item_type: "ammo",
+      name: "LRM Artemis Ammo",
+      stats: { type: "LRMAmmoArtemis", numShots: 120, tons: 1 },
+    };
+    const artemisEffects = api.collectEquipmentQuirkEffects(artemisAmmo, [
+        quirk("ammocapacity_lrm_artemis_additive", 18),
+      ]);
+    assert.deepEqual(
+      Array.from(artemisEffects.applied, (entry) => entry.name),
+      ["ammocapacity_lrm_artemis_additive"],
+    );
+    assert.equal(artemisEffects.applied[0].display_value_text, "+18");
+
+    const heatSink = {
+      item_type: "equipment",
+      ctype: "CHeatSinkStats",
+      stats: { heatbase: -0.85, cooling: 0.15, engineCooling: 0.18 },
+    };
+    const heatSinkEffects = api.collectEquipmentQuirkEffects(heatSink, [
+      quirk("maxheat_multiplier", 0.1),
+      quirk("heatdissipation_multiplier", 0.05),
+    ]);
+    assert.deepEqual(
+      Array.from(heatSinkEffects.applied, (entry) => entry.name).sort(),
+      ["heatdissipation_multiplier", "maxheat_multiplier"],
+    );
+
+    const jumpJet = {
+      item_type: "jumpjet",
+      stats: { duration: 5, boost_instant: 200 },
+    };
+    const jumpJetEffects = api.collectEquipmentQuirkEffects(jumpJet, [
+      quirk("jumpjets_burntime_multiplier", 0.1),
+      quirk("jumpjets_initialthrust_multiplier", 0.2),
+      quirk("jumpjetslots_additive", 1),
+    ]);
+    assert.deepEqual(
+      Array.from(jumpJetEffects.applied, (entry) => entry.name).sort(),
+      ["jumpjets_burntime_multiplier", "jumpjets_initialthrust_multiplier"],
+    );
+
+    const ecm = {
+      item_type: "equipment",
+      ctype: "CGECMStats",
+      stats: { range: 90 },
+    };
+    const ecmEffects = api.collectEquipmentQuirkEffects(ecm, [
+      quirk("ecmtargetrangereduction_multiplier", 0.2),
+      quirk("stealtharmorcooldown_multiplier", -0.1),
+      quirk("sensorrange_multiplier", 0.1),
+    ]);
+    assert.deepEqual(
+      Array.from(ecmEffects.applied, (entry) => entry.name).sort(),
+      ["ecmtargetrangereduction_multiplier", "stealtharmorcooldown_multiplier"],
+    );
+    const ecmHtml = api.equipmentTooltipAppliedEffectsHtml(ecm, ecmEffects.applied);
+    assert.match(ecmHtml, /ecmtargetrangereduction_multiplier/i);
+    assert.match(ecmHtml, /stealtharmorcooldown_multiplier/i);
+  });
+
+  await t.test("엔진과 MASC는 현재 툴팁의 기동 효과만 표시한다", () => {
+    const previousMech = api.state.selectedMech;
+    const previousBuild = api.state.currentBuild;
+    const previousEquipment = api.state.equipment;
+    const engine = { id: 3210, item_type: "engine", stats: { rating: 250 } };
+    try {
+      api.state.selectedMech = {
+        faction: "InnerSphere",
+        definition: {
+          stats: { MaxTons: 50, MinEngineRating: 100, MaxEngineRating: 300 },
+          movement: {
+            MaxMovementSpeed: 16.2,
+            AccelLerpMidRate: 20,
+            DecelLerpMidRate: 1000,
+            TurnLerpMidRate: 1,
+          },
+        },
+      };
+      api.state.equipment = { items: { "3210": engine } };
+      api.state.currentBuild = {
+        components: { centre_torso: { items: [{ item_id: 3210 }] } },
+      };
+      assert.deepEqual(
+        Array.from(api.collectEquipmentQuirkEffects(engine, [
+          quirk("mechtopspeed_multiplier", 0.1),
+          quirk("reversespeed_multiplier", 0.2),
+        ]).applied, (entry) => entry.name),
+        ["mechtopspeed_multiplier"],
+      );
+
+      const masc = {
+        item_type: "masc",
+        stats: { BoostSpeed: 0.2, BoostAccel: 1, BoostDecel: 1, BoostTurn: 0.5 },
+      };
+      const mascEffects = api.collectEquipmentQuirkEffects(masc, [
+        quirk("mechtopspeed_multiplier", 0.1),
+        quirk("accellerp_all_multiplier", 0.2),
+        quirk("decellerp_all_multiplier", 0.3),
+        quirk("turnlerp_all_multiplier", 0.4),
+        quirk("torso_yawspeed_multiplier", 0.5),
+      ]);
+      assert.deepEqual(
+        Array.from(mascEffects.applied, (entry) => entry.name).sort(),
+        [
+          "accellerp_all_multiplier",
+          "decellerp_all_multiplier",
+          "mechtopspeed_multiplier",
+          "turnlerp_all_multiplier",
+        ],
+      );
+    } finally {
+      api.state.selectedMech = previousMech;
+      api.state.currentBuild = previousBuild;
+      api.state.equipment = previousEquipment;
+    }
   });
 
   await t.test("무기별·계열·전체 쿨다운/듀레이션을 합산한다", () => {
