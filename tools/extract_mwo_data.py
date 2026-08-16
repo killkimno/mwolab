@@ -732,6 +732,25 @@ def parse_mech_list(game_data):
     return mechs
 
 
+def missing_omnipod_id(value):
+    return value is None or str(value).strip().lower() in {"", "none", "null"}
+
+
+def merge_explicit_omnipod_id(loadout_value, mdf_value, source):
+    loadout_missing = missing_omnipod_id(loadout_value)
+    mdf_missing = missing_omnipod_id(mdf_value)
+    if not loadout_missing and not mdf_missing and loadout_value != mdf_value:
+        raise RuntimeError(
+            f"Conflicting explicit OmniPod IDs for {source}: "
+            f"loadout={loadout_value}, MDF={mdf_value}"
+        )
+    if not loadout_missing:
+        return loadout_value
+    if not mdf_missing:
+        return mdf_value
+    return loadout_value
+
+
 def parse_loadouts(
     game_data,
     mechs,
@@ -755,9 +774,16 @@ def parse_loadouts(
         if str(mech_id) in excluded_mech_ids:
             continue
         mech_key = str(mech["name"])
+        definition = definitions.get(mech_key)
+        if not definition:
+            raise RuntimeError(
+                f"Loadout {inner_path} MechID {mech_id} has no parsed MDF definition "
+                f"for {mech_key}"
+            )
+        mdf_components = definition.get("components", {})
         display_name = localized_mech_name(
             mech,
-            definitions.get(mech_key, {}),
+            definition,
             localization,
             missing_localization_keys,
             name,
@@ -781,9 +807,15 @@ def parse_loadouts(
         if component_list is not None:
             for comp in component_list.findall("component"):
                 comp_name = comp.attrib.get("Name", "").lower()
+                loadout_omnipod = maybe_num(comp.attrib.get("OmniPod"))
+                mdf_omnipod = mdf_components.get(comp_name, {}).get("omnipod")
                 payload = {
                     "armor": maybe_num(comp.attrib.get("Armor", 0)),
-                    "omnipod": maybe_num(comp.attrib.get("OmniPod")),
+                    "omnipod": merge_explicit_omnipod_id(
+                        loadout_omnipod,
+                        mdf_omnipod,
+                        f"{mech_key}/{comp_name}",
+                    ),
                     "items": [],
                 }
                 for child in list(comp):
@@ -796,6 +828,17 @@ def parse_loadouts(
                         "weapon_group": maybe_num(child.attrib.get("WeaponGroup")),
                     })
                 loadout["components"][comp_name] = payload
+        missing_body_components = sorted(
+            comp_name
+            for comp_name in mdf_components
+            if not comp_name.endswith("_rear")
+            and comp_name not in loadout["components"]
+        )
+        if missing_body_components:
+            raise RuntimeError(
+                f"Loadout {name} omits MDF body components: "
+                + ", ".join(missing_body_components)
+            )
         loadouts[name] = loadout
     return loadouts
 
@@ -824,7 +867,7 @@ def parse_mdf(data: bytes, source: str, localization, hardpoint_slot_counts):
 
     for comp in component_list.findall("Component"):
         name = comp.attrib.get("Name", "").lower()
-        definition["components"][name] = {
+        component = {
             "name": name,
             "slots": maybe_num(comp.attrib.get("Slots", 0)),
             "hp": maybe_num(comp.attrib.get("HP", 0)),
@@ -835,6 +878,9 @@ def parse_mdf(data: bytes, source: str, localization, hardpoint_slot_counts):
             "internals": parse_component_internals(comp),
             "fixed": parse_component_fixed(comp),
         }
+        if "OmniPod" in comp.attrib:
+            component["omnipod"] = maybe_num(comp.attrib.get("OmniPod"))
+        definition["components"][name] = component
     return definition, cockpit_shake_damping
 
 
@@ -934,6 +980,55 @@ def parse_omnipods(game_data, omnipod_details):
         pod["set_bonuses"] = detail.get("set_bonuses", [])
         pods[str(pod["id"])] = pod
     return pods
+
+
+def validate_loadout_omnipods(loadouts, mechs, omnipods):
+    for loadout in loadouts.values():
+        mech_id = loadout.get("mech_id")
+        mech = mechs.get(str(mech_id))
+        if not mech:
+            raise RuntimeError(
+                f"Loadout {loadout.get('name')} MechID {mech_id} did not match Mechs.xml"
+            )
+        expected_chassis = str(mech.get("chassis", "")).lower()
+        components = loadout.get("components", {})
+        body_components = {
+            name: component
+            for name, component in components.items()
+            if not name.endswith("_rear")
+        }
+        if any(
+            not missing_omnipod_id(component.get("omnipod"))
+            for component in body_components.values()
+        ):
+            missing_components = sorted(
+                name
+                for name, component in body_components.items()
+                if missing_omnipod_id(component.get("omnipod"))
+            )
+            if missing_components:
+                raise RuntimeError(
+                    f"OmniMech loadout {loadout.get('name')} has unresolved OmniPods: "
+                    + ", ".join(missing_components)
+                )
+        for component_name, component in components.items():
+            pod_id = component.get("omnipod")
+            if missing_omnipod_id(pod_id):
+                continue
+            pod = omnipods.get(str(pod_id))
+            if not pod:
+                raise RuntimeError(
+                    f"Loadout {loadout.get('name')}/{component_name} references "
+                    f"missing OmniPod {pod_id}"
+                )
+            pod_chassis = str(pod.get("chassis", "")).lower()
+            pod_component = str(pod.get("component", "")).lower()
+            if pod_chassis != expected_chassis or pod_component != component_name:
+                raise RuntimeError(
+                    f"Loadout {loadout.get('name')}/{component_name} OmniPod {pod_id} "
+                    f"does not match chassis/component: expected "
+                    f"{expected_chassis}/{component_name}, got {pod_chassis}/{pod_component}"
+                )
 
 
 def build_mech_payload(
@@ -1132,6 +1227,7 @@ def main(argv=None):
             excluded_mech_ids,
         )
         omnipods = parse_omnipods(game_data, omnipod_details)
+        validate_loadout_omnipods(loadouts, mechs, omnipods)
         skills = parse_skills(game_data, original_localization)
 
     mech_payload = build_mech_payload(

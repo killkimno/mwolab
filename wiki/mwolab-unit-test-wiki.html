@@ -126,9 +126,9 @@
     <main>
       <header>
         <h1>MwoLab 유닛 테스트 위키</h1>
-        <p class="meta">기준일 2026-08-09 · <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>의 테스트 전용 문서</p>
-        <p><code>tests/mechlab-formulas.test.js</code>와 <code>tests/quirk-calculations.test.js</code>가 검증하는 멕랩 계산식, 실행법과 유지 규칙을 정리한다.</p>
-        <div class="notice">브라우저 화면이나 로컬 미리보기 서버를 사용하지 않고 Node 내장 테스트 러너에서 <code>public/app.js</code>와 <code>public/quirk-calculations.js</code>의 실제 계산 함수를 직접 호출한다. 화면용 복제 공식은 만들지 않는다.</div>
+        <p class="meta">기준일 2026-08-16 · <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>의 테스트 전용 문서</p>
+        <p>Node 계산·생성 데이터 테스트와 Python 추출기 테스트의 실행법 및 유지 규칙을 정리한다.</p>
+        <div class="notice">브라우저 화면이나 로컬 미리보기 서버를 사용하지 않는다. Node 테스트는 실제 브라우저 계산 코드와 게시 JSON을 검증하고, Python 표준 <code>unittest</code>는 실제 추출기 파서를 메모리 fixture로 호출한다.</div>
       </header>
 
       <section id="purpose">
@@ -150,19 +150,21 @@
             <tr><td><code>npm run test:formulas</code></td><td>멕랩 공식 테스트만 실행</td></tr>
             <tr><td><code>npm run test:quirks</code></td><td>쿼크 이름·수치 공용 계산 테스트만 실행</td></tr>
             <tr><td><code>node --test tests/mechlab-formulas.test.js</code></td><td>npm을 거치지 않고 Node 테스트 러너로 직접 실행</td></tr>
+            <tr><td><code>python -m unittest tests/test_extract_mwo_data.py</code></td><td>MDF·로드아웃 옵니포드 결합과 원본 충돌 검증</td></tr>
           </tbody>
         </table>
       </section>
 
       <section id="structure">
         <h2>테스트 구조</h2>
-        <div class="flow">Node test runner → <code>quirk-calculations.js</code> 직접 테스트 + VM 샌드박스에서 <code>app.js</code> 통합 테스트 → 예상값 비교</div>
+        <div class="flow">Node test runner → 계산 코드·게시 JSON 검증 / Python unittest → 실제 추출기 파서·메모리 원본 fixture 검증</div>
         <ul>
           <li><code>public/quirk-calculations.js</code>는 브라우저 전역과 Node <code>module.exports</code> 양쪽에서 같은 공용 API를 제공한다.</li>
           <li>테스트 모드에서는 앱 초기화와 JSON 로딩을 생략하고 공식 테스트 API만 노출한다.</li>
           <li>VM은 DOM, 저장소, 위치 정보의 최소 스텁만 제공하며 네트워크 요청을 허용하지 않는다.</li>
           <li>테스트 API는 테스트 전용 진입점이며 앱 화면이나 배포 기능의 공개 API가 아니다.</li>
           <li><code>calculateBuild()</code> 집계 테스트로 개별 공식과 최종 피팅 요약이 같은 기준을 쓰는지 확인한다.</li>
+          <li>추출기 테스트는 설치 게임이나 서버에 의존하지 않고 최소 MDF·로드아웃 XML fixture로 직접 원본 병합 규칙을 확인한다.</li>
         </ul>
       </section>
 
@@ -179,13 +181,23 @@
             <tr><td>탄약·사거리</td><td>활성 탄종, Artemis, 탄약 소모·용량, 선형·step·지수 감쇠, ATM 거리별 피해</td></tr>
             <tr><td>기동·보조</td><td>속도·후진·가감속·선회·몸통, 센서, 타깃 컴퓨터, 점프젯 최종 높이</td></tr>
             <tr><td>발열·요약</td><td>히트싱크, 고스트 히트, HSL, DPS, DPH, HPS, 알파 발열, 열효율, 회복시간</td></tr>
+            <tr><td>추출·생성 데이터</td><td>MDF 컴포넌트 OmniPod 보존, 로드아웃 결합, 명시값 충돌 중단, chassis·component 검증, 게시 CT 회귀값</td></tr>
           </tbody>
         </table>
       </section>
 
       <section id="cases">
         <h2>개별 테스트 항목</h2>
-        <p>71개 실제 검증 사례와 일곱 개 상위 그룹 노드로 구성되어 현재 총 78개 테스트 노드가 통과한다.</p>
+        <p>Node 테스트 95개와 Python 추출기 테스트 10개가 현재 검증 범위를 구성한다.</p>
+
+        <h3>추출기와 생성 데이터</h3>
+        <ol class="test-list">
+          <li><strong>MDF 포드 보존</strong> — 컴포넌트의 명시적 <code>OmniPod</code>를 정의에 저장한다.</li>
+          <li><strong>로드아웃·MDF 결합</strong> — 로드아웃 XML이 생략한 CT 포드를 동일 MechID의 MDF에서 가져오고, 같은 명시값은 유지한다.</li>
+          <li><strong>원본 충돌 중단</strong> — 로드아웃과 MDF의 명시 ID가 다르면 임의 선택하지 않고 실패한다.</li>
+          <li><strong>포드 무결성</strong> — 대응 MDF 정의와 모든 비후면 몸체 행의 존재, 선택된 ID의 chassis·component 일치, 부분 해결 옴니멕 차단을 요구한다.</li>
+          <li><strong>게시 회귀값</strong> — EXE-B-C, HBR-F, HBR-F(C), MDD-SILGD, VPR-SC의 MDF CT ID가 게시 로드아웃에 유지되는지 확인한다.</li>
+        </ol>
 
         <h3>탐색·공유</h3>
         <ol class="test-list">
@@ -296,14 +308,14 @@
         <ol>
           <li>변경 전에 기존 테스트와 현재 게임 데이터·구현을 확인한다.</li>
           <li>정상값, 경계값, 0 또는 누락값 사례를 같은 작업에서 추가·수정한다.</li>
-          <li>전체 테스트, JavaScript 구문 검사, <code>git diff --check</code>를 실행한다.</li>
+          <li>전체 Node·Python 테스트, JavaScript·Python 구문 검사, <code>git diff --check</code>를 실행한다.</li>
           <li>실패가 구현 오류인지 의도된 변경인지 판별하고 근거 없이 예상값만 바꾸지 않는다.</li>
           <li>새 계산 함수는 실제 앱 함수를 테스트 진입점에 노출하며 UI에 복제 공식을 만들지 않는다.</li>
         </ol>
       </section>
 
       <footer>
-        마지막 문서 갱신: 2026-08-15 · 상위 문서: <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>
+        마지막 문서 갱신: 2026-08-16 · 상위 문서: <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>
       </footer>
     </main>
   </div>
