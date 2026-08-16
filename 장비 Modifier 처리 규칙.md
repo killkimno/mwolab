@@ -49,9 +49,9 @@ effective mech definition
 
 ### 결과 예시
 
-- HAG: `spread +0.5`, `numPerShot +3`, `damage ×0.34`, `volleydelay ×0.7`
-- Clan Gauss: `spread +0.25`, `numPerShot +4`, `damage ×0.25`
-- C-AC/C-UAC: 필터별 `numFiring` 감소 후 `damage` 배율 적용
+- HAG: `spread +0.5`, `numPerShot +3`, `damage ×0.34`, `volleydelay ×0.7`; HAG20/30/40의 SHOTS는 `3 X 4`, `3 X 6`, `3 X 8`
+- Clan Gauss: `spread +0.25`, `numPerShot +4`, `damage ×0.25`; 전탄 동시 `SHOTS 4`
+- C-AC/C-UAC: 필터별 `numFiring` 감소 후 `damage` 배율 적용; 최종 `SHOTS 1`
 
 ## 4. Modified Missile Loader
 
@@ -61,6 +61,7 @@ effective mech definition
 - C-LRM 5/10/15/20 일반·Artemis와 C-ATM 3/6/9/12의 exact `compatible_weapons`만 대상이며 IS LRM, C-SRM 등으로 계열 확장하지 않는다.
 - `MinReactivationTime`과 추출 데이터의 `MinReactivationTIme` 표기는 하나의 `minReactivationTime`으로 정규화한다. 최종값은 스냅샷에 보존하지만 소비 공식이 확정되기 전에는 쿨다운 하한이나 사이클에 사용하지 않는다.
 - `volleysize`는 필터가 변경하지 않으므로 원본을 유지한다. 발사 수 감소에 따른 피해 변화와 탄약 소비는 별도 보정 없이 공용 무기 공식의 최종 `numFiring`과 `ammoPerShot`을 사용한다.
+- 공용 SHOTS 규칙에 따라 C-LRM20/15/10/5는 `2 X 4`, `2 X 3`, `2 X 2`, `2`, C-ATM12/9/6/3은 `1 X 8`, `1 X 6`, `1 X 4`, `1 X 2`로 표시한다.
 - 장비 자체 툴팁은 `LRM / ATM VOLLEY — STREAM FIRE`, 대상 무기의 적용 효과는 `FIRING MODE — STREAM FIRE`만 표시하고 내부 modifier 행은 노출하지 않는다.
 
 ## 5. 계산 소비 경로
@@ -89,6 +90,7 @@ effective mech definition
 ## 7. 표시
 
 - 무기 툴팁의 `적용 효과`에는 장비 표시명을 출처 제목으로 사용한다.
+- 무기 스탯의 `SHOTS`는 `한 이벤트의 발사체 수 X 완전한 이벤트 횟수 + 나머지 발사체 수` 공식을 사용한다. 실효 이벤트가 하나이거나 실효 `volleydelay`가 0이면 전체 발사체 수만 표시한다. Modifier로 표현이 달라지면 최종 표현 전체를 초록색으로 표시한다.
 - 기능 모드 다음에 표시가 허용된 실제 필터의 연산값을 원본 순서대로 표시한다.
 - Modified Ballistic Loader의 `PELLETS / SHOT`, `DAMAGE / PROJECTILE`, `PROJECTILES`와 HAG·Clan Gauss의 `SPREAD` 연산값은 계산에는 적용하지만 장비 자체 툴팁과 무기 `적용 효과`에는 표시하지 않는다.
 - HAG의 `volleydelay ×0.7`은 두 툴팁에서 대상 무기 목록 없이 `C.HAG INTERVAL ×0.7`로 표시한다.

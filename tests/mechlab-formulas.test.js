@@ -1406,7 +1406,10 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.equal(api.weaponFiringTime(uac, [loader]), 0);
     assert.ok(api.weaponExpectedCooldown(uac, [], [loader]) < api.weaponExpectedCooldown(uac, [], []));
     const uacRows = Object.fromEntries(api.equipmentTooltipGroups(uac, 0, [], [loader]).flat());
-    assert.equal(uacRows.SHOTS, "1");
+    assert.equal(
+      uacRows.SHOTS.html,
+      '<span class="equipment-tooltip-final quirk-applied">1</span>',
+    );
     assert.equal(uacRows["SHOT INTERVAL"], undefined);
 
     closeTo(api.weaponDirectDamage(gauss, [loader]), 15);
@@ -1417,8 +1420,14 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.ok(api.weaponExpectedCooldown(hag20, [], [loader]) < api.weaponExpectedCooldown(hag20, [], []));
     const gaussRows = Object.fromEntries(api.equipmentTooltipGroups(gauss, 0, [], [loader]).flat());
     const hagRows = Object.fromEntries(api.equipmentTooltipGroups(hag20, 0, [], [loader]).flat());
-    assert.equal(gaussRows.SHOTS, "1 X 4");
-    assert.equal(hagRows.SHOTS, "4 X 3");
+    assert.equal(
+      gaussRows.SHOTS.html,
+      '<span class="equipment-tooltip-final quirk-applied">4</span>',
+    );
+    assert.equal(
+      hagRows.SHOTS.html,
+      '<span class="equipment-tooltip-final quirk-applied">3 X 4</span>',
+    );
     assert.match(hagRows["SHOT INTERVAL"].html, /equipment-tooltip-final quirk-applied/);
     assert.match(hagRows["SHOT INTERVAL"].html, /0\.091 s/);
 
@@ -1463,7 +1472,11 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
       assert.equal(api.weaponAmmoPerTrigger(item, [allSingleLoader]), 1, name);
       assert.equal(api.weaponFiringTime(item, [allSingleLoader]), 0, name);
       const rows = Object.fromEntries(api.equipmentTooltipGroups(item, 0, [], [allSingleLoader]).flat());
-      assert.equal(rows.SHOTS, "1", name);
+      assert.equal(
+        rows.SHOTS.html,
+        '<span class="equipment-tooltip-final quirk-applied">1</span>',
+        name,
+      );
       assert.equal(rows["SHOT INTERVAL"], undefined, name);
       const baseExpected = api.weaponExpectedCooldown(item, [], []);
       const finalExpected = api.weaponExpectedCooldown(item, [], [allSingleLoader]);
@@ -1530,9 +1543,13 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
         api.weaponFiringTime(item, [allShotgunLoader]),
         Math.max(0, shots - 1) * (name === "ClanGaussRifle" ? delay : delay * 0.7),
       );
+      const shotsValue = Object.fromEntries(
+        api.equipmentTooltipGroups(item, 0, [], [allShotgunLoader]).flat(),
+      ).SHOTS;
+      const expectedShots = shots === 1 ? `${pellets}` : `${pellets} X ${shots}`;
       assert.equal(
-        Object.fromEntries(api.equipmentTooltipGroups(item, 0, [], [allShotgunLoader]).flat()).SHOTS,
-        `${shots} X ${pellets}`,
+        shotsValue.html,
+        `<span class="equipment-tooltip-final quirk-applied">${expectedShots}</span>`,
         name,
       );
     });
@@ -1655,9 +1672,14 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
       assert.equal(api.weaponAmmoPerTrigger(item, [loader]), finalShots, item.name);
       closeTo(api.weaponDirectDamage(item, [loader]), damage * finalShots);
       closeTo(api.simulationWeaponTiming(item, [], [loader]).cooldown, finalCooldown);
-      closeTo(api.effectiveWeaponFiringProfile(item, [loader]).shotDelay, finalDelay);
+      const firingProfile = api.effectiveWeaponFiringProfile(item, [loader]);
+      closeTo(firingProfile.shotDelay, finalDelay);
       const eventCount = Math.ceil(finalShots / volleySize);
       assert.equal(api.weaponFiringEventCount(item, [loader]), eventCount, item.name);
+      const expectedShots = eventCount <= 1
+        ? `${finalShots}`
+        : `${volleySize} X ${Math.floor(finalShots / volleySize)}`;
+      assert.equal(firingProfile.displayShots, expectedShots, item.name);
       closeTo(api.weaponFiringTime(item, [loader]), Math.max(0, eventCount - 1) * finalDelay);
       const finalCycle = api.weaponExpectedCooldown(item, [], [loader])
         ?? api.simulationWeaponTiming(item, [], [loader]).cooldown;
@@ -1666,7 +1688,11 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
       assert.equal(api.weaponAmmoPerTrigger(item, []), rawShots, item.name);
       const tooltipRows = Object.fromEntries(api.equipmentTooltipGroups(item, 0, [], [loader]).flat());
       assert.match(tooltipRows.DAMAGE.html, /quirk-applied/, item.name);
-      assert.match(tooltipRows.SHOTS.html, /quirk-applied/, item.name);
+      assert.equal(
+        tooltipRows.SHOTS.html,
+        `<span class="equipment-tooltip-final quirk-applied">${expectedShots}</span>`,
+        item.name,
+      );
       assert.equal(typeof tooltipRows.COOLDOWN, "object", item.name);
       assert.match(tooltipRows.COOLDOWN.final, / s$/, item.name);
       if (eventCount > 1) {
@@ -2067,6 +2093,41 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     closeTo(api.weaponFiringTime(item), 0.2);
   });
 
+  await t.test("SHOTS는 이벤트당 발사체 수와 이벤트 횟수 및 나머지를 표시한다", () => {
+    const cases = [
+      ["ClanLRM20", "missile", { numFiring: 20, volleysize: 2, volleydelay: 0.05, projectileclass: "javelin" }, "2 X 10"],
+      ["ClanLRM5", "missile", { numFiring: 5, volleysize: 2, volleydelay: 0.05, projectileclass: "javelin" }, "2 X 2 + 1"],
+      ["ClanLRM15", "missile", { numFiring: 15, volleysize: 2, volleydelay: 0.05, projectileclass: "javelin" }, "2 X 7 + 1"],
+      ["ClanSRM6", "missile", { numFiring: 6, volleydelay: 0, projectileclass: "waypointrocket" }, "6"],
+      ["ClanLBXAutoCannon20", "ballistic", { numFiring: 1, numPerShot: 20, volleydelay: 0, projectileclass: "bullet" }, "20"],
+      ["ClanProtoAutocannon8", "ballistic", { numFiring: 2, volleydelay: 0.11, projectileclass: "bullet" }, "1 X 2"],
+      ["GroupedPellets", "missile", { numFiring: 5, numPerShot: 3, volleysize: 2, volleydelay: 0.1 }, "6 X 2 + 3"],
+    ];
+    cases.forEach(([name, hardpointType, stats, expected]) => {
+      const item = weapon({ name, hardpoint_type: hardpointType, stats });
+      const profile = api.effectiveWeaponFiringProfile(item, []);
+      assert.equal(profile.displayShots, expected, name);
+      assert.equal(
+        Object.fromEntries(api.equipmentTooltipGroups(item, 0, [], []).flat()).SHOTS,
+        expected,
+        name,
+      );
+    });
+
+    const partialOnly = weapon({
+      name: "PartialVolley",
+      hardpoint_type: "missile",
+      stats: { numFiring: 1, volleysize: 2, volleydelay: 0.1, projectileclass: "javelin" },
+    });
+    const partialProfile = api.effectiveWeaponFiringProfile(partialOnly, []);
+    assert.equal(partialProfile.displayShots, "1");
+    assert.equal(partialProfile.eventCount, 1);
+    assert.equal(
+      Object.fromEntries(api.equipmentTooltipGroups(partialOnly, 0, [], []).flat()).SHOTS,
+      undefined,
+    );
+  });
+
   await t.test("IS·Clan SSRM 2/4/6은 전탄 동시 발사로 딜레이가 없다", () => {
     for (const faction of ["InnerSphere", "Clan"]) {
       for (const shots of [2, 4, 6]) {
@@ -2082,6 +2143,7 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
         assert.equal(api.weaponFiringEventCount(item), 1);
         assert.equal(api.weaponFiringTime(item), 0);
         assert.equal(api.weaponExpectedCooldown(item), null);
+        assert.equal(api.effectiveWeaponFiringProfile(item, []).displayShots, `${shots}`);
       }
     }
   });
@@ -2823,6 +2885,7 @@ test("고정 9031은 유효 정의에서 BANE 무기 계산과 시뮬레이션�
   assert.equal(simulationWeapons.length, 1);
   closeTo(simulationWeapons[0].directDamage, 16.32);
   assert.equal(simulationWeapons[0].shotCount, 4);
+  assert.equal(simulationWeapons[0].eventCount, 4);
   closeTo(simulationWeapons[0].shotDelay, 0.091);
   closeTo(simulationWeapons[0].firingTime, 0.273);
 });
@@ -2936,6 +2999,7 @@ test("고정 9032는 AMAROK 무기·탄약·시뮬레이션에 공용 Modifier�
   closeTo(simulationWeapons[0].directDamage, 8);
   assert.equal(simulationWeapons[0].shotCount, 8);
   assert.equal(simulationWeapons[0].volleySize, 2);
+  assert.equal(simulationWeapons[0].eventCount, 4);
   closeTo(simulationWeapons[0].shotDelay, 0.25);
   closeTo(simulationWeapons[0].firingTime, 0.75);
   closeTo(simulationWeapons[0].cooldown, 0.25);

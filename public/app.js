@@ -8061,16 +8061,34 @@ function effectiveWeaponFiringProfile(item, modules = installedMechItems("module
   const singleProjectile = modes.has("single-projectile");
   const shotgun = modes.has("shotgun");
   const projectilesPerShot = Math.max(1, Math.trunc(effective.numPerShot));
+  const volleySize = weaponVolleySize(item);
+  const fullEventCount = Math.floor(sourceShots / volleySize);
+  const remainderFirings = sourceShots % volleySize;
+  const eventCount = fullEventCount + (remainderFirings > 0 ? 1 : 0);
+  const projectilesPerFullEvent = volleySize * projectilesPerShot;
+  const remainderProjectiles = remainderFirings * projectilesPerShot;
+  const totalProjectiles = sourceShots * projectilesPerShot;
+  const shotDelay = sourceShots > 1 ? sourceShotDelay : 0;
+  const simultaneous = eventCount <= 1 || shotDelay <= 0;
+  const displayShots = simultaneous
+    ? `${totalProjectiles}`
+    : `${projectilesPerFullEvent} X ${fullEventCount}${remainderProjectiles > 0 ? ` + ${remainderProjectiles}` : ""}`;
   return {
     modes,
     singleProjectile,
     shotgun,
     firingShots: sourceShots,
-    shotDelay: sourceShots > 1 ? sourceShotDelay : 0,
+    shotDelay,
+    volleySize,
+    eventCount,
+    fullEventCount,
+    remainderFirings,
+    projectilesPerFullEvent,
+    remainderProjectiles,
+    totalProjectiles,
+    simultaneous,
     clusterCount: projectilesPerShot,
-    displayShots: shotgun
-      ? `${sourceShots} X ${projectilesPerShot}`
-      : `${sourceShots}`,
+    displayShots,
   };
 }
 
@@ -8307,13 +8325,12 @@ function weaponVolleySize(item) {
 }
 
 function weaponFiringEventCount(item, modules = installedMechItems("module")) {
-  const shots = effectiveWeaponFiringProfile(item, modules).firingShots;
-  return Math.ceil(shots / weaponVolleySize(item));
+  return effectiveWeaponFiringProfile(item, modules).eventCount;
 }
 
 function weaponFiringTime(item, modules = installedMechItems("module")) {
   const profile = effectiveWeaponFiringProfile(item, modules);
-  return Math.max(0, weaponFiringEventCount(item, modules) - 1) * profile.shotDelay;
+  return Math.max(0, profile.eventCount - 1) * profile.shotDelay;
 }
 
 function weaponHasExpectedCooldown(item, modules = installedMechItems("module")) {
@@ -8526,7 +8543,8 @@ function collectSimulationWeapons() {
         chargeTime: Math.max(0, number(item.stats?.chargeTime)),
         firingTime: weaponFiringTime(item, modules),
         shotCount: firingProfile.firingShots,
-        volleySize: weaponVolleySize(item),
+        volleySize: firingProfile.volleySize,
+        eventCount: firingProfile.eventCount,
         shotDelay: firingProfile.shotDelay,
         ultra: isUltraAutoCannon(item),
         jam: ultraAutoCannonJamStats(item, quirks),
@@ -8575,7 +8593,8 @@ function collectSimulationWeapons() {
         chargeTime: Math.max(0, number(item.stats?.chargeTime)),
         firingTime: weaponFiringTime(item, modules),
         shotCount: firingProfile.firingShots,
-        volleySize: weaponVolleySize(item),
+        volleySize: firingProfile.volleySize,
+        eventCount: firingProfile.eventCount,
         shotDelay: firingProfile.shotDelay,
         ultra: isUltraAutoCannon(item),
         jam: ultraAutoCannonJamStats(item, quirks),
@@ -9838,7 +9857,7 @@ function showSimulationHitEffect(weapon, damage = 0) {
 function queueSimulationVolley(weapon, startsAt) {
   const shotCount = Math.max(1, weapon.shotCount);
   const volleySize = Math.max(1, weapon.volleySize);
-  const eventCount = Math.ceil(shotCount / volleySize);
+  const eventCount = Math.max(1, weapon.eventCount ?? Math.ceil(shotCount / volleySize));
   for (let index = 0; index < eventCount; index += 1) {
     const eventShots = Math.min(volleySize, shotCount - index * volleySize);
     state.simulation.pendingShots.push({
@@ -13092,6 +13111,15 @@ function tooltipFinalQuirkValue(base, final, digits = 2, unit = "") {
   };
 }
 
+function tooltipFinalTextValue(base, final) {
+  const baseText = String(base ?? "");
+  const finalText = String(final ?? "");
+  if (baseText === finalText) return finalText;
+  return {
+    html: `<span class="equipment-tooltip-final quirk-applied">${escapeHtml(finalText)}</span>`,
+  };
+}
+
 function tooltipValueHtml(value) {
   if (!value || typeof value !== "object") return escapeHtml(value);
   if (typeof value.html === "string") return value.html;
@@ -13501,23 +13529,21 @@ function equipmentTooltipGroups(
     ]);
     groups.push(rangeRows);
     const firingProfile = effectiveWeaponFiringProfile(item, modules);
-    const firingShots = firingProfile.firingShots;
+    const baseFiringProfile = effectiveWeaponFiringProfile(item, []);
     const streamFire = firingProfile.modes.has("stream-fire");
-    const pelletsPerShot = Math.max(1, Math.trunc(effectiveWeaponStats(item, modules).numPerShot));
-    const displayedShots = pelletsPerShot > 1 ? pelletsPerShot : firingShots;
     const shotInterval = firingProfile.shotDelay;
     const ammoInfoRows = [];
-    if (streamFire) {
+    const showShots = firingProfile.totalProjectiles > 1
+      || firingProfile.shotgun
+      || firingProfile.singleProjectile
+      || streamFire;
+    if (showShots) {
       ammoInfoRows.push([
         "SHOTS",
-        tooltipFinalQuirkValue(stats.numFiring, firingShots, 0),
+        tooltipFinalTextValue(baseFiringProfile.displayShots, firingProfile.displayShots),
       ]);
-    } else if (firingProfile.shotgun || firingProfile.singleProjectile) {
-      ammoInfoRows.push(["SHOTS", firingProfile.displayShots]);
-    } else if (displayedShots > 1) {
-      ammoInfoRows.push(["SHOTS", tooltipNumber(displayedShots, 0)]);
     }
-    if (weaponFiringEventCount(item, modules) > 1 && shotInterval > 0) {
+    if (firingProfile.eventCount > 1 && shotInterval > 0) {
       ammoInfoRows.push([
         "SHOT INTERVAL",
         firingProfile.shotgun || streamFire
