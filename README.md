@@ -4,7 +4,7 @@ MechWarrior Online 메크 스펙 비교 사이트입니다.
 
 ## 주소
 
-https://killkimno.github.io/MwoLab/
+https://kmonkeyhead.github.io/MwoLab/
 
 ## 소개
 
