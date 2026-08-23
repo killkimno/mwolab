@@ -853,7 +853,7 @@
         <h3>전체 JSON 갱신 절차</h3>
         <ul>
           <li>임시 출력에 전체 데이터를 추출한 뒤 JSON 구조, MDF 직접 옵니포드 결합 결과, 표준 멕과 옵니포드 하드포인트 회귀 기준을 검증하고 성공한 결과만 게시 데이터에 반영한다. 게시 파일은 기존 파일을 복구용 위치에 복사한 뒤 각 대상 위에 원자적으로 교체하며 중간 실패 시 전부 롤백한다. 기존 JSON 전체를 먼저 이동하지 않으므로 갱신 중에도 로컬 서버가 항상 이전 또는 새 파일을 읽을 수 있다.</li>
-          <li>새 멕 ID와 <code>public/assets/mech-icons</code>의 썸네일을 비교하고, 누락 이미지는 <code>GameData.pak</code>의 <code>Libs/UI/Screens/Assets/MechIcons/</code>에서 찾는다. 기존 썸네일은 덮어쓰지 않는다.</li>
+          <li>멕 아이콘 전체 갱신은 <code>tools/extract_mwo_mech_icons.py</code>로 수행한다. 스크립트는 <code>GameData.pak</code>의 <code>Libs/UI/Screens/Assets/MechIcons/</code> 바로 아래 256×256 RGBA PNG를 추출해 basename을 소문자로 정규화하고, <code>ReplaceIcon</code>의 대소문자를 무시한 동일 파일명 교체본을 우선 적용한 뒤 <code>local-mech-icons</code>와 <code>public/assets/mech-icons</code>에 게시한다. 정규화된 파일명이 충돌하면 게시하지 않으며 대상 폴더에만 있는 별도 아이콘은 보존한다. PAK에 없는 현재 멕 아이콘은 기존 브라우저 폴더에 유효한 파일이 있는지 게시 전에 검사한다.</li>
           <li>갱신 보고에는 생성 JSON 범위, 멕·무기 현지화 누락 키 목록, MDF 명시 옵니포드 검증 수, 미해결 컴포넌트, 추가된 썸네일과 검증 결과를 포함한다. 차단 실패는 실패 단계와 게시 여부를 구조화해 보고하고, 게시 또는 staging 정리만 실패하면 이미 완료된 게시 상태와 정리 경고를 구분한다.</li>
           <li>Windows 게시용 임시 파일은 최종 데이터 또는 썸네일 폴더 안에 만들고 교체 전후에 대상 폴더 ACL 상속을 활성화한다. transaction 및 backup 디렉터리도 사용자 상속 ACL을 적용해 사용자 소유 로컬 서버의 JSON 읽기와 실패 시 복구 파일 접근을 보장한다.</li>
           <li>미확정이나 해석 오류가 있으면 임시 결과를 게시하지 않는다. 모두 해결된 현재 전체 데이터는 조립 불가 <code>(T)</code> 멕을 제외한 멕 1,276개, 장비 751개, 영문 현지화 문자열 30,350개, 로드아웃 1,299개, 옵니포드 1,833개이며 현지화 누락 키, 미확정 옵니포드와 누락 썸네일은 모두 0건이다.</li>

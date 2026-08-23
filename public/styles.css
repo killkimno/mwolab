@@ -7041,7 +7041,7 @@ body.weapon-detail-open {
 
 .slot-item {
   display: grid;
-  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
   grid-row: span var(--slot-span, 1);
   gap: 0.35rem;
   align-items: center;
@@ -7116,12 +7116,6 @@ body.pointer-drag-active * {
   color: #c7d9df;
   font-size: 0.792rem;
   font-weight: 900;
-}
-
-.slot-item-slots {
-  color: #9fb2b8;
-  font-size: 0.781rem;
-  font-weight: 800;
 }
 
 .slot-item.energy {
@@ -7239,14 +7233,12 @@ body.pointer-drag-active * {
   padding-inline: 2.6rem;
 }
 
-.engine-main-slot .slot-item-mark,
-.engine-main-slot .slot-item-slots {
+.engine-main-slot .slot-item-mark {
   z-index: 1;
   grid-row: 1;
 }
 
 .engine-main-slot .slot-item-mark { grid-column: 1; }
-.engine-main-slot .slot-item-slots { grid-column: 3; }
 
 .engine-slot-content > strong,
 .engine-slot-name {
@@ -7259,7 +7251,7 @@ body.pointer-drag-active * {
 
 .fixed-slot.engine-fixed-slot {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   align-content: start;
   gap: 0.65rem;
@@ -7271,15 +7263,6 @@ body.pointer-drag-active * {
 
 .engine-fixed-slot .engine-inline-heat-sinks {
   grid-column: 1 / -1;
-}
-
-.engine-slot-size {
-  color: #bfe6ff;
-  font-weight: 800;
-}
-
-.engine-fixed-slot .engine-slot-size {
-  color: #c0c8cb;
 }
 
 .engine-fixed-slot .engine-slot-name {

@@ -11835,7 +11835,7 @@ function renderFixedSlot(itemId, ghostHeatGroups = new Set()) {
 function renderEngineSideSlots(engine, slots) {
   const name = engine?.display_name || t("common.engine");
   const tooltipItem = engine ? ` data-tooltip-item="${engine.id}"` : "";
-  return `<div class="critical-slot fixed-slot engine-side-slot"${tooltipItem} style="--slot-span:${slots}" aria-label="${escapeHtml(name)} / ${slots} slots">${t("common.engine")} · ${slots}S</div>`;
+  return `<div class="critical-slot fixed-slot engine-side-slot"${tooltipItem} style="--slot-span:${slots}" aria-label="${escapeHtml(name)} / ${slots} slots">${t("common.engine")}</div>`;
 }
 
 function renderFixedEngine(engine, slots, calc = null) {
@@ -11844,7 +11844,6 @@ function renderFixedEngine(engine, slots, calc = null) {
   return `
     <div class="critical-slot fixed-slot engine-fixed-slot"${tooltipItem} data-engine-heat-sink-engine style="--slot-span:${slots}" aria-label="${escapeHtml(name)} / ${slots} slots">
       <strong class="engine-slot-name">${name}</strong>
-      <span class="engine-slot-size">${slots}S</span>
       ${renderEngineHeatSinkBay(engine, calc)}
     </div>
   `;
@@ -11925,7 +11924,6 @@ function renderLoadoutItem(component, entry, index, engineBayCalc = null, ghostH
           <strong>${item.display_name}</strong>
           ${renderEngineHeatSinkBay(item, engineBayCalc)}
         </div>
-        <span class="slot-item-slots">${slots}S</span>
       </div>
       <div class="engine-rating-controls" aria-label="Engine rating controls">
         <button type="button" data-engine-rating-component="${component}" data-engine-rating-index="${index}" data-engine-rating-delta="-1" ${lowerEngine ? "" : "disabled"} aria-label="Decrease engine rating">−</button>
@@ -11937,7 +11935,6 @@ function renderLoadoutItem(component, entry, index, engineBayCalc = null, ghostH
     <div class="slot-item ${mountType || item.item_type}${ammoClass}${ghostHeatClass}" data-loadout-item="${component}:${index}" style="--slot-span:${slots}" aria-label="${escapeHtml(item.display_name)} / ${slots} slots / ${fmt(itemTons(item))} tons">
       <span class="slot-item-mark">${HARDPOINT_LABELS[mountType] || String(item.item_type || "?")[0].toUpperCase()}</span>
       <strong>${item.display_name}</strong>
-      <span class="slot-item-slots">${slots}S</span>
     </div>
   `;
   return row;
@@ -14200,7 +14197,6 @@ function createWarehouseSlotPointerVisual(item) {
     visual.innerHTML = `
       <span class="slot-item-mark">E</span>
       <div class="engine-slot-content"><strong>${escapeHtml(item.display_name || item.name)}</strong></div>
-      <span class="slot-item-slots">${slots}S</span>
     `;
     return visual;
   }
@@ -14208,7 +14204,6 @@ function createWarehouseSlotPointerVisual(item) {
   visual.innerHTML = `
     <span class="slot-item-mark">${HARDPOINT_LABELS[mountType] || String(item.item_type || "?")[0].toUpperCase()}</span>
     <strong>${escapeHtml(item.display_name || item.name)}</strong>
-    <span class="slot-item-slots">${slots}S</span>
   `;
   return visual;
 }
