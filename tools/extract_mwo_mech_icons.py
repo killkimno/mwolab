@@ -111,6 +111,7 @@ def apply_replacements(icons, replace_dir: Path):
 
     archive_names = {name.casefold(): name for name in icons}
     replacements = []
+    unmatched = []
     for path in sorted(replace_dir.iterdir(), key=lambda item: item.name.casefold()):
         if not path.is_file():
             continue
@@ -118,12 +119,13 @@ def apply_replacements(icons, replace_dir: Path):
             raise RuntimeError(f"Replacement directory contains a non-PNG file: {path}")
         archive_name = archive_names.get(path.name.casefold())
         if archive_name is None:
-            raise RuntimeError(f"Replacement icon has no matching GameData.pak icon: {path.name}")
+            unmatched.append(path.name)
+            continue
         data = path.read_bytes()
         validate_mech_icon(data, str(path))
         icons[archive_name] = data
         replacements.append(archive_name)
-    return replacements
+    return replacements, unmatched
 
 
 def validate_browser_coverage(icons, output_dir: Path, mechs_data_path: Path):
@@ -313,7 +315,9 @@ def main():
 
     with zipfile.ZipFile(game_data_path) as game_data:
         icons = read_archive_icons(game_data)
-    replacements = apply_replacements(icons, args.replace_dir)
+    replacements, unmatched_replacements = apply_replacements(
+        icons, args.replace_dir
+    )
     browser_fallbacks = []
     for output_dir in output_dirs:
         if output_dir.resolve() == DEFAULT_PUBLIC_OUTPUT.resolve():
@@ -325,6 +329,9 @@ def main():
     print(f"Replacement icons: {len(replacements)}")
     for filename in replacements:
         print(f"  {filename}: {sha256(icons[filename])}")
+    print(f"Unmatched replacement icons preserved: {len(unmatched_replacements)}")
+    for filename in unmatched_replacements:
+        print(f"  {filename}")
     print(f"Preserved PAK-absent browser icons: {len(browser_fallbacks)}")
     for filename in browser_fallbacks:
         print(f"  {filename}")

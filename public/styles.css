@@ -8111,15 +8111,16 @@ body.pointer-drag-active * {
   text-align: center;
 }
 
-.omnipod-hardpoint.zero {
-  font-weight: 400;
-}
-
 .omnipod-hardpoint.energy { color: var(--yellow); }
 .omnipod-hardpoint.missile { color: var(--missile); }
 .omnipod-hardpoint.ballistic { color: #c8a1dd; }
 .omnipod-hardpoint.ams { color: var(--ams); }
 .omnipod-hardpoint.ecm { color: #ff9b42; }
+
+.omnipod-hardpoint.zero {
+  font-weight: 400;
+  opacity: 0.38;
+}
 
 .item-row-name {
   display: grid;

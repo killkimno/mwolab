@@ -80,6 +80,26 @@ function loadMechLab({
 
 const api = loadMechLab();
 
+test("기본 하드포인트 필터는 각 타입의 전체 최솟값을 1로 유지한다", () => {
+  Object.values(api.state.mechHardpointFilters).forEach((filter) => {
+    assert.equal(filter.minimums.total, 1);
+    assert.equal(filter.minimums.left_torso, 0);
+  });
+  assert.equal(api.normalizeMechHardpointFilterMinimum("total", 0), 1);
+  assert.equal(api.normalizeMechHardpointFilterMinimum("total", ""), 1);
+  assert.equal(api.normalizeMechHardpointFilterMinimum("total", 2.9), 2);
+  assert.equal(api.normalizeMechHardpointFilterMinimum("left_torso", 0), 0);
+});
+
+test("옵니포드의 0 하드포인트는 타입 색상을 유지한 채 어둡게 표시한다", () => {
+  const styles = fs.readFileSync(path.join(__dirname, "..", "public", "styles.css"), "utf8");
+  const zeroRuleIndex = styles.indexOf(".omnipod-hardpoint.zero");
+  assert.ok(zeroRuleIndex > styles.indexOf(".omnipod-hardpoint.ecm"));
+  const zeroRule = styles.slice(zeroRuleIndex, zeroRuleIndex + 120);
+  assert.match(zeroRule, /opacity:\s*0\.38/);
+  assert.doesNotMatch(zeroRule, /color\s*:/);
+});
+
 test("장비 툴팁 적용 효과 설정은 기본 ON이며 저장값을 복원한다", () => {
   const key = "mwolab:show-weapon-tooltip-quirks";
   assert.equal(api.state.showWeaponTooltipQuirks, true);
@@ -763,6 +783,55 @@ test("탄약·Artemis·하드포인트 공식", async (t) => {
     assert.equal(counts.energy, 4);
     assert.equal(counts.ams, 2);
     assert.equal(api.hardpointSlots({ weapon_slots: 0 }), 1);
+  });
+
+  await t.test("ECM 능력은 컴포넌트 원본 속성만 사용한다", () => {
+    const ecmApi = loadMechLab();
+    const mech = {
+      id: 36,
+      stock_loadout: "cda-3m",
+      definition: { components: {
+        left_torso: { hardpoints: [], internals: [], fixed: [], CanEquipECM: 1 },
+        right_torso: { hardpoints: [], internals: [], fixed: [] },
+      } },
+    };
+    const build = { components: {
+      left_torso: { items: [], omnipod: null },
+      right_torso: { items: [], omnipod: null },
+    } };
+    ecmApi.state.loadouts = {
+      "cda-3m": { components: {
+        right_torso: { items: [{ item_id: 9006 }] },
+      } },
+    };
+    ecmApi.state.equipment = { items: {
+      9006: { id: 9006, item_type: "module", ctype: "CGECMStats" },
+    } };
+
+    const left = ecmApi.effectiveComponentDefinition(mech, build, "left_torso");
+    const right = ecmApi.effectiveComponentDefinition(mech, build, "right_torso");
+    assert.equal(ecmApi.hardpointCountsFromDefinition({ components: { left } }).ecm, 1);
+    assert.equal(ecmApi.hardpointCountsFromDefinition({ components: { right } }).ecm, undefined);
+  });
+
+  await t.test("ECM 능력은 선택한 옴니포드의 원본 속성을 사용한다", () => {
+    const ecmApi = loadMechLab();
+    const mech = {
+      id: 1,
+      stock_loadout: "fmt-prime",
+      definition: { components: {
+        right_arm: { hardpoints: [], internals: [], fixed: [] },
+      } },
+    };
+    const build = { components: {
+      right_arm: { items: [], omnipod: 31533 },
+    } };
+    ecmApi.state.omnipods = {
+      31533: { id: 31533, hardpoints: [], internals: [], fixed: [], CanEquipECM: 1 },
+    };
+
+    const component = ecmApi.effectiveComponentDefinition(mech, build, "right_arm");
+    assert.equal(ecmApi.hardpointCountsFromDefinition({ components: { component } }).ecm, 1);
   });
 
   await t.test("구조·장갑 업그레이드 슬롯을 컴포넌트 여유 공간에 순서대로 배치한다", () => {

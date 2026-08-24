@@ -41,6 +41,8 @@
 
 ## 하드포인트 데이터
 
+- 멕이 보유한 하드포인트와 장착 능력은 STOCK LOADOUT의 설치 장비로 추론하지 않고 MDF 또는 옴니포드 컴포넌트 원본에서 추출한다. STOCK LOADOUT은 초기 장착 상태만 나타낸다.
+- ECM 장착 능력은 일반 멕 MDF의 `ComponentList/Component`와 상세 옴니포드 XML의 `Set/component`에 명시된 `CanEquipECM`을 해당 컴포넌트에 보존한다. 원본 속성명은 대소문자를 무시해 읽고 생성 JSON에서는 `CanEquipECM`으로 정규화한다. 멕 최상위 속성과 컴포넌트 속성을 서로 대신 사용하지 않으며, 원본에 없는 능력을 기본 로드아웃의 ECM 장비로 만들지 않는다.
 - 일반 및 옴니포드 무기 용량은 각 섀시 아카이브의 `*-hardpoints.xml`에서 가져온다. MDF 또는 옴니포드의 하드포인트 `ID`를 `<Hardpoint id="...">`와 연결하고 직접 자식 `<WeaponSlot>`의 개수를 `weapon_slots`에 저장한다.
 - 선행 0이 있는 숫자 ID도 같게 비교되도록 하드포인트 ID를 정규화한다. 예를 들어 XML ID `"02"`는 MDF 또는 옴니포드 ID `2`와 일치해야 하며 원시 문자열을 그대로 비교하지 않는다.
 - MDF 하드포인트의 `Slots` 속성은 장착 가능한 무기 개수가 아니다. 하드포인트 용량으로 사용하지 않는다. 예를 들어 MDF `Slots="10"`이 `<WeaponSlot>` 세 개에 대응할 수 있다.

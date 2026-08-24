@@ -62,23 +62,30 @@ class ExtractMwoMechIconsTests(unittest.TestCase):
             (replace_dir / "NVA-PRIMEI.PNG").write_bytes(replacement_icon)
             (output_dir / "legacy.png").write_bytes(b"preserved")
 
-            replacements = EXTRACTOR.apply_replacements(icons, replace_dir)
+            replacements, unmatched = EXTRACTOR.apply_replacements(
+                icons, replace_dir
+            )
             with mock.patch.object(EXTRACTOR, "enable_acl_inheritance"):
                 result = EXTRACTOR.publish_icons(icons, output_dir)
 
             self.assertEqual(replacements, ["nva-primei.png"])
+            self.assertEqual(unmatched, [])
             self.assertEqual((output_dir / "nva-primei.png").read_bytes(), replacement_icon)
             self.assertEqual((output_dir / "legacy.png").read_bytes(), b"preserved")
             self.assertEqual(result, {"created": 1, "updated": 0, "unchanged": 0})
 
-    def test_unknown_replacement_is_rejected(self):
+    def test_unknown_replacement_is_preserved_and_reported(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
             replace_dir = Path(temporary_dir)
             (replace_dir / "typo.png").write_bytes(rgba_png((1, 2, 3, 255)))
-            with self.assertRaisesRegex(RuntimeError, "no matching GameData.pak icon"):
-                EXTRACTOR.apply_replacements(
-                    {"known.png": rgba_png((4, 5, 6, 255))}, replace_dir
-                )
+            icons = {"known.png": rgba_png((4, 5, 6, 255))}
+            replacements, unmatched = EXTRACTOR.apply_replacements(
+                icons, replace_dir
+            )
+
+            self.assertEqual(replacements, [])
+            self.assertEqual(unmatched, ["typo.png"])
+            self.assertTrue((replace_dir / "typo.png").is_file())
 
     def test_browser_coverage_accepts_and_validates_existing_pak_absent_icon(self):
         with tempfile.TemporaryDirectory() as temporary_dir:

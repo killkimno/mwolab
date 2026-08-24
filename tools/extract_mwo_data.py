@@ -19,6 +19,9 @@ HARDPOINT_TYPES = {
     "3": "ams",
     "4": "ams",
 }
+COMPONENT_CAPABILITY_ATTRIBUTES = {
+    "canequipecm": "CanEquipECM",
+}
 
 ITEM_FILES = [
     ("weapons", "Libs/Items/Weapons/Weapons.xml"),
@@ -481,8 +484,10 @@ def parse_hardpoint_weapon_slots(zf):
             continue
         try:
             root = parse_xml(zf.read(inner_path), inner_path)
-        except Exception:
-            continue
+        except Exception as error:
+            raise RuntimeError(
+                f"Failed to parse detailed OmniPod source {inner_path}"
+            ) from error
         for hardpoint in root.findall("Hardpoint"):
             hardpoint_id = hardpoint.attrib.get("id")
             if hardpoint_id is None:
@@ -561,6 +566,24 @@ def parse_component_fixed(comp):
         if child.tag == "Fixed" and child.attrib.get("ItemID"):
             fixed.append(int(child.attrib["ItemID"]))
     return fixed
+
+
+def parse_component_capabilities(comp):
+    capabilities = {}
+    source_names = {}
+    for source_name, source_value in comp.attrib.items():
+        canonical_name = COMPONENT_CAPABILITY_ATTRIBUTES.get(source_name.casefold())
+        if canonical_name is None:
+            continue
+        value = maybe_num(source_value)
+        if canonical_name in capabilities and capabilities[canonical_name] != value:
+            raise RuntimeError(
+                f"Conflicting component capability attributes "
+                f"{source_names[canonical_name]} and {source_name}"
+            )
+        capabilities[canonical_name] = value
+        source_names[canonical_name] = source_name
+    return capabilities
 
 
 def parse_items(
@@ -880,6 +903,7 @@ def parse_mdf(data: bytes, source: str, localization, hardpoint_slot_counts):
         }
         if "OmniPod" in comp.attrib:
             component["omnipod"] = maybe_num(comp.attrib.get("OmniPod"))
+        component.update(parse_component_capabilities(comp))
         definition["components"][name] = component
     return definition, cockpit_shake_damping
 
@@ -906,7 +930,7 @@ def parse_detailed_omnipods(zf, localization, hardpoint_slot_counts):
                     })
             for comp in set_node.findall("component"):
                 component = comp.attrib.get("name", "").lower()
-                details[f"{chassis}|{set_name}|{component}"] = {
+                detail = {
                     "chassis": chassis,
                     "set": set_name,
                     "component": component,
@@ -919,6 +943,8 @@ def parse_detailed_omnipods(zf, localization, hardpoint_slot_counts):
                     "quirks": parse_quirks(comp, localization, "omnipod"),
                     "set_bonuses": set_bonuses,
                 }
+                detail.update(parse_component_capabilities(comp))
+                details[f"{chassis}|{set_name}|{component}"] = detail
     return details
 
 
@@ -948,8 +974,10 @@ def parse_mech_definitions(game_dir: Path, localization):
                             localization,
                             hardpoint_slot_counts,
                         )
-                    except Exception:
-                        continue
+                    except Exception as error:
+                        raise RuntimeError(
+                            f"Failed to parse MDF source {pak_path.name}:{inner_path}"
+                        ) from error
                     if definition:
                         variant = Path(inner_path).stem.lower()
                         definitions[variant] = definition
@@ -959,8 +987,8 @@ def parse_mech_definitions(game_dir: Path, localization):
                                 "source_pak": pak_path.name,
                                 "source_mdf": inner_path,
                             }
-        except zipfile.BadZipFile:
-            continue
+        except zipfile.BadZipFile as error:
+            raise RuntimeError(f"Failed to read mech archive {pak_path}") from error
     return definitions, omnipod_details, cockpit_shake_damping
 
 
@@ -978,6 +1006,15 @@ def parse_omnipods(game_data, omnipod_details):
         pod["fixed"] = detail.get("fixed", [])
         pod["quirks"] = detail.get("quirks", [])
         pod["set_bonuses"] = detail.get("set_bonuses", [])
+        for capability in COMPONENT_CAPABILITY_ATTRIBUTES.values():
+            if capability not in detail:
+                continue
+            if capability in pod and pod[capability] != detail[capability]:
+                raise RuntimeError(
+                    f"Conflicting OmniPod capability for {pod.get('id')}: "
+                    f"{capability}={pod[capability]} != {detail[capability]}"
+                )
+            pod[capability] = detail[capability]
         pods[str(pod["id"])] = pod
     return pods
 

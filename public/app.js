@@ -1808,7 +1808,7 @@ const state = {
       enabled: false,
       minimums: Object.fromEntries(MECH_FILTER_HARDPOINT_LOCATIONS.map((location) => [
         location.key,
-        type === "masc" && location.key === "total" ? 1 : 0,
+        normalizeMechHardpointFilterMinimum(location.key, 0),
       ])),
     },
   ])),
@@ -1836,7 +1836,6 @@ const state = {
   alwaysAppliedWeaponModuleBonusCache: new Map(),
   artemisSpreadMultiplierCache: null,
   ammoHardpointTypeCache: null,
-  ecmOmnipodIds: null,
   fixedOmniEngineCache: new Map(),
   selectedMech: null,
   selectedChassis: "",
@@ -2528,9 +2527,8 @@ function mechSensorRange(quirks, mech = state.selectedMech, build = state.curren
   return Math.max(0, mechAndQuirkRange * (1 + installedSensorEquipmentBonus()));
 }
 
-function componentHasEcm(component) {
-  return [...(component?.items || []), ...(component?.fixed || [])]
-    .some((entry) => isEcm(itemById(entry?.item_id ?? entry)));
+function componentCanEquipEcm(component) {
+  return number(component?.CanEquipECM) > 0;
 }
 
 function equipmentHardpointType(item) {
@@ -3260,52 +3258,31 @@ function omnipodDefinition(pod) {
   const cached = state.omnipodDefinitionCache.get(cacheKey);
   if (cached) return cached;
 
-  let sourceComponent = null;
-  for (const loadout of Object.values(state.loadouts || {})) {
-    sourceComponent = Object.values(loadout.components || {}).find((component) => (
-      String(component.omnipod || "") === cacheKey
-    ));
-    if (sourceComponent) break;
-  }
-
   let hardpoints = (pod.hardpoints || []).map((hardpoint) => ({
     ...hardpoint,
     hardpoint_type: hardpointType(hardpoint),
   }));
-  if (componentHasEcm(sourceComponent)) {
-    hardpoints = addEcmHardpoint(hardpoints);
+  if (componentCanEquipEcm(pod)) {
+    hardpoints = addEcmCapabilityHardpoint(hardpoints);
   }
   const definition = {
     hardpoints,
     internals: pod.internals || [],
     fixed: pod.fixed || [],
+    CanEquipECM: pod.CanEquipECM,
   };
   state.omnipodDefinitionCache.set(cacheKey, definition);
   return definition;
 }
 
-function ecmCapableOmnipodIds() {
-  if (state.ecmOmnipodIds) return state.ecmOmnipodIds;
-  const ids = new Set();
-  Object.values(state.loadouts || {}).forEach((loadout) => {
-    Object.values(loadout.components || {}).forEach((component) => {
-      if (!component.omnipod) return;
-      const hasEcm = componentHasEcm(component);
-      if (hasEcm) ids.add(String(component.omnipod));
-    });
-  });
-  state.ecmOmnipodIds = ids;
-  return ids;
-}
-
-function addEcmHardpoint(hardpoints) {
+function addEcmCapabilityHardpoint(hardpoints) {
   if (hardpoints.some((hardpoint) => hardpointType(hardpoint) === "ecm")) return hardpoints;
   return [...hardpoints, {
-    ID: "inferred-ecm",
+    ID: "component-ecm-capability",
     hardpoint_type: "ecm",
     Type: "ecm",
     Slots: 1,
-    inferred: true,
+    weapon_slots: 1,
   }];
 }
 
@@ -3351,11 +3328,9 @@ function effectiveComponentDefinition(mech = state.selectedMech, build = state.c
       ...hardpoint,
       hardpoint_type: hardpointType(hardpoint),
     }));
-  if (pod && ecmCapableOmnipodIds().has(String(pod.id))) {
-    hardpoints = addEcmHardpoint(hardpoints);
-  }
-  if (!pod && componentHasEcm(loadoutForMech(mech).components?.[componentName])) {
-    hardpoints = addEcmHardpoint(hardpoints);
+  const capabilitySource = pod ? podDefinition : base;
+  if (componentCanEquipEcm(capabilitySource)) {
+    hardpoints = addEcmCapabilityHardpoint(hardpoints);
   }
   const internals = [...(base.internals || []), ...podDefinition.internals]
     .filter((itemId) => !actuatorIsRemoved(componentName, itemId, build));
@@ -6725,7 +6700,7 @@ function renderMechHardpointFilterControls() {
             return `
               <input
                 type="number"
-                min="0"
+                min="${location.key === "total" ? 1 : 0}"
                 step="1"
                 inputmode="numeric"
                 data-mech-hardpoint-filter-type="${type}"
@@ -11208,7 +11183,6 @@ function selectedMechEquipmentCapabilities() {
     isOmniMech: hasFixedOmnipods(state.selectedMech),
     tons: number(stats.MaxTons),
     maxJumpJets: number(stats.MaxJumpJets),
-    canEquipEcm: number(stats.CanEquipECM) > 0,
     canEquipMasc: number(stats.CanEquipMASC) > 0 || number(stats.CanEquipMasc) > 0,
   };
 }
@@ -11220,9 +11194,7 @@ function equipmentMatchesSelectedMechCapabilities(item, capabilities = selectedM
     return number(capabilities.hardpoints[hardpointTypeName]) > 0;
   }
   if (isEcm(item)) {
-    return capabilities.isOmniMech
-      ? number(capabilities.hardpoints.ecm) > 0
-      : capabilities.canEquipEcm || number(capabilities.hardpoints.ecm) > 0;
+    return number(capabilities.hardpoints.ecm) > 0;
   }
   if (item.item_type === "jumpjet") {
     const minTons = number(item.stats?.minTons);
@@ -12668,17 +12640,26 @@ function selectAllMechSpecialTypes() {
 function toggleMechHardpointFilter(type) {
   const filter = state.mechHardpointFilters[type];
   if (!filter) return;
+  filter.minimums.total = normalizeMechHardpointFilterMinimum(
+    "total",
+    filter.minimums.total,
+  );
   filter.enabled = !filter.enabled;
   renderMechList();
+}
+
+function normalizeMechHardpointFilterMinimum(location, value) {
+  const lowerBound = location === "total" ? 1 : 0;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue)
+    ? Math.max(lowerBound, Math.floor(numericValue))
+    : lowerBound;
 }
 
 function setMechHardpointFilterMinimum(type, location, value) {
   const filter = state.mechHardpointFilters[type];
   if (!filter || !Object.hasOwn(filter.minimums, location)) return;
-  const numericValue = Number(value);
-  filter.minimums[location] = Number.isFinite(numericValue)
-    ? Math.max(0, Math.floor(numericValue))
-    : 0;
+  filter.minimums[location] = normalizeMechHardpointFilterMinimum(location, value);
   renderMechList();
 }
 
@@ -14113,8 +14094,7 @@ function dropValidation(item, component, source = null) {
   }
 
   const type = equipmentHardpointType(item);
-  const standardEcmMount = type === "ecm" && !hasFixedOmnipods(state.selectedMech);
-  if (type && !standardEcmMount) {
+  if (type) {
     const capacity = (compDef.hardpoints || [])
       .filter((hp) => hardpointType(hp) === type)
       .reduce((sum, hp) => sum + hardpointSlots(hp), 0);
@@ -15797,6 +15777,9 @@ if (globalThis.__MWOLAB_TEST__) {
     effectiveAmmoShots,
     hardpointSlots,
     hardpointCountsFromDefinition,
+    componentCanEquipEcm,
+    addEcmCapabilityHardpoint,
+    effectiveComponentDefinition,
     durabilitySkillFinalValue,
     baseMaxArmor,
     armorInfoRows,
@@ -15881,6 +15864,7 @@ if (globalThis.__MWOLAB_TEST__) {
     mechSummaryWeaponMetrics,
     mechSpecialFeatures,
     mechMatchesQuirkFilters,
+    normalizeMechHardpointFilterMinimum,
     calculateBuild,
     sharedLoadoutUrl,
   });

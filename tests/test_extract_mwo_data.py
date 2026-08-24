@@ -1,5 +1,7 @@
 import importlib.util
+import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 
@@ -74,6 +76,73 @@ class ExtractMwoDataTests(unittest.TestCase):
         """
         definition, _ = EXTRACTOR.parse_mdf(data, "vpr-sc.mdf", {}, {})
         self.assertEqual(definition["components"]["centre_torso"]["omnipod"], 31402)
+
+    def test_parse_mdf_preserves_component_ecm_capability(self):
+        data = b"""
+            <Definition>
+              <Mech Variant="CDA-3M" />
+              <ComponentList>
+                <Component Name="left_torso" Slots="12" HP="20" CanEquipECM="1" />
+              </ComponentList>
+            </Definition>
+        """
+        definition, _ = EXTRACTOR.parse_mdf(data, "cda-3m.mdf", {}, {})
+        self.assertEqual(definition["components"]["left_torso"]["CanEquipECM"], 1)
+
+    def test_parse_mdf_normalizes_lowercase_component_ecm_capability(self):
+        data = b"""
+            <Definition>
+              <Mech Variant="AS7-D-H" />
+              <ComponentList>
+                <Component Name="centre_torso" canequipecm="1" />
+              </ComponentList>
+            </Definition>
+        """
+        definition, _ = EXTRACTOR.parse_mdf(data, "as7-d-h.mdf", {}, {})
+        component = definition["components"]["centre_torso"]
+        self.assertEqual(component["CanEquipECM"], 1)
+        self.assertNotIn("canequipecm", component)
+
+    def test_conflicting_component_ecm_spellings_stop_archive_extraction(self):
+        with tempfile.TemporaryDirectory() as temp_name:
+            game_dir = Path(temp_name)
+            mech_dir = game_dir / EXTRACTOR.MECHS_DIR
+            mech_dir.mkdir(parents=True)
+            with zipfile.ZipFile(mech_dir / "cicada.pak", "w") as archive:
+                archive.writestr(
+                    "Objects/mechs/cicada/cda-3m.mdf",
+                    '<Definition><Mech Variant="CDA-3M" />'
+                    '<ComponentList><Component Name="left_torso" '
+                    'CanEquipECM="1" canequipecm="0" />'
+                    '</ComponentList></Definition>',
+                )
+
+            with self.assertRaisesRegex(RuntimeError, "Failed to parse MDF source"):
+                EXTRACTOR.parse_mech_definitions(game_dir, {})
+
+    def test_omnipod_component_ecm_capability_uses_detailed_source(self):
+        details = EXTRACTOR.parse_detailed_omnipods(
+            FakeGameData({
+                "Objects/mechs/firemoth/firemoth-omnipods.xml": b"""
+                    <OmniPods>
+                      <Set name="fmt-b">
+                        <component name="right_arm" CanEquipECM="1" />
+                      </Set>
+                    </OmniPods>
+                """,
+            }),
+            {},
+            {},
+        )
+        game_data = FakeGameData({
+            "Libs/Items/OmniPods.xml": b"""
+                <OmniPods>
+                  <OmniPod id="31533" chassis="firemoth" set="fmt-b" component="right_arm" />
+                </OmniPods>
+            """,
+        })
+        pods = EXTRACTOR.parse_omnipods(game_data, details)
+        self.assertEqual(pods["31533"]["CanEquipECM"], 1)
 
     def test_loadout_uses_mdf_omnipod_when_xml_omits_it(self):
         loadout = self.parse_loadout(mdf_omnipod=31402)
