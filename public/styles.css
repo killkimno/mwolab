@@ -114,12 +114,39 @@ h3 {
   font-size: 0.88rem;
 }
 
+.topbar-account-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.community-auth-status {
+  position: absolute;
+  z-index: 1600;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  width: min(30rem, calc(100vw - 2rem));
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #8b4c43;
+  border-radius: 4px;
+  background: #341d1a;
+  color: #ffd2ca;
+  box-shadow: 0 0.7rem 1.5rem #000b;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.community-auth-status[hidden] {
+  display: none;
+}
+
 .donate-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 2.2rem;
-  margin-left: auto;
   margin-bottom: 0.45rem;
   padding: 0.48rem 0.75rem;
   border: 1px solid #816235;
@@ -136,6 +163,43 @@ h3 {
   border-color: var(--yellow);
   background: #503b1b;
   color: #fff1c7;
+}
+
+.community-login {
+  max-width: 12rem;
+  min-height: 2.2rem;
+  margin-bottom: 0.45rem;
+  overflow: hidden;
+  border-color: #536f78;
+  background: #1a292e;
+  color: #d8e8ed;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-login.signed-in {
+  border-color: #567b48;
+  background: #20351f;
+  color: #dff7d2;
+}
+
+.privacy-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.2rem;
+  margin-bottom: 0.45rem;
+  padding: 0.35rem 0.2rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.privacy-link:hover,
+.privacy-link:focus-visible {
+  color: var(--text);
+  text-decoration: underline;
 }
 
 .help-link {
@@ -164,8 +228,84 @@ h3 {
 }
 
 body.donate-open,
-body.help-open {
+body.help-open,
+body.community-open {
   overflow: hidden;
+}
+
+body.privacy-page {
+  height: auto;
+  min-height: 100%;
+}
+
+.privacy-shell {
+  width: min(58rem, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.privacy-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.privacy-header p,
+.privacy-section p,
+.privacy-section li {
+  color: #c8d3d7;
+  line-height: 1.65;
+}
+
+.privacy-header p {
+  margin-top: 0.45rem;
+  color: var(--muted);
+}
+
+.privacy-home-link {
+  flex: none;
+  color: var(--blue);
+  text-decoration: none;
+}
+
+.privacy-home-link:hover,
+.privacy-home-link:focus-visible,
+.privacy-section a {
+  color: #7dd4f4;
+  text-decoration: underline;
+}
+
+.privacy-section {
+  margin-top: 1rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid #263b43;
+  border-radius: 6px;
+  background: #111719;
+}
+
+.privacy-section h2 {
+  margin-bottom: 0.65rem;
+  color: var(--blue);
+  font-size: 1rem;
+}
+
+.privacy-section ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.35rem;
+}
+
+.privacy-section li + li {
+  margin-top: 0.4rem;
+}
+
+.privacy-section-en {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
 }
 
 .donate-overlay {
@@ -3372,6 +3512,192 @@ body.help-open {
 
 .mechlab-action-panel .simulation-open-button {
   min-height: 2.65rem;
+}
+
+.community-menu {
+  position: relative;
+}
+
+.community-menu-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 2.65rem;
+  align-items: center;
+  justify-content: space-between;
+  border-color: #4e7990;
+  background: #183746;
+  color: #d9f3ff;
+  font-weight: 900;
+}
+
+.community-menu-popover {
+  position: absolute;
+  z-index: 40;
+  right: 0;
+  left: 0;
+  top: calc(100% + 0.3rem);
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #4e7990;
+  border-radius: 4px;
+  background: #10191e;
+  box-shadow: 0 0.6rem 1.4rem #000b;
+}
+
+.community-menu-popover[hidden] {
+  display: none;
+}
+
+.community-menu-popover button {
+  min-height: 2.4rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.community-menu-popover button + button {
+  border-top: 1px solid #2c414a;
+}
+
+.community-overlay {
+  position: fixed;
+  z-index: 1500;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: #030607d9;
+}
+
+.community-overlay[hidden] {
+  display: none;
+}
+
+.community-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(46rem, 100%);
+  max-height: min(48rem, calc(100vh - 3rem));
+  overflow: hidden;
+  border: 1px solid #456777;
+  border-radius: 6px;
+  background: #10181c;
+  box-shadow: 0 1rem 3rem #000d;
+}
+
+.community-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid #2e4650;
+  background: #132630;
+}
+
+.community-dialog-eyebrow {
+  margin-bottom: 0.2rem;
+  color: #6f9cad;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.community-close {
+  width: 2.35rem;
+  min-width: 2.35rem;
+  padding: 0.35rem;
+  font-size: 1.3rem;
+}
+
+.community-content {
+  min-height: 12rem;
+  overflow: auto;
+  padding: 1rem 1.15rem;
+}
+
+.community-status {
+  min-height: 2.4rem;
+  padding: 0.65rem 1.15rem;
+  border-top: 1px solid #2e4650;
+  color: var(--muted);
+}
+
+.community-status.error {
+  color: #ff9b8a;
+}
+
+.community-status.success {
+  color: #a9df77;
+}
+
+.community-fitting-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.community-fitting-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem;
+  border: 1px solid #2f4650;
+  border-radius: 4px;
+  background: #151f23;
+}
+
+.community-fitting-item.invalid {
+  opacity: 0.58;
+}
+
+.community-fitting-item strong,
+.community-publish-summary strong {
+  display: block;
+  color: #e7f4f8;
+}
+
+.community-fitting-item small {
+  color: var(--muted);
+}
+
+.community-like-button {
+  min-width: 4.6rem;
+  white-space: nowrap;
+}
+
+.community-like-button.liked {
+  border-color: #b96976;
+  background: #512932;
+  color: #ffd6dc;
+}
+
+.community-empty,
+.community-loading,
+.community-publish-panel {
+  padding: 1.5rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.community-publish-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.community-publish-summary {
+  padding: 1rem;
+  border: 1px solid #2f4650;
+  background: #151f23;
+}
+
+.community-publish-button {
+  justify-self: center;
+  min-width: 9rem;
+  border-color: #60924b;
+  background: #24451f;
+  color: #e1ffd5;
+  font-weight: 900;
 }
 
 .mechlab-action-panel .skill-apply-button {

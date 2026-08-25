@@ -6,7 +6,7 @@
     <title>mwolab - MechWarrior Online MechLab</title>
     <meta name="description" content="MWO MechLab and build planner for MechWarrior Online. Compare mechs, equipment, quirks, hardpoints, loadouts, damage, heat and mobility stats.">
     <meta name="robots" content="max-image-preview:none">
-  <link rel="stylesheet" href="styles.css?v=20260824-2">
+  <link rel="stylesheet" href="styles.css?v=20260826-2">
   </head>
   <body>
     <div id="app">
@@ -21,12 +21,17 @@
         <button class="tab-button" type="button" data-main-tab="info" aria-controls="tab-info" data-i18n="tabs.info">정보</button>
         <button class="tab-button" type="button" data-main-tab="compare" aria-controls="tab-compare" data-i18n="tabs.compare">비교하기</button>
         <button class="tab-button" type="button" data-main-tab="stats" aria-controls="tab-stats" data-i18n="tabs.stats">통계</button>
-        <a id="donate-link" class="donate-link" href="https://ko-fi.com/killkimno" target="_blank" rel="noopener noreferrer" aria-label="후원 방법 열기" data-i18n="donate.label" data-i18n-aria-label="donate.aria" aria-haspopup="dialog" aria-controls="donate-overlay">후원하기</a>
+        <div class="topbar-account-actions">
+          <button id="community-login" class="community-login" type="button" aria-label="Google 로그인" aria-live="polite">Google 로그인</button>
+          <a id="donate-link" class="donate-link" href="https://ko-fi.com/killkimno" target="_blank" rel="noopener noreferrer" aria-label="후원 방법 열기" data-i18n="donate.label" data-i18n-aria-label="donate.aria" aria-haspopup="dialog" aria-controls="donate-overlay">후원하기</a>
+          <span id="community-auth-status" class="community-auth-status" role="status" hidden></span>
+        </div>
         <button id="help-link" class="help-link" type="button" aria-label="도움말 열기" data-i18n-aria-label="help.aria" aria-haspopup="dialog" aria-controls="help-overlay">?</button>
         <div class="language-switch" aria-label="언어 선택" data-i18n-aria-label="language.switcher">
           <a href="?lang=kr" data-lang-link="kr" data-i18n="language.kr">한국어</a>
           <a href="?lang=en" data-lang-link="en" data-i18n="language.en">English</a>
         </div>
+        <a class="privacy-link" href="privacy.html" data-i18n="privacy.link">개인정보</a>
       </nav>
 
       <main class="app-main">
@@ -349,10 +354,6 @@
           <a class="help-external-link" href="https://blog.naver.com/killkimno" target="_blank" rel="noopener noreferrer">https://blog.naver.com/killkimno</a>
         </section>
 
-        <section class="help-section">
-          <h3 data-i18n="help.cloudflareTitle">Cloudflare 사용</h3>
-          <p data-i18n="help.cloudflareDescription">방문 통계 확인을 위해 개인정보를 식별하지 않는 Cloudflare Web Analytics를 사용합니다.</p>
-        </section>
       </section>
     </div>
 
@@ -614,6 +615,20 @@
       </section>
     </div>
 
+    <div id="community-overlay" class="community-overlay" hidden>
+      <section class="community-dialog" role="dialog" aria-modal="true" aria-labelledby="community-title">
+        <header>
+          <div>
+            <p class="community-dialog-eyebrow">PUBLIC FITTINGS</p>
+            <h2 id="community-title">핏팅 브라우저</h2>
+          </div>
+          <button id="close-community" class="community-close" type="button" aria-label="닫기">×</button>
+        </header>
+        <div id="community-content" class="community-content"></div>
+        <p id="community-status" class="community-status" aria-live="polite"></p>
+      </section>
+    </div>
+
     <div id="weapon-detail-overlay" class="weapon-detail-overlay" hidden>
       <section class="weapon-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-detail-title">
         <header class="weapon-detail-header">
@@ -797,7 +812,8 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-    <script src="app.js?v=20260824-2"></script>
+    <script src="app.js?v=20260826-2"></script>
+    <script type="module" src="firebase-community.js?v=20260826-4"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->

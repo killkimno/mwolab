@@ -133,6 +133,9 @@ const TEXT = {
     "localBuild.delete": "삭제",
     "localBuild.deleted": "{mech} | {name} 삭제 완료",
     "mechlab.tools": "TOOLS",
+    "community.open": "핏팅 브라우저",
+    "community.browse": "브라우저",
+    "community.publish": "올리기",
     "skills.open": "스킬 적용",
     "skills.title": "스킬 적용",
     "skills.description": "활성화한 항목의 사용 가능한 모든 노드를 적용합니다.",
@@ -277,6 +280,7 @@ const TEXT = {
     "donate.qrAlt": "카카오페이 후원 QR 코드",
     "donate.kofi": "Ko-fi로 후원하기",
     "donate.close": "닫기",
+    "privacy.link": "개인정보",
     "help.aria": "도움말 열기",
     "help.dialogAria": "도움말",
     "help.close": "닫기",
@@ -290,8 +294,6 @@ const TEXT = {
     "help.hps": "Heat Per Second. 초당 발생하는 발열량입니다.",
     "help.expectedCooldown": "충전·연속 발사·지속 시간과 울트라 오토캐논의 잼 확률까지 반영한 예상 발사 간격입니다.",
     "help.blogTitle": "블로그 주소",
-    "help.cloudflareTitle": "Cloudflare 사용",
-    "help.cloudflareDescription": "방문 통계 확인을 위해 개인정보를 식별하지 않는 Cloudflare Web Analytics를 사용합니다.",
     "search.mechPlaceholder": "기종 또는 변형 검색",
     "search.itemPlaceholder": "장비 검색",
     "list.smallView": "작은 리스트 보기",
@@ -683,6 +685,9 @@ const TEXT = {
     "localBuild.delete": "Delete",
     "localBuild.deleted": "Deleted {mech} | {name}",
     "mechlab.tools": "TOOLS",
+    "community.open": "Fitting Browser",
+    "community.browse": "Browse",
+    "community.publish": "Publish",
     "skills.open": "Apply skills",
     "skills.title": "Apply skills",
     "skills.description": "Applies every available node in each enabled group.",
@@ -827,6 +832,7 @@ const TEXT = {
     "donate.qrAlt": "KakaoPay support QR code",
     "donate.kofi": "Support on Ko-fi",
     "donate.close": "Close",
+    "privacy.link": "Privacy",
     "help.aria": "Open help",
     "help.dialogAria": "Help",
     "help.close": "Close",
@@ -840,8 +846,6 @@ const TEXT = {
     "help.hps": "Heat Per Second. The amount of heat generated per second.",
     "help.expectedCooldown": "The expected firing interval including charge, burst firing, duration, and Ultra AutoCannon jam probability.",
     "help.blogTitle": "Blog",
-    "help.cloudflareTitle": "Cloudflare usage",
-    "help.cloudflareDescription": "We use privacy-first Cloudflare Web Analytics to view visit statistics without identifying individuals.",
     "search.mechPlaceholder": "Search chassis or variant",
     "search.itemPlaceholder": "Search equipment",
     "list.smallView": "Small list view",
@@ -7450,6 +7454,13 @@ function renderMechlabActionPanel() {
   const skillsActive = state.selectedSkillGroups.size > 0;
   return `
     <section class="mechlab-action-panel" aria-label="MechLab actions">
+      <div class="community-menu">
+        <button class="community-menu-trigger" type="button" data-community-menu-trigger aria-haspopup="menu" aria-expanded="false">${t("community.open")} <span aria-hidden="true">⌄</span></button>
+        <div class="community-menu-popover" role="menu" hidden>
+          <button type="button" role="menuitem" data-community-open="browse">${t("community.browse")}</button>
+          <button type="button" role="menuitem" data-community-open="publish">${t("community.publish")}</button>
+        </div>
+      </div>
       <button id="open-simulation" class="simulation-open-button" type="button" data-mechlab-action="simulation">${t("simulation.open")}</button>
       <button id="open-skills" class="skill-apply-button${skillsActive ? " active" : ""}" type="button" data-mechlab-action="skills" aria-pressed="${skillsActive}">${t("skills.open")}</button>
       <button id="open-build-actions" class="mechlab-tool-button" type="button" data-mechlab-action="tools">${t("mechlab.tools")}</button>
@@ -12495,6 +12506,30 @@ function importMwoCode(code, {
     ));
   }
 }
+
+function describeMwoCode(code) {
+  if (!globalThis.MWOCodec) throw new Error(t("loadout.codecUnavailable"));
+  const decoded = MWOCodec.decode(code);
+  const mech = mechById(decoded.chassisId);
+  if (!mech || decoded.isOmni !== hasFixedOmnipods(mech)) {
+    throw new Error(t("loadout.invalidMech", { id: decoded.chassisId }));
+  }
+  buildFromMwoCode(decoded, mech);
+  return {
+    mechId: String(mech.id),
+    mechName: mech.display_name || mech.name || String(mech.id),
+  };
+}
+
+globalThis.MwoLabCommunityBridge = Object.freeze({
+  language: activeLanguage,
+  getCurrentFitting() {
+    const loadoutCode = MWOCodec.encode(currentBuildAsMwoLoadout());
+    return { loadoutCode, ...describeMwoCode(loadoutCode) };
+  },
+  describeFitting: describeMwoCode,
+  openFitting: importMwoCode,
+});
 
 function applyImportedMwoCode() {
   try {

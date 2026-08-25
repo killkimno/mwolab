@@ -207,7 +207,7 @@
     <main>
       <header>
         <h1>MwoLab 구현 위키</h1>
-        <p class="meta">기준일 2026-07-30 · 현재 저장소 구현 기준</p>
+        <p class="meta">기준일 2026-08-26 · 현재 저장소 구현 기준</p>
         <p>이 문서는 MwoLab이 무엇을 만들려는 도구인지, 각 기능을 왜 그 방식으로 설계했는지, 실제 구현과 계산은 어떤 기준을 따르는지를 함께 설명하는 내부 기획·구현 가이드다.</p>
         <div class="notice" id="policy">
           <strong>문서 운용 원칙</strong><br>
@@ -229,7 +229,7 @@
             <li><strong>검증 가능한 구현:</strong> 계산식은 코드와 테스트에서 재현할 수 있어야 하며, 위키에는 공식과 경계 조건을 함께 기록한다.</li>
           </ul>
         </div>
-        <p><strong>기획 경계:</strong> MwoLab은 현재 정적 브라우저 도구를 지향한다. 서버 계정이나 온라인 공유보다 로컬 저장과 MWO 코드 호환을 우선하고, 게임 데이터에서 확인할 수 없는 값을 임의로 보완하지 않는다. 시뮬레이션은 빌드의 상대적 성능과 운용 경향을 비교하기 위한 계산 도구이며 게임 클라이언트 전체 물리·네트워크 환경을 재현하는 것을 목표로 하지 않는다.</p>
+        <p><strong>기획 경계:</strong> MwoLab은 정적 브라우저 도구를 유지하며 자체 서버 런타임은 운영하지 않는다. 핵심 멕랩은 로컬 저장과 MWO 코드 호환을 우선하고, 공개 핏팅에만 Google Authentication과 Cloud Firestore 관리형 서비스를 사용한다. 게임 데이터에서 확인할 수 없는 값은 임의로 보완하지 않는다. 시뮬레이션은 빌드의 상대적 성능과 운용 경향을 비교하기 위한 계산 도구이며 게임 클라이언트 전체 물리·네트워크 환경을 재현하는 것을 목표로 하지 않는다.</p>
       </section>
 
       <section id="status">
@@ -599,7 +599,7 @@
           <li>쿼크 값 표시 방식: <code>mwolab:quirk-value-display</code>의 <code>final</code>, <code>quirk</code>, <code>all</code>.</li>
           <li>왼쪽 탄약 쿼크 표시 간소화: <code>mwolab:simplify-ammo-quirks</code>의 <code>true</code>, <code>false</code>.</li>
           <li>장비 툴팁 적용 효과 표시: 기존 호환 키 <code>mwolab:show-weapon-tooltip-quirks</code>의 <code>true</code>, <code>false</code>. 저장값이 없거나 저장소를 읽을 수 없으면 기본 ON이다.</li>
-          <li>서버 계정이나 원격 저장소는 사용하지 않는다.</li>
+          <li>핵심 멕랩 상태와 이름 있는 빌드는 브라우저에 저장한다. 공개 핏팅은 별도 기능 경계의 Firebase Authentication·Cloud Firestore를 사용하며 Firebase 실패가 로컬 기능을 막지 않는다.</li>
         </ul>
       </section>
 
@@ -894,12 +894,24 @@
 
         <h3>도움말과 방문 통계</h3>
         <ul>
-          <li>상단 도움말 버튼은 후원하기 버튼 바로 옆에 물음표(<code>?</code>) 하나로 표시하고, 멕랩 사용 팁, DPS·DPH·HPS·EXPECTED COOLDOWN 용어 설명, 운영자 블로그 주소, 방문 통계 안내를 한 팝업에 표시한다. 팝업 내부에는 별도 제목을 두지 않고, 각 용어와 설명은 <code>용어 - 설명</code> 형태로 바로 이어 표시한다. 팝업은 우측 상단 X, 배경 클릭, Esc로 닫는다.</li>
-          <li>방문 통계는 개인정보를 식별하지 않는 Cloudflare Web Analytics를 사용한다. 배포 HTML에는 Cloudflare가 발급한 단일 비콘 코드만 유지하고 도움말에서 사용 사실을 안내한다.</li>
+          <li>상단 도움말 버튼은 후원하기 버튼 바로 옆에 물음표(<code>?</code>) 하나로 표시하고, 멕랩 사용 팁, DPS·DPH·HPS·EXPECTED COOLDOWN 용어 설명과 운영자 블로그 주소를 한 팝업에 표시한다. 팝업 내부에는 별도 제목을 두지 않고, 각 용어와 설명은 <code>용어 - 설명</code> 형태로 바로 이어 표시한다. 팝업은 우측 상단 X, 배경 클릭, Esc로 닫는다.</li>
+          <li>방문 통계는 개인정보를 식별하지 않는 Cloudflare Web Analytics를 사용한다. 배포 HTML에는 Cloudflare가 발급한 단일 비콘 코드만 유지하며 사용 사실은 개인정보처리방침에서 안내한다.</li>
+          <li>한국어·English 언어 전환 오른쪽의 개인정보 링크는 공개 <code>privacy.html</code>로 이동한다. 이 페이지는 Google 로그인 계정 정보, 공개 핏팅과 비공개 소유권·좋아요·게시 한도 데이터, 브라우저 로컬 데이터, Firebase·GitHub Pages·Cloudflare 사용 범위와 삭제 문의 연락처를 한국어와 영어로 고지한다. 공개 핏팅에는 Google 이름·이메일·프로필 사진·UID를 저장하거나 표시하지 않으며 Google 표시 이름은 로그인 버튼에도 표시하지 않는다고 명시한다.</li>
+        </ul>
+
+        <h3>공개 핏팅과 Firebase</h3>
+        <ul>
+          <li>상단 Google 로그인은 후원하기 왼쪽에 둔다. 로그인 전에는 Google 로그인을, 로그인 후에는 계정명 없이 로그아웃 동작만 제공한다.</li>
+          <li>멕랩 우측 액션 패널에서 시뮬레이션 위의 핏팅 브라우저 버튼을 누르면 브라우저와 올리기 메뉴를 연다.</li>
+          <li><code>public/firebase-community.js</code>는 Firebase Web SDK를 동적 로드한다. 실패하거나 <code>file://</code>인 경우 공개 기능만 사용할 수 없게 하고 기존 앱 초기화와 계산은 유지한다.</li>
+          <li>게시 데이터는 <code>MWOCodec.encode(currentBuildAsMwoLoadout())</code>의 로드아웃 코드만 원본으로 저장한다. 멕 이름·무기 목록·계산 통계는 중복 저장하지 않고 조회 시 기존 코드 해독과 로컬 게임 데이터로 검증·표시한다. 무기 그룹과 스킬 선택은 MWO 코드에 포함되지 않는다.</li>
+          <li><code>publicFittings/{id}</code>에는 로드아웃 코드, 좋아요 수, 생성 시각, 스키마 버전을 저장한다. <code>fittingOwners/{id}</code>에는 비공개 UID를, <code>publicFittings/{id}/likes/{uid}</code>에는 사용자별 좋아요를 분리한다. <code>publisherUsage/{uid}</code>는 비공개 게시 횟수와 마지막 게시 ID를 보관한다.</li>
+          <li>목록은 생성 시각 내림차순으로 한 번에 최대 20개만 읽고 계정당 게시물은 최대 5개로 제한한다. 게시물·소유권·게시 횟수 증가는 한 트랜잭션에서 수행하며 운영자는 Firebase 콘솔에서 악성 게시물을 정리한다. 로드아웃 코드는 보안·전송 한도로 36~4096자와 MWO 섹션 형태만 허용한다. 좋아요 문서와 집계 ±1 변경도 같은 트랜잭션에서 수행한다.</li>
+          <li><code>firestore.rules</code>는 공개 목록 읽기와 Google 로그인 게시·좋아요만 허용하며 나머지는 기본 거부한다. 규칙은 MWO 코드의 의미를 판정하지 못하므로 원격 핏팅은 열기 전에 기존 <code>buildFromMwoCode</code> 검증 경로를 통과한다.</li>
         </ul>
 
         <h3>범위 밖 기능</h3>
-        <p>서버 API, 계정, 온라인 빌드 공유, 앱 내부 위키 화면, 드랍십 기능은 별도의 명시적 요구가 없는 한 구현 범위에 포함하지 않는다.</p>
+        <p>자체 서버 API, 자체 비밀번호 계정, 비공개 클라우드 동기화, 앱 내부 위키 화면, 드랍십 기능은 별도의 명시적 요구가 없는 한 구현 범위에 포함하지 않는다.</p>
       </section>
 
       <section id="files">
@@ -910,7 +922,12 @@
             <tr><td><code>public/index.html</code></td><td>탭, 패널, 대화상자, 시뮬레이션 HUD의 정적 골격</td></tr>
             <tr><td><code>public/styles.css</code></td><td>전체 UI, 반응형 레이아웃, 멕랩·표·시뮬레이션 표현</td></tr>
             <tr><td><code>public/app.js</code></td><td>번역, 상태, 계산, 필터, 렌더링, 이벤트, 로컬 저장, 시뮬레이션</td></tr>
+            <tr><td><code>public/firebase-community.js</code></td><td>Firebase 초기화, Google 로그인, 공개 핏팅 게시·목록·좋아요와 장애 격리</td></tr>
+            <tr><td><code>public/privacy.html</code></td><td>Google OAuth 브랜딩과 사용자 안내를 위한 공개 한국어·영어 개인정보처리방침</td></tr>
             <tr><td><code>public/mwo-codec.js</code></td><td>MWO 로드아웃 문자열 encode/decode</td></tr>
+            <tr><td><code>firestore.rules</code></td><td>공개 핏팅·비공개 소유권·사용자별 좋아요의 Firestore 접근 검증</td></tr>
+            <tr><td><code>firebase.json</code></td><td>Firestore 규칙과 인덱스 배포 대상 연결</td></tr>
+            <tr><td><code>.firebaserc</code></td><td>배포할 Firebase 프로젝트 <code>mwolab-2e145</code> 연결</td></tr>
             <tr><td><code>public/quirk-calculations.js</code></td><td>쿼크 이름 정규화, 동일 이름 수치 합산, additive·multiplier·감소·증가·부호 보존 공용 계산</td></tr>
             <tr><td><code>tests/mechlab-formulas.test.js</code></td><td>멕랩 공식의 Node 내장 테스트 러너 기반 단위·회귀 테스트</td></tr>
             <tr><td><code>tests/quirk-calculations.test.js</code></td><td>분리된 쿼크 이름·수치 공용 계산의 전용 단위 테스트</td></tr>
@@ -993,6 +1010,8 @@
             <tr><td>2026-08-15</td><td>멕랩에 최대 10개의 세션 전용 피팅 탭을 추가. 탭별 멕·빌드 객체와 활성 탭 상태, 중복 멕 번호, 추가·교체 목록 모드, 왼쪽 우선 닫기, 마지막 탭 보호, 탭 ID 기반 History 복원을 적용하고 전체 목록 미리보기가 기존 피팅을 덮어쓰지 않도록 분리</td></tr>
             <tr><td>2026-08-16</td><td>멕랩 무기·장비·탄약 툴팁에 현재 피팅에서 실제 비제로 기여하는 배리언트·옵니포드·세트·선택 스킬의 합산값을 적용 효과로 표시하고, 기본 ON인 브라우저 저장형 UI 설정 토글을 추가. 무기 계산과 적용 목록은 공통 효과 수집 결과를 사용하고 비무기는 탄약 용량·히트싱크·엔진·점프젯·MASC의 기존 툴팁 계산 경로를 연결. 무기에 실제 적용되는 Target Computer·Advanced Sensor Package·Artemis·Railgun Capacitor 효과는 쿼크 뒤 최하단에 장비 표시명을 출처 제목으로 묶고 Target Computer 크리티컬 확률은 첫 번째 항목만 표시</td></tr>
             <tr><td>2026-08-16</td><td>기본 로드아웃 XML에서 생략되는 고정 CT 포드를 동일 MechID의 MDF 명시값과 결합하도록 추출기를 수정. 양쪽 명시값 충돌과 OmniPods.xml의 chassis·component 불일치, 부분 해결 옴니멕을 차단하고 EXE-B-C, HBR-F, HBR-F(C), MDD-SILGD, VPR-SC의 CT를 원본 MDF 값으로 교정. 이름 축약·normal_body·shared_body 기반 NULL 해소와 오래된 override 파일을 제거하고 Python 파서 및 게시 JSON 회귀 테스트를 추가</td></tr>
+            <tr><td>2026-08-26</td><td>자체 서버 없이 Firebase 관리형 서비스만 사용하는 공개 핏팅 MVP를 추가. 상단 Google 로그인, 시뮬레이션 위 핏팅 브라우저·올리기 메뉴, MWO 코드 기반 공개 목록·게시·적용, 계정당 좋아요와 집계 트랜잭션을 구현하고 공개 문서와 비공개 소유권을 분리하는 기본 거부 Firestore 규칙을 추가</td></tr>
+            <tr><td>2026-08-26</td><td>Google OAuth 브랜딩의 공개 URL 요건과 실제 데이터 처리 범위를 맞추기 위해 한국어·영어 개인정보처리방침 페이지를 추가하고 홈페이지 상단에서 연결. Google 로그인, 공개 핏팅, 비공개 운영 레코드, 브라우저 로컬 저장, Firebase·GitHub Pages·Cloudflare 사용과 삭제 문의 범위를 명시</td></tr>
             <tr><td>2026-08-15</td><td>마지막 <code>+</code>를 현재 포커스 가능한 빈 탭 슬롯으로 변경. 다른 주 화면 왕복 중에도 빈 슬롯 인덱스를 유지하고 다음 멕 피팅과 IMPORT 결과가 기존 탭을 교체하지 않고 해당 슬롯을 채우도록 대상 결정 경로를 통합</td></tr>
             <tr><td>2026-08-15</td><td>멕랩 전체 목록의 IMPORT 옆에 채워진 피팅이 있을 때만 표시되는 RETURN 버튼을 추가하고 마지막 활성 피팅 탭으로 즉시 돌아가는 경로를 연결</td></tr>
             <tr><td>2026-08-15</td><td>피팅 중 여는 컴팩트 멕 목록 슬롯 오른쪽에 독립적인 새 탭 추가 + 버튼을 추가하고, 10개 한도 비활성화 및 하드포인트 태그 4개 단위 줄바꿈을 적용</td></tr>
@@ -1002,7 +1021,7 @@
       </section>
 
       <footer>
-        마지막 문서 갱신: 2026-08-16 · 구현 시 관련 내용을 참고하고, 기능 구현·코드 수정 작업 후 재사용 가능한 규칙 변경이 있어 필요하다고 판단하면 별도 위키 갱신 요청 없이 즉시 갱신한다.
+        마지막 문서 갱신: 2026-08-26 · 구현 시 관련 내용을 참고하고, 기능 구현·코드 수정 작업 후 재사용 가능한 규칙 변경이 있어 필요하다고 판단하면 별도 위키 갱신 요청 없이 즉시 갱신한다.
       </footer>
     </main>
   </div>
