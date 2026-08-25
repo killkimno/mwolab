@@ -6,11 +6,11 @@ const test = require("node:test");
 const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-test("공개 핏팅 UI는 기능을 보존한 채 임시 스위치로 숨긴다", () => {
+test("Google 로그인과 공개 핏팅 진입점을 표시한다", () => {
   const html = read("public/index.html");
   const app = read("public/app.js");
   const styles = read("public/styles.css");
-  assert.match(html, /<html[^>]+data-community-ui="hidden"/);
+  assert.doesNotMatch(html, /<html[^>]+data-community-ui="hidden"/);
   assert.ok(html.indexOf('id="community-login"') < html.indexOf('id="donate-link"'));
   assert.match(html, /<div id="community-login"[^>]+data-community-ui-entry/);
   assert.match(html, /id="community-auth-status"[^>]+role="status"/);
