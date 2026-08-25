@@ -4,6 +4,7 @@ local-mech-icons/
 .local-preview-server.pid
 .local-preview-*.log
 .claude/settings.local.json
+/admin/
 __pycache__/
 *.pyc
 .vs/

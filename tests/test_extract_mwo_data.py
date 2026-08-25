@@ -77,6 +77,48 @@ class ExtractMwoDataTests(unittest.TestCase):
         definition, _ = EXTRACTOR.parse_mdf(data, "vpr-sc.mdf", {}, {})
         self.assertEqual(definition["components"]["centre_torso"]["omnipod"], 31402)
 
+    def test_lowercase_mdf_variant_fields_preserve_lgd_display_rule(self):
+        mech = {"name": "rfl-3n-shlgd", "chassis": "sneede"}
+        definition = {
+            "stats": {"variant": "RFL-3N-SHLGD", "varianttype": "Special"},
+        }
+        localization = {
+            "rfl-3n-shlgd": "SNEEDE RFL-3N-SHLGD",
+            "sneede": "SNEEDE",
+        }
+
+        display_name = EXTRACTOR.localized_mech_name(
+            mech,
+            definition,
+            localization,
+            [],
+            mech["name"],
+        )
+
+        self.assertEqual(display_name, "RFL-3N-SHLGD (LGD)")
+
+    def test_lowercase_normal_mdf_variant_is_used_as_display_name(self):
+        mech = {"name": "jm6-de", "chassis": "jagermech"}
+        definition = {"stats": {"variant": "JM6-DE", "varianttype": ""}}
+
+        display_name = EXTRACTOR.localized_mech_name(
+            mech,
+            definition,
+            {"jm6-de": "JAGERMECH JM6-DE"},
+            [],
+            mech["name"],
+        )
+
+        self.assertEqual(display_name, "JM6-DE")
+
+    def test_conflicting_variant_type_spellings_stop_extraction(self):
+        definition = {
+            "stats": {"VariantType": "Hero", "varianttype": "Special"},
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "Conflicting source fields"):
+            EXTRACTOR.is_normal_mech(definition)
+
     def test_parse_mdf_preserves_component_ecm_capability(self):
         data = b"""
             <Definition>

@@ -142,8 +142,24 @@ def is_non_buildable_trial_mech(mech, localization):
     )
 
 
+def mapping_value_case_insensitive(mapping, key, default=""):
+    matches = [
+        value
+        for candidate, value in mapping.items()
+        if str(candidate).casefold() == key.casefold()
+    ]
+    if not matches:
+        return default
+    if any(value != matches[0] for value in matches[1:]):
+        raise RuntimeError(f"Conflicting source fields for {key}")
+    return matches[0]
+
+
 def is_lgd_special_mech(mech, definition):
-    variant_type = definition.get("stats", {}).get("VariantType", "")
+    variant_type = mapping_value_case_insensitive(
+        definition.get("stats", {}),
+        "VariantType",
+    )
     return (
         str(mech.get("name", "")).casefold().endswith("lgd")
         and str(variant_type).strip().casefold() == "special"
@@ -151,7 +167,10 @@ def is_lgd_special_mech(mech, definition):
 
 
 def is_normal_mech(definition):
-    variant_type = definition.get("stats", {}).get("VariantType", "")
+    variant_type = mapping_value_case_insensitive(
+        definition.get("stats", {}),
+        "VariantType",
+    )
     return not str(variant_type).strip()
 
 
@@ -203,7 +222,10 @@ def localized_mech_name(
         internal_name,
     )
     if is_normal_mech(definition):
-        variant = str(definition.get("stats", {}).get("Variant", "")).strip()
+        variant = str(mapping_value_case_insensitive(
+            definition.get("stats", {}),
+            "Variant",
+        )).strip()
         if not variant:
             raise RuntimeError(
                 f"Normal mech {mech.get('name', internal_name)} is missing "

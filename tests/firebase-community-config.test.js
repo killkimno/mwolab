@@ -12,7 +12,7 @@ test("공개 핏팅 UI는 기능을 보존한 채 운영 페이지에서 숨긴�
   const styles = read("public/styles.css");
   assert.match(html, /<html[^>]+data-community-ui="hidden"/);
   assert.ok(html.indexOf('id="community-login"') < html.indexOf('id="donate-link"'));
-  assert.match(html, /<div id="community-login"[^>]+data-community-ui-entry/);
+  assert.match(html, /<button id="community-login"[^>]+data-community-ui-entry/);
   assert.match(html, /id="community-auth-status"[^>]+role="status"/);
   assert.match(app, /class="community-menu" data-community-ui-entry/);
   assert.ok(app.indexOf('data-community-menu-trigger') < app.indexOf('id="open-simulation"'));
@@ -29,13 +29,14 @@ test("Firebase 공개 설정에는 서버 비밀키를 포함하지 않는다", 
   assert.doesNotMatch(client, /currentUser\.displayName/);
 });
 
-test("Google Identity Services ID 토큰을 Firebase credential로 교환한다", () => {
+test("기존 UI 버튼이 Google OAuth 토큰을 Firebase credential로 교환한다", () => {
   const client = read("public/firebase-community.js");
   assert.match(client, /https:\/\/accounts\.google\.com\/gsi\/client/);
-  assert.match(client, /GoogleAuthProvider\.credential\(response\.credential\)/);
+  assert.match(client, /oauth2\.initTokenClient/);
+  assert.match(client, /requestAccessToken\(\{ prompt: "select_account" \}\)/);
+  assert.match(client, /GoogleAuthProvider\.credential\(null, response\.access_token\)/);
   assert.match(client, /signInWithCredential\(auth, credential\)/);
-  assert.match(client, /googleIdentity\.renderButton/);
-  assert.match(client, /googleIdentity\?\.disableAutoSelect\(\)/);
+  assert.doesNotMatch(client, /renderButton/);
   assert.doesNotMatch(client, /signInWithPopup/);
 });
 

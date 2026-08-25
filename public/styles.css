@@ -173,13 +173,7 @@ html[data-community-ui="hidden"] [data-community-ui-entry] {
   max-width: 12rem;
   min-height: 2.2rem;
   margin-bottom: 0.45rem;
-  display: flex;
-  align-items: center;
-  overflow: visible;
-}
-
-.community-sign-out {
-  min-height: 2.2rem;
+  overflow: hidden;
   border-color: #536f78;
   background: #1a292e;
   color: #d8e8ed;
@@ -188,7 +182,7 @@ html[data-community-ui="hidden"] [data-community-ui-entry] {
   white-space: nowrap;
 }
 
-.community-sign-out.signed-in {
+.community-login.signed-in {
   border-color: #567b48;
   background: #20351f;
   color: #dff7d2;
