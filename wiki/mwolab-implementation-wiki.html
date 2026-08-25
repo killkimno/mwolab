@@ -901,7 +901,7 @@
 
         <h3>공개 핏팅과 Firebase</h3>
         <ul>
-          <li><strong>현재 운영 상태:</strong> 로그인과 핏팅 브라우저 진입점을 표시하여 Google 로그인, 핏팅 게시·조회, 좋아요 기능을 테스트할 수 있다. 필요하면 <code>public/index.html</code>의 <code>data-community-ui="hidden"</code> 스위치로 진입점 표시만 차단할 수 있다.</li>
+          <li><strong>현재 운영 상태:</strong> 운영 페이지에서는 로그인과 핏팅 브라우저 진입점을 숨긴다. <code>public/index.html</code>의 <code>data-community-ui="hidden"</code> 스위치가 표시만 차단하며 Firebase 기능 코드는 유지한다. 로컬 테스트 중에만 이 속성을 제거해 진입점을 표시한다.</li>
           <li>상단 Google 로그인은 후원하기 왼쪽에 둔다. 로그인 전에는 Google 로그인을, 로그인 후에는 계정명 없이 로그아웃 동작만 제공한다.</li>
           <li>멕랩 우측 액션 패널에서 시뮬레이션 위의 핏팅 브라우저 버튼을 누르면 브라우저와 올리기 메뉴를 연다.</li>
           <li><code>public/firebase-community.js</code>는 Firebase Web SDK와 Google Identity Services를 동적 로드한다. Google 공식 로그인 버튼이 발급한 ID 토큰을 <code>GoogleAuthProvider.credential()</code>과 <code>signInWithCredential()</code>로 Firebase에 전달하며, Firebase의 <code>authDomain</code> 팝업 흐름은 사용하지 않는다. 실패하거나 <code>file://</code>인 경우 공개 기능만 사용할 수 없게 하고 기존 앱 초기화와 계산은 유지한다.</li>
