@@ -12,7 +12,7 @@ test("공개 핏팅 UI는 기능을 보존한 채 임시 스위치로 숨긴다"
   const styles = read("public/styles.css");
   assert.match(html, /<html[^>]+data-community-ui="hidden"/);
   assert.ok(html.indexOf('id="community-login"') < html.indexOf('id="donate-link"'));
-  assert.match(html, /id="community-login"[^>]+data-community-ui-entry/);
+  assert.match(html, /<div id="community-login"[^>]+data-community-ui-entry/);
   assert.match(html, /id="community-auth-status"[^>]+role="status"/);
   assert.match(app, /class="community-menu" data-community-ui-entry/);
   assert.ok(app.indexOf('data-community-menu-trigger') < app.indexOf('id="open-simulation"'));
@@ -22,10 +22,21 @@ test("공개 핏팅 UI는 기능을 보존한 채 임시 스위치로 숨긴다"
 test("Firebase 공개 설정에는 서버 비밀키를 포함하지 않는다", () => {
   const client = read("public/firebase-community.js");
   assert.match(client, /projectId:\s*"mwolab-2e145"/);
+  assert.match(client, /GOOGLE_IDENTITY_CLIENT_ID\s*=\s*"743748401179-[^"]+\.apps\.googleusercontent\.com"/);
   assert.doesNotMatch(client, /clientSecret|privateKey|serviceAccount/i);
   assert.match(client, /logout: "로그아웃"/);
   assert.match(client, /logout: "Sign out"/);
   assert.doesNotMatch(client, /currentUser\.displayName/);
+});
+
+test("Google Identity Services ID 토큰을 Firebase credential로 교환한다", () => {
+  const client = read("public/firebase-community.js");
+  assert.match(client, /https:\/\/accounts\.google\.com\/gsi\/client/);
+  assert.match(client, /GoogleAuthProvider\.credential\(response\.credential\)/);
+  assert.match(client, /signInWithCredential\(auth, credential\)/);
+  assert.match(client, /googleIdentity\.renderButton/);
+  assert.match(client, /googleIdentity\?\.disableAutoSelect\(\)/);
+  assert.doesNotMatch(client, /signInWithPopup/);
 });
 
 test("Firestore 규칙 거부는 사용자에게 배포 확인 안내와 오류 코드를 보여 준다", () => {

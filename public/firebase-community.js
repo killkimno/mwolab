@@ -1,5 +1,6 @@
 const FIREBASE_VERSION = "12.17.1";
 const LIST_LIMIT = 20;
+const GOOGLE_IDENTITY_CLIENT_ID = "743748401179-u7uf1svvj8cbs64987om4969jq6eu0jo.apps.googleusercontent.com";
 const firebaseConfig = Object.freeze({
   apiKey: "AIzaSyAVs8fDgmsjhfh1KdHMRu_liF20dlcfGns",
   authDomain: "mwolab-2e145.firebaseapp.com",
@@ -93,10 +94,10 @@ const elements = {
 
 let auth = null;
 let db = null;
-let provider = null;
 let currentUser = null;
 let firebaseApi = null;
 let firebaseReady = null;
+let googleIdentity = null;
 let activeMode = "browse";
 let returnFocus = null;
 
@@ -141,35 +142,89 @@ function firebaseErrorMessage(error, fallback) {
 
 function updateLoginButton() {
   if (!elements.login) return;
+  elements.login.replaceChildren();
   if (currentUser) {
-    elements.login.textContent = copy.logout;
-    elements.login.title = copy.logout;
+    const logout = document.createElement("button");
+    logout.type = "button";
+    logout.className = "community-sign-out signed-in";
+    logout.dataset.communitySignOut = "";
+    logout.textContent = copy.logout;
+    logout.title = copy.logout;
+    logout.setAttribute("aria-label", copy.logout);
+    elements.login.append(logout);
     elements.login.classList.add("signed-in");
-    elements.login.setAttribute("aria-label", copy.logout);
-  } else {
-    elements.login.textContent = copy.login;
-    elements.login.title = copy.login;
-    elements.login.classList.remove("signed-in");
-    elements.login.setAttribute("aria-label", copy.login);
+    return;
   }
+  elements.login.classList.remove("signed-in");
+  if (googleIdentity) {
+    googleIdentity.renderButton(elements.login, {
+      type: "standard",
+      theme: "filled_black",
+      size: "medium",
+      text: "signin_with",
+      shape: "rectangular",
+      logo_alignment: "left",
+      width: 170,
+    });
+    return;
+  }
+  const placeholder = document.createElement("button");
+  placeholder.type = "button";
+  placeholder.className = "community-sign-out";
+  placeholder.textContent = copy.login;
+  placeholder.title = copy.login;
+  placeholder.disabled = true;
+  elements.login.append(placeholder);
 }
 
 async function signIn() {
   await firebaseReady;
-  if (!firebaseApi || !auth || !provider) {
+  if (!firebaseApi || !auth || !googleIdentity) {
     setAuthStatus(location.protocol === "file:" ? copy.httpRequired : copy.unavailable);
     return null;
   }
+  setAuthStatus(copy.loginRequired);
+  elements.login.querySelector("iframe")?.focus();
+  return null;
+}
+
+function loadGoogleIdentity() {
+  if (globalThis.google?.accounts?.id) return Promise.resolve(globalThis.google.accounts.id);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector("script[data-google-identity]");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(globalThis.google?.accounts?.id), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Google Identity Services failed to load")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `https://accounts.google.com/gsi/client?hl=${language === "en" ? "en" : "ko"}`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = "";
+    script.addEventListener("load", () => {
+      if (globalThis.google?.accounts?.id) resolve(globalThis.google.accounts.id);
+      else reject(new Error("Google Identity Services is unavailable"));
+    }, { once: true });
+    script.addEventListener("error", () => reject(new Error("Google Identity Services failed to load")), { once: true });
+    document.head.append(script);
+  });
+}
+
+async function handleGoogleCredential(response) {
+  if (!response?.credential || !firebaseApi || !auth) {
+    setAuthStatus(copy.loginFailed);
+    return;
+  }
   try {
     setAuthStatus();
-    const result = await firebaseApi.signInWithPopup(auth, provider);
+    const credential = firebaseApi.GoogleAuthProvider.credential(response.credential);
+    await firebaseApi.signInWithCredential(auth, credential);
     setAuthStatus();
-    return result.user;
   } catch (error) {
     const message = firebaseErrorMessage(error, copy.loginFailed);
-    console.error("Google sign-in failed", error);
+    console.error("Google credential sign-in failed", error);
     setAuthStatus(message);
-    return null;
   }
 }
 
@@ -417,12 +472,11 @@ elements.content.addEventListener("click", (event) => {
   }
 });
 
-elements.login.addEventListener("click", async () => {
-  if (currentUser) {
+elements.login.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-community-sign-out]") && currentUser) {
     await firebaseApi.signOut(auth);
-    return;
+    googleIdentity?.disableAutoSelect();
   }
-  await signIn();
 });
 elements.close.addEventListener("click", closeCommunity);
 elements.overlay.addEventListener("mousedown", (event) => {
@@ -447,8 +501,13 @@ async function initializeFirebase() {
     const app = appModule.initializeApp(firebaseConfig);
     auth = authModule.getAuth(app);
     db = firestoreModule.getFirestore(app);
-    provider = new authModule.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
+    googleIdentity = await loadGoogleIdentity();
+    googleIdentity.initialize({
+      client_id: GOOGLE_IDENTITY_CLIENT_ID,
+      callback: handleGoogleCredential,
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
     authModule.onAuthStateChanged(auth, (user) => {
       currentUser = user;
       updateLoginButton();
@@ -460,8 +519,8 @@ async function initializeFirebase() {
     return true;
   } catch (error) {
     console.error("Firebase initialization failed", error);
-    elements.login.title = copy.unavailable;
     setAuthStatus(firebaseErrorMessage(error, copy.unavailable));
+    updateLoginButton();
     return false;
   }
 }
