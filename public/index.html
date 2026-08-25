@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-community-ui="hidden">
   <head>
     <meta charset="utf-8">
     <meta name="google-site-verification" content="MrRyBVkmt8ls3gpinimglS6ou_quqjhRm12rXXszq-0">
@@ -7,7 +7,7 @@
     <title>mwolab - MechWarrior Online MechLab</title>
     <meta name="description" content="MWO MechLab and build planner for MechWarrior Online. Compare mechs, equipment, quirks, hardpoints, loadouts, damage, heat and mobility stats.">
     <meta name="robots" content="max-image-preview:none">
-  <link rel="stylesheet" href="styles.css?v=20260826-2">
+  <link rel="stylesheet" href="styles.css?v=20260826-3">
   </head>
   <body>
     <div id="app">
@@ -23,9 +23,9 @@
         <button class="tab-button" type="button" data-main-tab="compare" aria-controls="tab-compare" data-i18n="tabs.compare">비교하기</button>
         <button class="tab-button" type="button" data-main-tab="stats" aria-controls="tab-stats" data-i18n="tabs.stats">통계</button>
         <div class="topbar-account-actions">
-          <button id="community-login" class="community-login" type="button" aria-label="Google 로그인" aria-live="polite">Google 로그인</button>
+          <button id="community-login" class="community-login" type="button" aria-label="Google 로그인" aria-live="polite" data-community-ui-entry>Google 로그인</button>
           <a id="donate-link" class="donate-link" href="https://ko-fi.com/killkimno" target="_blank" rel="noopener noreferrer" aria-label="후원 방법 열기" data-i18n="donate.label" data-i18n-aria-label="donate.aria" aria-haspopup="dialog" aria-controls="donate-overlay">후원하기</a>
-          <span id="community-auth-status" class="community-auth-status" role="status" hidden></span>
+          <span id="community-auth-status" class="community-auth-status" role="status" data-community-ui-entry hidden></span>
         </div>
         <button id="help-link" class="help-link" type="button" aria-label="도움말 열기" data-i18n-aria-label="help.aria" aria-haspopup="dialog" aria-controls="help-overlay">?</button>
         <div class="language-switch" aria-label="언어 선택" data-i18n-aria-label="language.switcher">
@@ -813,7 +813,7 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-    <script src="app.js?v=20260826-2"></script>
+    <script src="app.js?v=20260826-3"></script>
     <script type="module" src="firebase-community.js?v=20260826-4"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>

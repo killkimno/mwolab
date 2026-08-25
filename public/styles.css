@@ -165,6 +165,10 @@ h3 {
   color: #fff1c7;
 }
 
+html[data-community-ui="hidden"] [data-community-ui-entry] {
+  display: none !important;
+}
+
 .community-login {
   max-width: 12rem;
   min-height: 2.2rem;

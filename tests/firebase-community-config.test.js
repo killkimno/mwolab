@@ -6,12 +6,17 @@ const test = require("node:test");
 const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-test("공개 핏팅 UI는 요구한 버튼 순서를 유지한다", () => {
+test("공개 핏팅 UI는 기능을 보존한 채 임시 스위치로 숨긴다", () => {
   const html = read("public/index.html");
   const app = read("public/app.js");
+  const styles = read("public/styles.css");
+  assert.match(html, /<html[^>]+data-community-ui="hidden"/);
   assert.ok(html.indexOf('id="community-login"') < html.indexOf('id="donate-link"'));
+  assert.match(html, /id="community-login"[^>]+data-community-ui-entry/);
   assert.match(html, /id="community-auth-status"[^>]+role="status"/);
+  assert.match(app, /class="community-menu" data-community-ui-entry/);
   assert.ok(app.indexOf('data-community-menu-trigger') < app.indexOf('id="open-simulation"'));
+  assert.match(styles, /html\[data-community-ui="hidden"\] \[data-community-ui-entry\][^{]*\{[^}]*display:\s*none\s*!important;/s);
 });
 
 test("Firebase 공개 설정에는 서버 비밀키를 포함하지 않는다", () => {

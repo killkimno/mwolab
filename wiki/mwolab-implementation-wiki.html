@@ -901,6 +901,7 @@
 
         <h3>공개 핏팅과 Firebase</h3>
         <ul>
+          <li><strong>현재 운영 상태:</strong> 로그인과 핏팅 브라우저 진입점은 임시로 숨겨져 있다. <code>public/index.html</code>의 <code>data-community-ui="hidden"</code> 스위치가 표시만 차단하며 Firebase 기능 코드와 저장 데이터는 유지한다.</li>
           <li>상단 Google 로그인은 후원하기 왼쪽에 둔다. 로그인 전에는 Google 로그인을, 로그인 후에는 계정명 없이 로그아웃 동작만 제공한다.</li>
           <li>멕랩 우측 액션 패널에서 시뮬레이션 위의 핏팅 브라우저 버튼을 누르면 브라우저와 올리기 메뉴를 연다.</li>
           <li><code>public/firebase-community.js</code>는 Firebase Web SDK를 동적 로드한다. 실패하거나 <code>file://</code>인 경우 공개 기능만 사용할 수 없게 하고 기존 앱 초기화와 계산은 유지한다.</li>

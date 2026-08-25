@@ -7454,7 +7454,7 @@ function renderMechlabActionPanel() {
   const skillsActive = state.selectedSkillGroups.size > 0;
   return `
     <section class="mechlab-action-panel" aria-label="MechLab actions">
-      <div class="community-menu">
+      <div class="community-menu" data-community-ui-entry>
         <button class="community-menu-trigger" type="button" data-community-menu-trigger aria-haspopup="menu" aria-expanded="false">${t("community.open")} <span aria-hidden="true">⌄</span></button>
         <div class="community-menu-popover" role="menu" hidden>
           <button type="button" role="menuitem" data-community-open="browse">${t("community.browse")}</button>
