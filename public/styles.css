@@ -165,10 +165,6 @@ h3 {
   color: #fff1c7;
 }
 
-html[data-community-ui="hidden"] [data-community-ui-entry] {
-  display: none !important;
-}
-
 .community-login {
   max-width: 12rem;
   min-height: 2.2rem;
@@ -1245,7 +1241,7 @@ body.privacy-page {
 
 .mech-toolbar-row {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto;
   gap: 0.5rem;
 }
 
@@ -3548,9 +3544,7 @@ body.privacy-page {
   box-shadow: 0 0.6rem 1.4rem #000b;
 }
 
-.community-menu-popover[hidden] {
-  display: none;
-}
+.community-menu-popover[hidden] { display: none; }
 
 .community-menu-popover button {
   min-height: 2.4rem;
@@ -3581,8 +3575,8 @@ body.privacy-page {
 .community-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(46rem, 100%);
-  max-height: min(48rem, calc(100vh - 3rem));
+  width: min(92rem, 100%);
+  max-height: min(54rem, calc(100vh - 3rem));
   overflow: hidden;
   border: 1px solid #456777;
   border-radius: 6px;
@@ -3591,6 +3585,8 @@ body.privacy-page {
 }
 
 .community-dialog > header {
+  position: relative;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3617,7 +3613,82 @@ body.privacy-page {
 .community-content {
   min-height: 12rem;
   overflow: auto;
-  padding: 1rem 1.15rem;
+  padding: 0;
+}
+
+.community-dialog-heading {
+  position: relative;
+  min-width: 0;
+}
+
+.community-dialog-title-row {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.community-dialog-title-row h2 { margin: 0; }
+
+.community-mech-filter-trigger {
+  max-width: 20rem;
+  min-height: 2rem;
+  overflow: hidden;
+  padding: 0.3rem 0.65rem;
+  border-color: #47788a;
+  background: #17323c;
+  color: #bfeaff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-mech-filter-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.75rem);
+  left: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  width: min(30rem, calc(100vw - 5rem));
+  max-height: min(34rem, calc(100vh - 11rem));
+  overflow: hidden;
+  border: 1px solid #456777;
+  border-radius: 4px;
+  background: #090e10;
+  box-shadow: 0 0.8rem 2rem #000c;
+}
+
+.community-mech-filter-menu[hidden] { display: none; }
+
+.community-mech-filter-all {
+  min-height: 2.7rem;
+  padding-left: 0.75rem;
+  background: #111a1e;
+  color: #dcecf1;
+  font-weight: 900;
+}
+
+.community-mech-filter-all.active {
+  padding-left: calc(0.75rem - 3px);
+  background: #173b4a;
+  color: #7bdcff;
+}
+
+.community-mech-filter-list {
+  min-height: 0;
+  overflow: auto;
+}
+
+.community-dialog.browser-mode {
+  height: min(54rem, calc(100vh - 3rem));
+}
+
+.community-dialog.browser-mode .community-content { overflow: hidden; }
+
+.community-dialog.save-mode {
+  width: min(34rem, 100%);
+  max-height: min(32rem, calc(100vh - 3rem));
 }
 
 .community-status {
@@ -3702,6 +3773,682 @@ body.privacy-page {
   background: #24451f;
   color: #e1ffd5;
   font-weight: 900;
+}
+
+.community-save-trigger {
+  min-height: 2.65rem;
+  border-color: #4f8f5a;
+  background: #1b3d2a;
+  color: #d8ffe2;
+  font-weight: 900;
+}
+
+.community-browser {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.community-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid #2e4650;
+  background: #0c1519;
+}
+
+.community-tabs button {
+  min-height: 3rem;
+  border: 0;
+  border-right: 1px solid #2e4650;
+  border-radius: 0;
+  background: transparent;
+  color: #8ba2ab;
+  font-weight: 900;
+}
+
+.community-tabs button[aria-selected="true"] {
+  background: #132d38;
+  color: #72d5ff;
+  box-shadow: inset 0 -2px 0 #39baf2;
+}
+
+.community-browser-body {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(27rem, 1.05fr) minmax(28rem, 1fr);
+}
+
+.community-list-pane,
+.community-detail-pane {
+  min-height: 0;
+  padding: 0.8rem;
+}
+
+.community-list-pane {
+  display: grid;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border-right: 1px solid #2e4650;
+}
+
+.community-list-scroll {
+  min-height: 0;
+  overflow: auto;
+}
+
+.community-detail-pane { overflow: hidden; }
+
+.community-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9rem;
+  gap: 0.55rem;
+  margin-bottom: 0.7rem;
+}
+
+.community-toolbar input,
+.community-save-field input,
+.community-save-field textarea {
+  min-width: 0;
+  border: 1px solid #38525c;
+  border-radius: 4px;
+  background: #071013;
+  color: #d9edf4;
+}
+
+.community-toolbar input {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.community-sort-menu {
+  min-width: 0;
+}
+
+.community-sort-trigger {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.community-sort-menu .community-menu-popover button:hover,
+.community-sort-menu .community-menu-popover button:focus-visible,
+.community-sort-menu .community-menu-popover button[aria-checked="true"] {
+  background: #214557;
+  color: #e7f8ff;
+}
+
+.community-fitting-cards {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.community-fitting-card {
+  display: grid;
+  width: 100%;
+  min-height: 7.1rem;
+  grid-template-columns: 5.7rem minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: stretch;
+  padding: 0.55rem;
+  border: 1px solid #2f4650;
+  border-radius: 4px;
+  background: #111b1f;
+  color: #d5e2e6;
+  text-align: left;
+}
+
+.community-fitting-card:hover,
+.community-fitting-card:focus-visible,
+.community-fitting-card.selected {
+  border-color: #42b6e8;
+  background: #142b35;
+}
+
+.community-fitting-card.selected {
+  box-shadow: inset 3px 0 0 #42b6e8;
+}
+
+.community-fitting-card.invalid {
+  opacity: 0.55;
+}
+
+.community-fitting-card > img {
+  width: 5.7rem;
+  height: 100%;
+  min-height: 5.7rem;
+  object-fit: contain;
+  border: 1px solid #263d46;
+  background: #080d0f;
+}
+
+.community-card-main {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.3rem;
+}
+
+.community-card-title {
+  display: flex;
+  min-width: 0;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.community-card-title strong {
+  overflow: hidden;
+  color: #eff8fb;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-card-title em,
+.community-detail-title span {
+  padding: 0.14rem 0.38rem;
+  border-radius: 3px;
+  background: #12354a;
+  color: #63c8f5;
+  font-size: 0.72rem;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.community-card-description {
+  overflow: hidden;
+  color: #9cb0b8;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-card-tags,
+.community-card-meta,
+.community-card-hardpoints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.community-tag {
+  padding: 0.12rem 0.4rem;
+  border: 1px solid #54646d;
+  border-radius: 3px;
+  color: #b9c9cf;
+  font-size: 0.68rem;
+}
+
+.community-tag.tag-highPower {
+  border-color: #8c4f37;
+  background: #351d15;
+  color: #ff9d74;
+}
+
+.community-tag.tag-cooler {
+  border-color: #31785c;
+  background: #123528;
+  color: #79e0ad;
+}
+
+.community-tag.tag-ghostHeat,
+.community-tag.tag-glassArmor,
+.community-tag.tag-longRange {
+  border-color: #85483f;
+  background: #351c19;
+  color: #ff9487;
+}
+
+.community-tag.tag-fullArmor,
+.community-tag.tag-shortRange {
+  border-color: #3e7650;
+  background: #173424;
+  color: #8ee4a7;
+}
+
+.community-tag.tag-mediumRange {
+  border-color: #3c658d;
+  background: #172b40;
+  color: #8fcaff;
+}
+
+.community-tag.tag-sniper {
+  border-color: #59639a;
+  background: #222642;
+  color: #b7bdff;
+}
+
+.community-tag.tag-brawler {
+  border-color: #8b5d32;
+  background: #382515;
+  color: #ffc17f;
+}
+
+.community-card-meta {
+  align-self: end;
+  justify-content: flex-start;
+  color: #7e969f;
+  font-size: 0.82rem;
+}
+
+.community-card-hardpoints {
+  align-content: end;
+  justify-content: flex-end;
+  max-width: 11rem;
+}
+
+.community-card-hardpoints .hardpoint-chip { font-size: 0.72rem; }
+
+.community-like-icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  fill: currentColor;
+}
+
+.community-card-meta > span,
+.community-detail-meta > span,
+.community-detail-like,
+.public-fitting-source-actions [data-community-source-like] {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.community-detail-like,
+.public-fitting-source-actions [data-community-source-like] {
+  justify-content: center;
+}
+
+.community-detail-like .community-like-icon,
+.public-fitting-source-actions [data-community-source-like] .community-like-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.community-fitting-detail {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  gap: 0.75rem;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.community-fitting-detail > header,
+.community-detail-scroll > section {
+  padding: 0.85rem;
+  border: 1px solid #2b424b;
+  border-radius: 4px;
+  background: #111b1f;
+}
+
+.community-detail-scroll {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 0.75rem;
+  overflow: auto;
+}
+
+.community-detail-title {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.community-detail-title h3 {
+  margin: 0;
+  color: #f0f7fa;
+  font-size: 1.2rem;
+}
+
+.community-fitting-detail > header .community-card-tags {
+  margin-top: 0.7rem;
+}
+
+.community-fitting-detail header p {
+  margin: 0.45rem 0;
+  color: #a9bbc1;
+}
+
+.community-detail-meta {
+  display: flex;
+  gap: 1.1rem;
+  margin-top: 0.55rem;
+  color: #8ca1a9;
+  font-size: 0.78rem;
+}
+
+.community-detail-like-count {
+  color: #d9eef6;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.community-fitting-detail h4 {
+  margin: 0 0 0.55rem;
+  color: #dbe9ed;
+}
+
+.community-weapon-list {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.community-weapon-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.32rem 0.45rem;
+  background: #0b1418;
+  color: #b9c9ce;
+}
+
+.community-weapon-list li.energy span { color: var(--yellow); }
+.community-weapon-list li.missile span { color: var(--missile); }
+.community-weapon-list li.ballistic span { color: var(--purple); }
+.community-weapon-list li.ams span { color: var(--ams); }
+
+.community-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: #293a41;
+}
+
+.community-stat-grid > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem;
+  background: #0c1519;
+}
+
+.community-stat-grid span { color: #839ba4; }
+.community-stat-grid strong { color: #e0eaed; }
+
+.community-stat-grid .community-armor-level-1 strong { color: #e56d60; }
+.community-stat-grid .community-armor-level-2 strong { color: #e99558; }
+.community-stat-grid .community-armor-level-3 strong { color: #dfc45e; }
+.community-stat-grid .community-armor-level-4 strong { color: #acd36d; }
+.community-stat-grid .community-armor-level-5 strong { color: #76dda1; }
+
+.community-fitting-detail > footer {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.community-fitting-detail > footer button {
+  min-height: 2.8rem;
+  min-width: 7.2rem;
+}
+
+.community-detail-like.liked {
+  border-color: #b96976;
+  background: #512932;
+  color: #ffd6dc;
+}
+
+.community-delete-button {
+  border-color: #7b3d38;
+  background: #351b19;
+  color: #ffaaa2;
+}
+
+.community-apply-button {
+  border-color: #328bc1;
+  background: #165b8c;
+  color: #effaff;
+  font-weight: 900;
+}
+
+.community-detail-empty,
+.community-login-required {
+  display: grid;
+  min-height: 20rem;
+  place-content: center;
+  gap: 0.8rem;
+  color: #8da2aa;
+  text-align: center;
+}
+
+.community-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+  padding-top: 0.7rem;
+}
+
+.community-pagination button {
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.community-pagination button[aria-current="page"] {
+  border-color: #42b6e8;
+  background: #165b8c;
+  color: #effaff;
+  font-weight: 900;
+}
+
+.community-page-ellipsis {
+  display: inline-grid;
+  min-width: 1.2rem;
+  place-items: center;
+  color: #78929c;
+}
+
+.community-save-form {
+  display: grid;
+  width: 100%;
+  gap: 0.85rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.community-save-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.community-save-form legend,
+.community-save-field > span {
+  margin-bottom: 0.6rem;
+  color: #59bfff;
+  font-weight: 900;
+}
+
+.community-save-locations {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.community-save-location {
+  display: grid;
+  min-height: 3.15rem;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.42rem 0.6rem;
+  border: 1px solid #344e59;
+  border-radius: 5px;
+  background: #0c1519;
+  cursor: pointer;
+}
+
+.community-save-location input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.community-save-location > i {
+  display: block;
+  width: 2rem;
+  height: 1.05rem;
+  padding: 0.16rem;
+  border: 1px solid #4a626c;
+  border-radius: 999px;
+  background: #0a1114;
+}
+
+.community-save-location > i::after {
+  content: "";
+  display: block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: #71848c;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.community-save-location.selected > i { border-color: #42b6f4; }
+.community-save-location.selected > i::after {
+  background: #62cbff;
+  transform: translateX(0.9rem);
+}
+
+.community-save-location.selected {
+  border-color: #42b6f4;
+  background: #10283a;
+  box-shadow: inset 0 0 0 1px #42b6f455;
+}
+
+.community-save-location.disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.community-save-location span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.community-save-location strong { color: #eef8fb; font-size: 1.05rem; }
+.community-save-location small { color: #8da2aa; }
+
+.community-save-field {
+  position: relative;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.community-save-field input,
+.community-save-field textarea {
+  padding: 0.7rem 0.85rem;
+}
+
+.community-save-field textarea {
+  min-height: 7.5rem;
+  resize: vertical;
+}
+
+.community-save-field > small {
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0.65rem;
+  color: #7f949c;
+}
+
+.community-save-field > small.error {
+  position: static;
+  justify-self: end;
+  color: #ff9585;
+}
+
+.community-save-login-note {
+  margin: 0.5rem 0 0;
+  color: #d5a759;
+  font-size: 0.78rem;
+}
+
+.community-save-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding-top: 1rem;
+  border-top: 1px solid #2e4650;
+}
+
+.community-save-actions button {
+  min-width: 9rem;
+  min-height: 2.8rem;
+}
+
+.community-save-actions [data-community-save] {
+  border-color: #328bc1;
+  background: #165b8c;
+  color: #effaff;
+  font-weight: 900;
+}
+
+.mechlab-fitting-tab.public-fitting:not(.active) {
+  border-color: #326d4d;
+  background: #102a1d;
+  box-shadow: inset 0 -2px 0 #318b59;
+}
+
+.mechlab-fitting-tab.public-fitting:not(.active) .mechlab-fitting-tab-select {
+  color: #72c994;
+}
+
+.mechlab-fitting-tab.public-fitting.active {
+  border-color: #55c783;
+  background: linear-gradient(180deg, #21613f 0%, #17452f 100%);
+  box-shadow: inset 0 -3px 0 #74efa7, 0 0 0.45rem #46d98b44;
+}
+
+.mechlab-fitting-tab.public-fitting.active .mechlab-fitting-tab-select {
+  color: #d9ffe8;
+}
+
+.public-fitting-source {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  border: 1px solid #39855b;
+  border-radius: 3px;
+  background: #10271c;
+}
+
+.public-fitting-source-label {
+  color: #67d795;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.public-fitting-source strong { color: #e3f9ea; }
+.public-fitting-source p { margin: 0; color: #9dc4aa; font-size: 0.76rem; }
+
+.public-fitting-source-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.public-fitting-source-actions button {
+  min-width: 0;
+  padding: 0.35rem;
+  font-size: 0.72rem;
+}
+
+.public-fitting-source-actions [data-community-source-like] {
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.public-fitting-source-actions button.liked {
+  border-color: #b96976;
+  background: #512932;
+  color: #ffd6dc;
 }
 
 .mechlab-action-panel .skill-apply-button {
@@ -8858,4 +9605,16 @@ body.pointer-drag-active * {
   .mech-browser-layout.mechlab-focused-layout .tab-content {
     overflow: hidden;
   }
+}
+
+@media (max-width: 900px) {
+  .community-overlay { padding: 0.5rem; }
+  .community-dialog { max-height: calc(100vh - 1rem); }
+  .community-browser-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+  .community-list-pane { border-right: 0; border-bottom: 1px solid #2e4650; }
+  .community-detail-pane { min-height: 0; }
+  .community-save-locations { grid-template-columns: 1fr; }
 }

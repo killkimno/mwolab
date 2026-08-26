@@ -133,9 +133,14 @@ const TEXT = {
     "localBuild.delete": "삭제",
     "localBuild.deleted": "{mech} | {name} 삭제 완료",
     "mechlab.tools": "TOOLS",
+    "community.actions": "핏팅 브라우저 / 저장하기",
     "community.open": "핏팅 브라우저",
     "community.browse": "브라우저",
-    "community.publish": "올리기",
+    "community.publish": "저장하기",
+    "community.publicInfo": "공개 핏팅 정보",
+    "community.restore": "원상복귀",
+    "community.like": "좋아요",
+    "community.loginToLike": "로그인 후 좋아요를 사용할 수 있습니다.",
     "skills.open": "스킬 적용",
     "skills.title": "스킬 적용",
     "skills.description": "활성화한 항목의 사용 가능한 모든 노드를 적용합니다.",
@@ -685,9 +690,14 @@ const TEXT = {
     "localBuild.delete": "Delete",
     "localBuild.deleted": "Deleted {mech} | {name}",
     "mechlab.tools": "TOOLS",
+    "community.actions": "Fitting Browser / Save",
     "community.open": "Fitting Browser",
     "community.browse": "Browse",
-    "community.publish": "Publish",
+    "community.publish": "Save Build",
+    "community.publicInfo": "Public fitting",
+    "community.restore": "Restore original",
+    "community.like": "Like",
+    "community.loginToLike": "Sign in to like this fitting.",
     "skills.open": "Apply skills",
     "skills.title": "Apply skills",
     "skills.description": "Applies every available node in each enabled group.",
@@ -3135,9 +3145,7 @@ function buildFromMwoCode(decoded, mech) {
   });
 }
 
-function currentBuildAsMwoLoadout() {
-  const mech = state.selectedMech;
-  const build = state.currentBuild;
+function buildAsMwoLoadout(mech = state.selectedMech, build = state.currentBuild) {
   if (!mech || !build) throw new Error(t("info.selectMech"));
   const isOmni = hasFixedOmnipods(mech);
   const components = Object.fromEntries(MWO_EXPORT_COMPONENT_ORDER.map((componentName) => {
@@ -3173,6 +3181,10 @@ function currentBuildAsMwoLoadout() {
   };
 }
 
+function currentBuildAsMwoLoadout() {
+  return buildAsMwoLoadout();
+}
+
 function savedKey(mech) {
   return `local-mwo-build:${mech.name}`;
 }
@@ -3190,8 +3202,8 @@ function readLocalBuilds() {
         record
         && typeof record.id === "string"
         && record.mechId !== undefined
-        && typeof record.saveName === "string"
-        && record.build
+        && typeof (record.name || record.saveName) === "string"
+        && (record.build || typeof record.loadoutCode === "string")
       ));
     }
   } catch {
@@ -3210,6 +3222,7 @@ function readLocalBuilds() {
         mechId: mech.id,
         mechName: mech.display_name || mech.name,
         saveName: "LEGACY SAVE",
+        name: "LEGACY SAVE",
         build: legacyBuild,
         updatedAt: 0,
       });
@@ -3244,8 +3257,8 @@ function sortedLocalBuilds() {
     const rightCurrent = String(right.mechId) === currentMechId ? 1 : 0;
     return rightCurrent - leftCurrent
       || Number(right.updatedAt || 0) - Number(left.updatedAt || 0)
-      || String(left.saveName).localeCompare(
-        String(right.saveName),
+      || String(left.name || left.saveName).localeCompare(
+        String(right.name || right.saveName),
         activeLanguage === "kr" ? "ko" : activeLanguage,
         { numeric: true },
       );
@@ -3429,6 +3442,7 @@ function replaceActiveMechlabTabRecord(mech, build) {
   if (!tab) return addMechlabTabRecord(mech, build);
   tab.mechId = mech.id;
   tab.build = build;
+  delete tab.communitySource;
   clearEmptyMechlabTabSlotFocus();
   applyActiveMechlabTabSelection();
   return tab;
@@ -7009,6 +7023,7 @@ function renderMechList() {
   const list = $("mech-list");
   const toggle = $("mech-list-view-toggle");
   const toolbarImport = $("mech-toolbar-import");
+  const toolbarCommunity = $("mech-toolbar-community");
   const toolbarReturn = $("mech-toolbar-return");
   const isMechlab = state.activeMainTab === "mechlab";
   const mechlabBrowsing = isMechlab && state.mechlabBrowseMode;
@@ -7027,6 +7042,7 @@ function renderMechList() {
     toggle.title = state.largeMechList ? t("list.smallView") : t("list.largeView");
   }
   if (toolbarImport) toolbarImport.hidden = !isMechlab;
+  if (toolbarCommunity) toolbarCommunity.hidden = !mechlabBrowsing;
   if (toolbarReturn) toolbarReturn.hidden = !(mechlabBrowsing && activeMechlabTab());
   renderMechlabCompactList();
 
@@ -7455,10 +7471,10 @@ function renderMechlabActionPanel() {
   return `
     <section class="mechlab-action-panel" aria-label="MechLab actions">
       <div class="community-menu" data-community-ui-entry>
-        <button class="community-menu-trigger" type="button" data-community-menu-trigger aria-haspopup="menu" aria-expanded="false">${t("community.open")} <span aria-hidden="true">⌄</span></button>
+        <button class="community-menu-trigger" type="button" data-community-menu-trigger aria-haspopup="menu" aria-expanded="false">${t("community.actions")} <span aria-hidden="true">⌄</span></button>
         <div class="community-menu-popover" role="menu" hidden>
           <button type="button" role="menuitem" data-community-open="browse">${t("community.browse")}</button>
-          <button type="button" role="menuitem" data-community-open="publish">${t("community.publish")}</button>
+          <button type="button" role="menuitem" data-community-open="save">${t("community.publish")}</button>
         </div>
       </div>
       <button id="open-simulation" class="simulation-open-button" type="button" data-mechlab-action="simulation">${t("simulation.open")}</button>
@@ -7467,10 +7483,6 @@ function renderMechlabActionPanel() {
       <div class="loadout-code-actions">
         <button id="import-loadout-code" type="button" data-mechlab-action="import">${t("loadout.import")}</button>
         <button id="export-loadout-code" type="button" data-mechlab-action="export">${t("loadout.export")}</button>
-      </div>
-      <div class="loadout-code-actions local-build-actions">
-        <button id="local-save-build" type="button" data-mechlab-action="local-save">LOCAL SAVE</button>
-        <button id="local-load-build" type="button" data-mechlab-action="local-load">LOCAL LOAD</button>
       </div>
     </section>
   `;
@@ -11783,6 +11795,36 @@ function renderComponent(name, calc, quirkValues, ghostHeatGroups = new Set()) {
   `;
 }
 
+function communityLikeIconHtml() {
+  return `<svg class="community-like-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h4V9H1v12Zm21.8-10.7A2 2 0 0 0 21 9h-6.3l.9-4.6v-.3c0-.4-.2-.8-.4-1.1L14.2 2 7.6 8.6A2 2 0 0 0 7 10v9a2 2 0 0 0 2 2h9c.8 0 1.5-.5 1.8-1.2l3-7c.3-.8.3-1.7 0-2.5Z"/></svg>`;
+}
+
+function publicFittingHasChanges(source) {
+  if (!source?.loadoutCode || !globalThis.MWOCodec) return false;
+  try {
+    const currentCode = MWOCodec.encode(currentBuildAsMwoLoadout());
+    return currentCode !== (source.baselineLoadoutCode || source.loadoutCode);
+  } catch {
+    return false;
+  }
+}
+
+function renderCommunitySourcePanel() {
+  const source = activeMechlabTab()?.communitySource;
+  if (!source) return "";
+  const canRestore = publicFittingHasChanges(source);
+  return `
+    <aside class="public-fitting-source" aria-label="${escapeHtml(t("community.publicInfo"))}">
+      <span class="public-fitting-source-label">${t("community.publicInfo")}</span>
+      <strong>${escapeHtml(source.name)}</strong>
+      <div class="public-fitting-source-actions">
+        <button type="button" data-community-source-like="${escapeHtml(source.id)}" class="${source.liked ? "liked" : ""}" ${source.canLike ? "" : "disabled"} aria-label="${escapeHtml(t("community.like"))}" title="${escapeHtml(source.canLike ? t("community.like") : t("community.loginToLike"))}">${communityLikeIconHtml()}</button>
+        <button type="button" data-community-restore ${canRestore ? "" : "disabled"}>${t("community.restore")}</button>
+      </div>
+    </aside>
+  `;
+}
+
 function renderComponents(calc = calculateBuild()) {
   const quirkValues = mechlabQuirkValues();
   const ghostHeatGroups = new Set(mechlabGhostHeatWarnings().map(({ groupKey }) => groupKey));
@@ -11799,6 +11841,7 @@ function renderComponents(calc = calculateBuild()) {
   $("components").innerHTML = columns.map((column) => `
     <div class="component-column component-column-${column.className}">
       ${column.components.map((name) => rendered[name]).join("")}
+      ${column.className === "right-arm" ? renderCommunitySourcePanel() : ""}
       ${column.className === "left-arm" ? renderMechlabActionPanel() : ""}
     </div>
   `).join("");
@@ -11949,7 +11992,7 @@ function renderMechlabFittingTabs() {
       ? `<button class="mechlab-fitting-tab-close" type="button" data-close-mechlab-fitting-tab="${escapeHtml(tab.id)}" aria-label="${escapeHtml(t("mechlab.closeFittingTab", { mech: label }))}">×</button>`
       : "";
     return `
-      <div class="mechlab-fitting-tab${active ? " active" : ""}" role="presentation">
+      <div class="mechlab-fitting-tab${active ? " active" : ""}${tab.communitySource ? " public-fitting" : ""}" role="presentation">
         <button class="mechlab-fitting-tab-select" type="button" role="tab" data-mechlab-fitting-tab="${escapeHtml(tab.id)}" aria-controls="mechlab-fitting-content" aria-selected="${String(active)}" tabindex="${active ? "0" : "-1"}" title="${escapeHtml(label)}">
           <span>${escapeHtml(label)}</span>
         </button>
@@ -12521,13 +12564,349 @@ function describeMwoCode(code) {
   };
 }
 
+const communityFittingAnalysisCache = new Map();
+const COMMUNITY_HAG_WEAPON_NAMES = new Set([
+  "clanhyperassaultgaussrifle20",
+  "clanhyperassaultgaussrifle30",
+  "clanhyperassaultgaussrifle40",
+]);
+
+function communitySniperWeapon(item) {
+  const aliasKeys = new Set(String(item?.aliases || "")
+    .split(",")
+    .map(normalizeLookupKey)
+    .filter(Boolean));
+  return ["erppc", "erlaser", "gaussrifle"].some((key) => aliasKeys.has(key))
+    || COMMUNITY_HAG_WEAPON_NAMES.has(normalizeLookupKey(item?.name));
+}
+
+function communityFittingTagMetrics(weapons, metrics = {}) {
+  const rangeDps = { short: 0, medium: 0, long: 0 };
+  let sniperAlpha = 0;
+  weapons.forEach((weapon) => {
+    const damage = Math.max(0, number(weapon?.damage));
+    const dps = damage / Math.max(0.016, number(weapon?.cycle, 0.016));
+    const rangeType = weaponDetailRangeType(weapon?.item)?.type;
+    if (Object.hasOwn(rangeDps, rangeType)) rangeDps[rangeType] += dps;
+    if (communitySniperWeapon(weapon?.item)) sniperAlpha += damage;
+  });
+  return {
+    ...metrics,
+    rangeDps,
+    sniperAlpha,
+    brawlerAlpha: weapons.reduce((sum, weapon) => (
+      weaponDetailRangeType(weapon?.item)?.type === "short"
+        ? sum + Math.max(0, number(weapon?.damage))
+        : sum
+    ), 0),
+  };
+}
+
+function communityFittingTags(metrics) {
+  const dps = Math.max(0, number(metrics?.dps));
+  const alphaDamage = Math.max(0, number(metrics?.alphaDamage));
+  const armorPercent = Math.max(0, Math.min(100, number(metrics?.armorPercent)));
+  const rangeDps = metrics?.rangeDps || {};
+  const rangeTags = [
+    ["short", "shortRange"],
+    ["medium", "mediumRange"],
+    ["long", "longRange"],
+  ].flatMap(([rangeType, tag]) => {
+    const rangeValue = Math.max(0, number(rangeDps[rangeType]));
+    return rangeValue > 5 && dps > 0 && rangeValue / dps >= 0.4 ? [tag] : [];
+  });
+  return [
+    ...(dps >= 20 ? ["highPower"] : []),
+    ...(number(metrics?.heatEfficiency) >= 80 ? ["cooler"] : []),
+    ...(metrics?.ghostHeat ? ["ghostHeat"] : []),
+    ...(metrics?.hasArmor && armorPercent >= 100 ? ["fullArmor"] : []),
+    ...(metrics?.hasArmor && armorPercent <= 65 ? ["glassArmor"] : []),
+    ...rangeTags,
+    ...(number(metrics?.sniperAlpha) >= 20
+      && alphaDamage > 0
+      && number(metrics?.sniperAlpha) / alphaDamage >= 0.4 ? ["sniper"] : []),
+    ...(number(metrics?.brawlerAlpha) >= 30
+      && alphaDamage > 0
+      && number(metrics?.brawlerAlpha) / alphaDamage >= 0.7 ? ["brawler"] : []),
+  ];
+}
+
+function communityInstalledWeaponSummary(items) {
+  const hardpoints = { energy: 0, ballistic: 0, missile: 0, ams: 0 };
+  const weaponCounts = new Map();
+  items.forEach((item) => {
+    const type = equipmentHardpointType(item);
+    if (Object.hasOwn(hardpoints, type)) hardpoints[type] += 1;
+    const key = String(item.id);
+    if (!weaponCounts.has(key)) {
+      weaponCounts.set(key, {
+        id: key,
+        name: item.display_name || item.name || key,
+        count: 0,
+        type,
+      });
+    }
+    weaponCounts.get(key).count += 1;
+  });
+  return { hardpoints, weapons: Array.from(weaponCounts.values()) };
+}
+
+function analyzeMwoCode(code) {
+  const cached = communityFittingAnalysisCache.get(code);
+  if (cached) return cached;
+  if (!globalThis.MWOCodec) throw new Error(t("loadout.codecUnavailable"));
+  const decoded = MWOCodec.decode(code);
+  const mech = mechById(decoded.chassisId);
+  if (!mech || decoded.isOmni !== hasFixedOmnipods(mech)) {
+    throw new Error(t("loadout.invalidMech", { id: decoded.chassisId }));
+  }
+  const build = buildFromMwoCode(decoded, mech);
+  const previous = {
+    selectedMech: state.selectedMech,
+    currentBuild: state.currentBuild,
+    selectedSkillGroups: state.selectedSkillGroups,
+  };
+  try {
+    state.selectedMech = mech;
+    state.currentBuild = build;
+    state.selectedSkillGroups = new Set();
+    const calc = calculateBuild();
+    const simulationWeapons = collectSimulationWeapons();
+    const heatSink = simulationHeatSinkItem();
+    const quirks = mechlabEffectiveQuirks(mech, build);
+    const quirkValues = mechlabQuirkValues(mech, build);
+    const heatSystem = simulationHeatSystemFromSink(
+      heatSink,
+      calc.totalHeatSinkCount,
+      quirkIncrease(quirks, "heatdissipation_multiplier"),
+      quirkIncrease(quirks, "maxheat_multiplier"),
+    );
+    const metrics = mechSummaryWeaponMetrics(simulationWeapons, calc.alpha, heatSystem);
+    const weaponSummary = communityInstalledWeaponSummary(installedMechItems("weapon"));
+    const movement = movementInfo(quirkValues, mech);
+    const currentArmor = currentBuildArmorTotal(quirkValues, mech, build);
+    const maxArmor = armorInfoRows(quirkValues, mech).reduce((sum, row) => sum + number(row.total), 0);
+    const armorPercent = maxArmor > 0
+      ? Math.max(0, Math.min(100, currentArmor / maxArmor * 100))
+      : 0;
+    const tagMetrics = communityFittingTagMetrics(simulationWeapons, {
+      ...metrics,
+      alphaDamage: calc.alpha,
+      armorPercent,
+      hasArmor: maxArmor > 0,
+      ghostHeat: ghostHeatForSimulationWeapons(simulationWeapons) > 0,
+    });
+    const structure = structureInfoRows(quirkValues, mech).reduce((sum, row) => sum + number(row.total), 0);
+    const speed = calc.engine
+      ? engineTooltipMaxSpeed(calc.engine) * quirkMultiplier(quirkValues, ["mechtopspeed_multiplier"])
+      : 0;
+    const analysis = {
+      mechId: String(mech.id),
+      mechName: mech.display_name || mech.name || String(mech.id),
+      chassisName: formatChassisName(mech.chassis || ""),
+      variantCode: variantCode(mech),
+      image: mechIconSrc(mech),
+      loadoutCode: code,
+      hardpoints: weaponSummary.hardpoints,
+      weapons: weaponSummary.weapons,
+      tags: communityFittingTags(tagMetrics),
+      metrics: {
+        dps: metrics.dps,
+        alphaDamage: calc.alpha,
+        heatEfficiency: metrics.heatEfficiency,
+      },
+      stats: {
+        tons: calc.totalTons,
+        maxTons: calc.maxTons,
+        slots: calc.currentSlotUsage,
+        maxSlots: calc.totalSlotCapacity,
+        engine: number(calc.engine?.stats?.rating),
+        heatSinks: calc.totalHeatSinkCount,
+        jumpJets: installedMechItems("jumpjet").length,
+        maxSpeed: speed,
+        turnSpeed: movement.turnSpeed,
+        armor: currentArmor,
+        maxArmor,
+        structure,
+        sensor: mechSensorRange(quirks, mech, build),
+      },
+    };
+    communityFittingAnalysisCache.set(code, analysis);
+    return analysis;
+  } finally {
+    state.selectedMech = previous.selectedMech;
+    state.currentBuild = previous.currentBuild;
+    state.selectedSkillGroups = previous.selectedSkillGroups;
+  }
+}
+
+function localRecordLoadoutCode(record) {
+  if (typeof record?.loadoutCode === "string") return record.loadoutCode;
+  const mech = record ? mechById(record.mechId) : null;
+  return mech && record?.build ? MWOCodec.encode(buildAsMwoLoadout(mech, record.build)) : "";
+}
+
+function communityLocalFittings() {
+  const locale = activeLanguage === "kr" ? "ko" : activeLanguage;
+  return readLocalBuilds().slice().sort((left, right) => (
+    Number(right.updatedAt || 0) - Number(left.updatedAt || 0)
+    || String(left.name || left.saveName).localeCompare(String(right.name || right.saveName), locale, { numeric: true })
+  )).flatMap((record) => {
+    try {
+      const loadoutCode = localRecordLoadoutCode(record);
+      return loadoutCode ? [{
+        id: record.id,
+        mechId: String(record.mechId),
+        name: record.name || record.saveName,
+        loadoutCode,
+        updatedAt: Number(record.updatedAt || 0),
+        schemaVersion: Number(record.schemaVersion) === 2 ? 2 : 1,
+      }] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+function saveCommunityLocalFitting({ name }) {
+  if (!state.selectedMech || !state.currentBuild) throw new Error(t("info.selectMech"));
+  const records = readLocalBuilds();
+  const mechId = String(state.selectedMech.id);
+  const existing = records.find((record) => (
+    String(record.mechId) === mechId
+    && String(record.name || record.saveName).trim().toLocaleLowerCase() === name.toLocaleLowerCase()
+  ));
+  const record = existing || { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}` };
+  Object.assign(record, {
+    mechId: state.selectedMech.id,
+    mechName: state.selectedMech.display_name || state.selectedMech.name,
+    name,
+    saveName: name,
+    loadoutCode: MWOCodec.encode(currentBuildAsMwoLoadout()),
+    updatedAt: Date.now(),
+    schemaVersion: 2,
+  });
+  delete record.description;
+  delete record.build;
+  if (!existing) records.push(record);
+  if (!writeLocalBuilds(records)) throw new Error(t("localBuild.storageFailed"));
+  const tab = activeMechlabTab();
+  if (tab) delete tab.communitySource;
+  renderAll();
+  return { id: record.id };
+}
+
+function deleteCommunityLocalFitting(recordId) {
+  const records = readLocalBuilds();
+  const record = records.find((entry) => entry.id === recordId);
+  if (!record) return false;
+  if (!writeLocalBuilds(records.filter((entry) => entry.id !== recordId))) return false;
+  if (record.id.startsWith("legacy:")) {
+    const mech = mechById(record.mechId);
+    if (mech) {
+      try { localStorage.removeItem(savedKey(mech)); }
+      catch { /* The named record is already removed. */ }
+    }
+  }
+  return true;
+}
+
+function communityFittingMechFilterOptions() {
+  const grouped = groupMechsForList(state.mechs);
+  return sortedClassNames(grouped).map((weightClass) => ({
+    id: weightClass,
+    label: WEIGHT_CLASS_LABELS[weightClass] || formatChassisName(weightClass),
+    chassis: chassisGroupsForWeight(grouped, weightClass).map((group) => ({
+      id: group.chassis,
+      label: group.label,
+      tons: group.tons,
+      variants: group.variants.map((mech) => ({
+        id: String(mech.id),
+        name: mech.display_name || variantCode(mech),
+        badgesHtml: mechSlotBadges(mech),
+      })),
+    })),
+  }));
+}
+
+function applyCommunityFitting(record, isPublic = false) {
+  importMwoCode(record.loadoutCode, { closeDialog: false });
+  const tab = activeMechlabTab();
+  if (tab && isPublic) {
+    tab.communitySource = {
+      id: record.id,
+      name: record.name,
+      loadoutCode: record.loadoutCode,
+      baselineLoadoutCode: MWOCodec.encode(currentBuildAsMwoLoadout()),
+      likeCount: Number(record.likeCount || 0),
+      liked: Boolean(record.liked),
+      canLike: Boolean(record.canLike),
+    };
+    renderAll();
+  }
+}
+
+function restoreCommunityFitting() {
+  const source = activeMechlabTab()?.communitySource;
+  if (!source?.loadoutCode) return false;
+  const retainedSource = { ...source };
+  importMwoCode(source.loadoutCode, { closeDialog: false });
+  const tab = activeMechlabTab();
+  if (!tab) return false;
+  retainedSource.baselineLoadoutCode = MWOCodec.encode(currentBuildAsMwoLoadout());
+  tab.communitySource = retainedSource;
+  renderAll();
+  return true;
+}
+
 globalThis.MwoLabCommunityBridge = Object.freeze({
   language: activeLanguage,
   getCurrentFitting() {
     const loadoutCode = MWOCodec.encode(currentBuildAsMwoLoadout());
     return { loadoutCode, ...describeMwoCode(loadoutCode) };
   },
-  describeFitting: describeMwoCode,
+  currentMechId() {
+    return state.selectedMech ? String(state.selectedMech.id) : "";
+  },
+  listFittingMechFilters: communityFittingMechFilterOptions,
+  describeFitting: analyzeMwoCode,
+  listLocalFittings: communityLocalFittings,
+  saveLocalFitting: saveCommunityLocalFitting,
+  deleteLocalFitting: deleteCommunityLocalFitting,
+  openLocalFitting(record) {
+    applyCommunityFitting(record, false);
+  },
+  openPublicFitting(record) {
+    applyCommunityFitting(record, true);
+  },
+  restorePublicFitting: restoreCommunityFitting,
+  updatePublicFittingLike(id, likeCount, liked, canLike = true) {
+    const source = activeMechlabTab()?.communitySource;
+    if (!source || source.id !== id) return;
+    Object.assign(source, { likeCount, liked, canLike });
+    renderComponents();
+  },
+  setPublicLikeCapability(canLike) {
+    const source = activeMechlabTab()?.communitySource;
+    if (!source) return;
+    source.canLike = Boolean(canLike);
+    renderComponents();
+  },
+  getPublicFittingSource() {
+    const source = activeMechlabTab()?.communitySource;
+    return source ? { id: source.id, likeCount: source.likeCount } : null;
+  },
+  clearPublicFittingMode() {
+    const tab = activeMechlabTab();
+    if (tab) delete tab.communitySource;
+    renderAll();
+  },
+  clearPublicFittingIfMatches(id) {
+    const tab = activeMechlabTab();
+    if (!tab?.communitySource || tab.communitySource.id !== id) return;
+    delete tab.communitySource;
+    renderAll();
+  },
   openFitting: importMwoCode,
 });
 
@@ -15897,6 +16276,10 @@ if (globalThis.__MWOLAB_TEST__) {
     atmTooltipDamageBands,
     ultraAutoCannonJamStats,
     mechSummaryWeaponMetrics,
+    communitySniperWeapon,
+    communityFittingTagMetrics,
+    communityFittingTags,
+    communityInstalledWeaponSummary,
     mechSpecialFeatures,
     mechMatchesQuirkFilters,
     normalizeMechHardpointFilterMinimum,

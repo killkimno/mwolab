@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko" data-community-ui="hidden">
+<html lang="ko">
   <head>
     <meta charset="utf-8">
     <meta name="google-site-verification" content="MrRyBVkmt8ls3gpinimglS6ou_quqjhRm12rXXszq-0">
@@ -7,7 +7,7 @@
     <title>mwolab - MechWarrior Online MechLab</title>
     <meta name="description" content="MWO MechLab and build planner for MechWarrior Online. Compare mechs, equipment, quirks, hardpoints, loadouts, damage, heat and mobility stats.">
     <meta name="robots" content="max-image-preview:none">
-  <link rel="stylesheet" href="styles.css?v=20260826-4">
+  <link rel="stylesheet" href="styles.css?v=20260827-5">
   </head>
   <body>
     <div id="app">
@@ -23,9 +23,9 @@
         <button class="tab-button" type="button" data-main-tab="compare" aria-controls="tab-compare" data-i18n="tabs.compare">비교하기</button>
         <button class="tab-button" type="button" data-main-tab="stats" aria-controls="tab-stats" data-i18n="tabs.stats">통계</button>
         <div class="topbar-account-actions">
-          <button id="community-login" class="community-login" type="button" aria-label="Google 로그인" aria-live="polite" data-community-ui-entry>Google 로그인</button>
+          <button id="community-login" class="community-login" type="button" aria-label="Google 로그인" aria-live="polite">Google 로그인</button>
           <a id="donate-link" class="donate-link" href="https://ko-fi.com/killkimno" target="_blank" rel="noopener noreferrer" aria-label="후원 방법 열기" data-i18n="donate.label" data-i18n-aria-label="donate.aria" aria-haspopup="dialog" aria-controls="donate-overlay">후원하기</a>
-          <span id="community-auth-status" class="community-auth-status" role="status" data-community-ui-entry hidden></span>
+          <span id="community-auth-status" class="community-auth-status" role="status" hidden></span>
         </div>
         <button id="help-link" class="help-link" type="button" aria-label="도움말 열기" data-i18n-aria-label="help.aria" aria-haspopup="dialog" aria-controls="help-overlay">?</button>
         <div class="language-switch" aria-label="언어 선택" data-i18n-aria-label="language.switcher">
@@ -45,6 +45,7 @@
                 </div>
                 <button class="mech-filter-button" type="button" data-open-mech-filter aria-haspopup="dialog" aria-controls="mech-filter-overlay" data-i18n="filters.open">필터</button>
                 <input id="mech-search" type="search" placeholder="기종 또는 변형 검색" data-i18n-placeholder="search.mechPlaceholder">
+                <button id="mech-toolbar-community" class="mech-toolbar-import" type="button" data-community-open="browse" data-community-mech-filter="all" data-i18n="community.open" hidden>핏팅 브라우저</button>
                 <button id="mech-toolbar-import" class="mech-toolbar-import" type="button" data-i18n="loadout.import" hidden>IMPORT</button>
                 <button id="mech-toolbar-return" class="mech-toolbar-import mech-toolbar-return" type="button" aria-label="마지막 피팅으로 돌아가기" data-i18n="mechlab.returnFitting" data-i18n-aria-label="mechlab.returnFittingAria" hidden>돌아가기</button>
                 <button id="mech-list-view-toggle" class="mech-list-view-toggle" type="button" aria-pressed="true" title="작은 리스트 보기" data-i18n-title="list.smallView" hidden>&lt;&lt;</button>
@@ -619,9 +620,13 @@
     <div id="community-overlay" class="community-overlay" hidden>
       <section class="community-dialog" role="dialog" aria-modal="true" aria-labelledby="community-title">
         <header>
-          <div>
-            <p class="community-dialog-eyebrow">PUBLIC FITTINGS</p>
-            <h2 id="community-title">핏팅 브라우저</h2>
+          <div class="community-dialog-heading">
+            <p id="community-eyebrow" class="community-dialog-eyebrow">PUBLIC FITTINGS</p>
+            <div class="community-dialog-title-row">
+              <h2 id="community-title">핏팅 브라우저</h2>
+              <button id="community-mech-filter-trigger" class="community-mech-filter-trigger" type="button" aria-controls="community-mech-filter-menu" aria-expanded="false" hidden>전체 ▾</button>
+            </div>
+            <div id="community-mech-filter-menu" class="community-mech-filter-menu" hidden></div>
           </div>
           <button id="close-community" class="community-close" type="button" aria-label="닫기">×</button>
         </header>
@@ -813,8 +818,8 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-    <script src="app.js?v=20260826-3"></script>
-    <script type="module" src="firebase-community.js?v=20260826-6"></script>
+    <script src="app.js?v=20260827-5"></script>
+    <script type="module" src="firebase-community.js?v=20260827-5"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->

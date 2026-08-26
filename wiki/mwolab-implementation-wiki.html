@@ -207,7 +207,7 @@
     <main>
       <header>
         <h1>MwoLab 구현 위키</h1>
-        <p class="meta">기준일 2026-08-26 · 현재 저장소 구현 기준</p>
+        <p class="meta">기준일 2026-08-27 · 현재 저장소 구현 기준</p>
         <p>이 문서는 MwoLab이 무엇을 만들려는 도구인지, 각 기능을 왜 그 방식으로 설계했는지, 실제 구현과 계산은 어떤 기준을 따르는지를 함께 설명하는 내부 기획·구현 가이드다.</p>
         <div class="notice" id="policy">
           <strong>문서 운용 원칙</strong><br>
@@ -896,19 +896,22 @@
         <ul>
           <li>상단 도움말 버튼은 후원하기 버튼 바로 옆에 물음표(<code>?</code>) 하나로 표시하고, 멕랩 사용 팁, DPS·DPH·HPS·EXPECTED COOLDOWN 용어 설명과 운영자 블로그 주소를 한 팝업에 표시한다. 팝업 내부에는 별도 제목을 두지 않고, 각 용어와 설명은 <code>용어 - 설명</code> 형태로 바로 이어 표시한다. 팝업은 우측 상단 X, 배경 클릭, Esc로 닫는다.</li>
           <li>방문 통계는 개인정보를 식별하지 않는 Cloudflare Web Analytics를 사용한다. 배포 HTML에는 Cloudflare가 발급한 단일 비콘 코드만 유지하며 사용 사실은 개인정보처리방침에서 안내한다.</li>
-          <li>한국어·English 언어 전환 오른쪽의 개인정보 링크는 공개 <code>privacy.html</code>로 이동한다. 이 페이지는 Google 로그인 계정 정보, 공개 핏팅과 비공개 소유권·좋아요·게시 한도 데이터, 브라우저 로컬 데이터, Firebase·GitHub Pages·Cloudflare 사용 범위와 삭제 문의 연락처를 한국어와 영어로 고지한다. 공개 핏팅에는 Google 이름·이메일·프로필 사진·UID를 저장하거나 표시하지 않으며 Google 표시 이름은 로그인 버튼에도 표시하지 않는다고 명시한다.</li>
+          <li>한국어·English 언어 전환 오른쪽의 개인정보 링크는 공개 <code>privacy.html</code>로 이동한다. 이 페이지는 Google 로그인 계정 정보, 공개 핏팅과 소유권 UID·좋아요·게시 수 제한 데이터, 브라우저 로컬 데이터, Firebase·GitHub Pages·Cloudflare 사용 범위와 삭제 문의 연락처를 한국어와 영어로 고지한다. 공개 문서의 Firebase UID는 소유권 확인에 사용하지만 화면에 작성자로 표시하지 않으며 Google 이름·이메일·프로필 사진은 저장하거나 표시하지 않는다고 명시한다.</li>
         </ul>
 
         <h3>공개 핏팅과 Firebase</h3>
         <ul>
-          <li><strong>현재 운영 상태:</strong> 운영 페이지에서는 로그인과 핏팅 브라우저 진입점을 숨긴다. <code>public/index.html</code>의 <code>data-community-ui="hidden"</code> 스위치가 표시만 차단하며 Firebase 기능 코드는 유지한다. 로컬 테스트 중에만 이 속성을 제거해 진입점을 표시한다.</li>
+          <li><strong>현재 운영 상태:</strong> 로그인과 통합 핏팅 브라우저 진입점을 운영 페이지에 표시한다. 공개 핏팅은 로그인 없이 조회·적용할 수 있고 공개 저장·삭제와 좋아요, 내가 올린 핏팅 목록에만 Google 로그인이 필요하다.</li>
           <li>상단 Google 로그인은 후원하기 왼쪽에 둔다. 로그인 전에는 Google 로그인을, 로그인 후에는 계정명 없이 로그아웃 동작만 제공한다.</li>
-          <li>멕랩 우측 액션 패널에서 시뮬레이션 위의 핏팅 브라우저 버튼을 누르면 브라우저와 올리기 메뉴를 연다.</li>
+          <li>멕랩 우측 액션 패널은 기존 일반 버튼 외형의 <code>핏팅 브라우저 / 저장하기</code> 드롭다운 하나를 제공하고 그 안에서 브라우저와 저장하기를 선택한다. 멕 전체 화면에는 IMPORT 왼쪽에 브라우저를 바로 여는 버튼을 별도로 표시한다. 기존 개별 저장하기·LOCAL SAVE·LOCAL LOAD 버튼과 전용 대화상자는 사용자 진입점에서 제거하고 같은 로컬 저장소 기능을 브라우저의 로컬 탭과 통합 저장 모달에서 사용한다. 저장 모달은 브라우저 모달과 별도로 작은 폭과 높이를 사용한다.</li>
           <li><code>public/firebase-community.js</code>는 Firebase Web SDK와 Google Identity Services를 동적 로드한다. 기존 MwoLab 로그인 버튼이 Google OAuth 토큰 요청을 시작하고, 발급된 액세스 토큰을 <code>GoogleAuthProvider.credential()</code>과 <code>signInWithCredential()</code>로 Firebase에 전달한다. Firebase의 <code>authDomain</code> 팝업 흐름은 사용하지 않는다. 실패하거나 <code>file://</code>인 경우 공개 기능만 사용할 수 없게 하고 기존 앱 초기화와 계산은 유지한다.</li>
-          <li>게시 데이터는 <code>MWOCodec.encode(currentBuildAsMwoLoadout())</code>의 로드아웃 코드만 원본으로 저장한다. 멕 이름·무기 목록·계산 통계는 중복 저장하지 않고 조회 시 기존 코드 해독과 로컬 게임 데이터로 검증·표시한다. 무기 그룹과 스킬 선택은 MWO 코드에 포함되지 않는다.</li>
-          <li><code>publicFittings/{id}</code>에는 로드아웃 코드, 좋아요 수, 생성 시각, 스키마 버전을 저장한다. <code>fittingOwners/{id}</code>에는 비공개 UID를, <code>publicFittings/{id}/likes/{uid}</code>에는 사용자별 좋아요를 분리한다. <code>publisherUsage/{uid}</code>는 비공개 게시 횟수와 마지막 게시 ID를 보관한다.</li>
-          <li>목록은 생성 시각 내림차순으로 한 번에 최대 20개만 읽고 계정당 게시물은 최대 5개로 제한한다. 게시물·소유권·게시 횟수 증가는 한 트랜잭션에서 수행하며 운영자는 Firebase 콘솔에서 악성 게시물을 정리한다. 로드아웃 코드는 보안·전송 한도로 36~4096자와 MWO 섹션 형태만 허용한다. 좋아요 문서와 집계 ±1 변경도 같은 트랜잭션에서 수행한다.</li>
-          <li><code>firestore.rules</code>는 공개 목록 읽기와 Google 로그인 게시·좋아요만 허용하며 나머지는 기본 거부한다. 규칙은 MWO 코드의 의미를 판정하지 못하므로 원격 핏팅은 열기 전에 기존 <code>buildFromMwoCode</code> 검증 경로를 통과한다.</li>
+          <li>브라우저는 공개·로컬·내가 올린 핏팅 탭, 제목 검색, 최신순·좋아요순 정렬, 목록과 상세 2열 구성을 사용한다. 제목 옆 멕 선택 메뉴는 전체를 최상단의 공용 소형 슬롯 행으로 두고 그 아래에 기종·배리언트를 표시한다. 체급 헤더와 기종별 배리언트 수는 생략하며 기종 확장·축소 렌더 전후의 목록 <code>scrollTop</code>을 복원한다. 핏팅 화면에서 열면 현재 멕, 멕 전체 화면에서 열면 전체를 기본 선택한다. 목록 카드와 상세 헤더는 멕 이름 태그 다음에 기본 텍스트 제목을 표시하고, 엄지손가락 아이콘으로 표시한 좋아요 수와 업데이트 날짜를 왼쪽 아래에 같은 글자 크기로 두며 장착 무기 하드포인트는 오른쪽 아래에 둔다. 상세와 공개 출처 패널의 좋아요 실행 버튼은 집계 숫자나 텍스트 없이 같은 엄지손가락 아이콘을 가운데 정렬한다. 각 로드아웃을 기존 계산 경로로 해석해 장착 무기를 이름별로 합산하고 실제 장착 무기의 명시적 <code>hardpoint_type</code>으로 공용 E·M·B·AMS 배지와 타입별 무기 이름 색을 만든다. <code>communityFittingTagMetrics</code>와 <code>communityFittingTags</code>가 `무기 관련 에이전트.md`의 공통 무장 계산 및 방어·고스트 힛 상태에서 자동 태그를 만들며 DB에는 저장하지 않는다.</li>
+          <li>브라우저 대화상자는 데스크톱에서 최대 <code>54rem</code> 높이로 고정하고 목록은 자체 스크롤하며 페이지당 10개와 숫자 페이지를 표시한다. 상세 열은 헤더·스크롤 본문·고정 하단 작업 행으로 나누어 좋아요·삭제·적용 버튼이 항상 보이게 한다. 상세 정보는 아머 비율, 톤수, 엔진, 최대 속도, DPS, 알파샷 데미지, 열 효율, 히트싱크 수를 표시한다. <code>statRowsHtml</code>은 아머 퍼센트를 20% 단위의 다섯 색상 클래스로 만들고, 상세 제목 행과 자동 태그 행 사이에는 별도 여백을 둔다.</li>
+          <li>Firebase 초기화나 공개·내 업로드 목록 조회가 실패해도 브라우저의 세 탭과 로컬 탭 기능을 유지한다. 실패한 원격 탭은 목록 영역 안에 현재 불러올 수 없다는 상태를 표시하고 기술 오류는 상태 영역에 별도로 남긴다. 내가 올린 핏팅의 로그인 요구도 같은 탭 골격 안에서 안내해 로컬 탭으로 즉시 이동할 수 있게 한다.</li>
+          <li><code>fittings/{id}</code> v2에는 <code>ownerUid</code>, 숫자형 chassis ID 문자열 <code>mechId</code>, 제목, 로드아웃 코드, 좋아요 수, 생성 시각과 스키마 버전을 저장한다. 제목은 최대 20자이며 광고 링크 방지를 위해 대소문자와 관계없이 <code>https</code>를 포함할 수 없고 클라이언트와 Firestore Rules가 모두 검증한다. 설명은 새 공개·로컬 레코드에 저장하지 않으며 기존 v1 문서는 읽기 호환만 유지한다. <code>fittings/{id}/likes/{uid}</code>에는 사용자별 좋아요를 저장한다. <code>publisherUsage/{uid}</code>에는 사용자 전체 공개 핏팅 수와 마지막 결합 작업을 저장하고 본인만 읽을 수 있게 한다. 저장·작성자 삭제 트랜잭션은 이 카운터를 정확히 1씩 증감하며 100개에서 추가 저장을 거부하되, 현재 게시 수는 <code>내가 올린 핏팅</code> 탭에 표시하지 않는다. 이 탭의 상세 하단에는 좋아요 실행 버튼도 표시하지 않는다.</li>
+          <li>원격 목록은 전체 또는 제목 옆 메뉴에서 선택한 한 <code>mechId</code> 조건으로 조회한다. 단일 커서로 다음 페이지를 이어 읽고 각 Firestore 쿼리는 페이지 크기와 같은 최대 10개다. 최신순·좋아요순 정렬은 브라우저 네이티브 셀렉트가 아니라 기존 핏팅 액션과 같은 공용 메뉴 트리거·화살표·팝오버 외형을 사용한다. 게시·작성자 삭제와 좋아요 문서·집계 ±1은 보안 규칙으로 검증하며, 삭제와 좋아요 변경은 각각 트랜잭션으로 처리한다. 제목은 20자와 <code>https</code> 금지, 로드아웃 코드는 36~4096자와 MWO 섹션 형태만 허용한다.</li>
+          <li>공개 핏팅을 적용하면 해당 멕랩 탭에 원본 코드와 현재 앱에서 다시 인코딩한 기준 코드를 출처로 저장하고 RIGHT ARM 아래에 제목·좋아요·원상복귀 패널을 렌더한다. 활성 공개 탭은 밝은 초록색, 비활성 공개 탭은 어두운 초록색으로 구분한다. 새 탭을 추가하거나 다른 탭으로 전환해도 기존 탭의 출처는 보존하고, 같은 탭을 다른 멕·비공개 핏팅으로 교체하거나 저장할 때 제거한다. 원상복귀는 현재 인코딩 코드가 기준 코드와 달라진 경우에만 활성화하며 원본 공개 코드를 다시 적용한다. 저장·인증 상태 안내는 3초 뒤 자동으로 숨긴다.</li>
+          <li><code>admin/firestore.rules</code>는 공개 목록 읽기, Google 로그인 게시·작성자 삭제·좋아요와 해당 사용자의 원자적 게시 카운터 변경만 허용하고 나머지는 기본 거부한다. 작성자 삭제 트랜잭션은 비공개 <code>deletionRequests/{fittingId}</code> 정리 요청을 함께 만들며, 로컬 관리자 목록 조회가 삭제된 부모 아래의 좋아요 문서를 제거한 뒤 요청을 지운다. 관리자 직접 삭제도 Admin SDK로 카운터를 함께 감소시키고 정리 요청을 남긴 뒤 좋아요 정리가 성공한 경우에만 요청을 제거하므로, 일시 실패하면 다음 목록 조회가 재시도한다. 카운터가 없거나 잘못되었으면 삭제를 거부한다. 기존 게시물이 있는 프로젝트는 관리자 작업을 중지하고 <code>admin/firestore.maintenance.rules</code>로 클라이언트 쓰기를 잠근 뒤 <code>admin/sync-publisher-usage.mjs</code>로 소유자별 카운터를 백필·재검증하고 운영 규칙을 배포한다. 규칙은 MWO 코드의 의미를 판정하지 못하므로 원격 핏팅은 열기 전에 기존 <code>buildFromMwoCode</code> 검증 경로를 통과한다.</li>
         </ul>
 
         <h3>범위 밖 기능</h3>
@@ -923,10 +926,10 @@
             <tr><td><code>public/index.html</code></td><td>탭, 패널, 대화상자, 시뮬레이션 HUD의 정적 골격</td></tr>
             <tr><td><code>public/styles.css</code></td><td>전체 UI, 반응형 레이아웃, 멕랩·표·시뮬레이션 표현</td></tr>
             <tr><td><code>public/app.js</code></td><td>번역, 상태, 계산, 필터, 렌더링, 이벤트, 로컬 저장, 시뮬레이션</td></tr>
-            <tr><td><code>public/firebase-community.js</code></td><td>Firebase 초기화, Google 로그인, 공개 핏팅 게시·목록·좋아요와 장애 격리</td></tr>
+            <tr><td><code>public/firebase-community.js</code></td><td>Firebase 초기화, Google 로그인, 공개·로컬·내 게시물 브라우저, 통합 저장·삭제·좋아요와 장애 격리</td></tr>
             <tr><td><code>public/privacy.html</code></td><td>Google OAuth 브랜딩과 사용자 안내를 위한 공개 한국어·영어 개인정보처리방침</td></tr>
             <tr><td><code>public/mwo-codec.js</code></td><td>MWO 로드아웃 문자열 encode/decode</td></tr>
-            <tr><td><code>firestore.rules</code></td><td>공개 핏팅·비공개 소유권·사용자별 좋아요의 Firestore 접근 검증</td></tr>
+            <tr><td><code>admin/firestore.rules</code></td><td>공개 핏팅·작성자 삭제·좋아요의 Firestore 접근 검증</td></tr>
             <tr><td><code>firebase.json</code></td><td>Firestore 규칙과 인덱스 배포 대상 연결</td></tr>
             <tr><td><code>.firebaserc</code></td><td>배포할 Firebase 프로젝트 <code>mwolab-2e145</code> 연결</td></tr>
             <tr><td><code>public/quirk-calculations.js</code></td><td>쿼크 이름 정규화, 동일 이름 수치 합산, additive·multiplier·감소·증가·부호 보존 공용 계산</td></tr>
@@ -1022,7 +1025,7 @@
       </section>
 
       <footer>
-        마지막 문서 갱신: 2026-08-26 · 구현 시 관련 내용을 참고하고, 기능 구현·코드 수정 작업 후 재사용 가능한 규칙 변경이 있어 필요하다고 판단하면 별도 위키 갱신 요청 없이 즉시 갱신한다.
+        마지막 문서 갱신: 2026-08-27 · 구현 시 관련 내용을 참고하고, 기능 구현·코드 수정 작업 후 재사용 가능한 규칙 변경이 있어 필요하다고 판단하면 별도 위키 갱신 요청 없이 즉시 갱신한다.
       </footer>
     </main>
   </div>

@@ -80,6 +80,113 @@ function loadMechLab({
 
 const api = loadMechLab();
 
+test("핏팅 브라우저 자동 태그는 지정된 DPS와 열효율 경계에서만 생성한다", () => {
+  assert.deepEqual(Array.from(api.communityFittingTags({ dps: 19.999, heatEfficiency: 79.999 })), []);
+  assert.deepEqual(Array.from(api.communityFittingTags({ dps: 20, heatEfficiency: 79.999 })), ["highPower"]);
+  assert.deepEqual(Array.from(api.communityFittingTags({ dps: 19.999, heatEfficiency: 80 })), ["cooler"]);
+  assert.deepEqual(Array.from(api.communityFittingTags({ dps: 20, heatEfficiency: 80 })), ["highPower", "cooler"]);
+});
+
+test("핏팅 브라우저 방어·사거리·전투 성향 태그는 확정된 경계만 사용한다", () => {
+  assert.deepEqual(Array.from(api.communityFittingTags({
+    dps: 12.5,
+    alphaDamage: 50,
+    armorPercent: 100,
+    hasArmor: true,
+    ghostHeat: true,
+    rangeDps: { short: 5, medium: 5.01, long: 0 },
+    sniperAlpha: 20,
+    brawlerAlpha: 29.999,
+  })), ["ghostHeat", "fullArmor", "mediumRange", "sniper"]);
+  assert.deepEqual(Array.from(api.communityFittingTags({
+    dps: 10,
+    alphaDamage: 40,
+    armorPercent: 65,
+    hasArmor: true,
+    rangeDps: { short: 7, medium: 0, long: 0 },
+    sniperAlpha: 19.999,
+    brawlerAlpha: 30,
+  })), ["glassArmor", "shortRange", "brawler"]);
+  assert.deepEqual(Array.from(api.communityFittingTags({
+    dps: 20,
+    alphaDamage: 50,
+    rangeDps: { short: 0, medium: 0, long: 8 },
+  })), ["highPower", "longRange"]);
+});
+
+test("스나이퍼 태그는 ER PPC·ER Laser·Gauss Rifle 계열 별칭만 허용한다", () => {
+  ["ERPPC", "ERLaser", "GaussRifle"].forEach((alias) => {
+    assert.equal(api.communitySniperWeapon({ aliases: alias }), true, alias);
+  });
+  ["PPC", "Laser", "ISGaussRifle", "LightGauss", "HAG"].forEach((alias) => {
+    assert.equal(api.communitySniperWeapon({ aliases: alias }), false, alias);
+  });
+  assert.equal(api.communitySniperWeapon({ name: "ERPPC" }), false);
+  assert.equal(api.communitySniperWeapon({ display_name: "ER LASER" }), false);
+  assert.equal(api.communitySniperWeapon({ name: "GaussRifle" }), false);
+});
+
+test("스나이퍼 태그는 추출된 실제 HAG 20·30·40 내부 이름을 포함한다", () => {
+  const equipment = JSON.parse(fs.readFileSync(
+    path.join(__dirname, "..", "public", "data", "equipment.json"),
+    "utf8",
+  ));
+  [1255, 1256, 1257].forEach((itemId) => {
+    const item = equipment.items[String(itemId)];
+    assert.ok(item, `missing extracted HAG ${itemId}`);
+    assert.equal(api.communitySniperWeapon(item), true, item.name);
+  });
+});
+
+test("핏팅 브라우저 태그 지표는 기존 사거리 타입과 무기 DPS·알파값을 합산한다", () => {
+  const shortErLaser = {
+    item: {
+      aliases: "Energy,ERLaser",
+      ranges: [
+        { start: 0, damageModifier: 1 },
+        { start: 300, damageModifier: 1 },
+        { start: 600, damageModifier: 0 },
+      ],
+    },
+    damage: 12,
+    cycle: 2,
+  };
+  const longHag = {
+    item: {
+      name: "ClanHyperAssaultGaussRifle20",
+      aliases: "Ballistic,LargeWeapon,ClanGaussRifle",
+      ranges: [
+        { start: 0, damageModifier: 1 },
+        { start: 800, damageModifier: 1 },
+        { start: 1600, damageModifier: 0 },
+      ],
+    },
+    damage: 20,
+    cycle: 4,
+  };
+  const metrics = api.communityFittingTagMetrics([shortErLaser, longHag], { dps: 11, alphaDamage: 32 });
+  assert.deepEqual({ ...metrics.rangeDps }, { short: 6, medium: 0, long: 5 });
+  assert.equal(metrics.sniperAlpha, 32);
+  assert.equal(metrics.brawlerAlpha, 12);
+});
+
+test("핏팅 브라우저 하드포인트 배지는 실제 장착 무기 타입과 수량만 센다", () => {
+  const summary = api.communityInstalledWeaponSummary([
+    { id: 1, display_name: "Laser", item_type: "weapon", hardpoint_type: "energy" },
+    { id: 1, display_name: "Laser", item_type: "weapon", hardpoint_type: "energy" },
+    { id: 2, display_name: "AC", item_type: "weapon", stats: { type: "ballistic" } },
+    { id: 3, display_name: "LRM", item_type: "weapon", hardpoint_type: "missile" },
+    { id: 4, display_name: "AMS", item_type: "weapon", hardpoint_type: "ams" },
+  ]);
+  assert.deepEqual({ ...summary.hardpoints }, { energy: 2, ballistic: 1, missile: 1, ams: 1 });
+  assert.deepEqual(Array.from(summary.weapons, ({ id, count }) => ({ id, count })), [
+    { id: "1", count: 2 },
+    { id: "2", count: 1 },
+    { id: "3", count: 1 },
+    { id: "4", count: 1 },
+  ]);
+});
+
 test("기본 하드포인트 필터는 각 타입의 전체 최솟값을 1로 유지한다", () => {
   Object.values(api.state.mechHardpointFilters).forEach((filter) => {
     assert.equal(filter.minimums.total, 1);
@@ -274,8 +381,10 @@ test("멕랩 핏팅 탭은 중복 멕의 독립 빌드를 생성하고 활성 �
     api.state.activeMechlabTabId = null;
 
     const first = api.addMechlabTabRecord(alpha, alphaBuildOne);
+    first.communitySource = { id: "public-alpha" };
     const second = api.addMechlabTabRecord(alpha, alphaBuildTwo);
     assert.equal(api.state.mechlabTabs.length, 2);
+    assert.deepEqual(api.state.mechlabTabs[0].communitySource, { id: "public-alpha" });
     assert.deepEqual(Array.from(api.mechlabFittingTabLabels()), ["ALPHA", "ALPHA 2"]);
     assert.equal(api.activeMechlabTab().id, second.id);
     assert.equal(api.state.currentBuild, alphaBuildTwo);
@@ -286,6 +395,7 @@ test("멕랩 핏팅 탭은 중복 멕의 독립 빌드를 생성하고 활성 �
     assert.equal(api.state.mechlabTabs.length, 2);
     assert.equal(api.state.mechlabTabs[0].id, first.id);
     assert.equal(api.state.mechlabTabs[0].mechId, beta.id);
+    assert.equal(api.state.mechlabTabs[0].communitySource, undefined);
     assert.equal(api.state.currentBuild, betaBuild);
     assert.equal(api.state.mechlabTabs[1].build, alphaBuildTwo);
   } finally {
