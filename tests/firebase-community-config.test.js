@@ -180,6 +180,16 @@ test("핏팅 브라우저 검색은 제목만 사용하고 제목 옆 멕 선택
   assert.match(client, /renderMechFilterMenu\(\{ preserveScroll: true \}\)/);
 });
 
+test("핏팅 관련 드롭다운은 같은 아래 삼각형 화살표를 사용한다", () => {
+  const html = read("public/index.html");
+  const app = read("public/app.js");
+  const client = read("public/firebase-community.js");
+  assert.match(html, /id="community-mech-filter-trigger"[^>]*>전체 ▾<\/button>/);
+  assert.match(app, /data-community-menu-trigger[^>]*>[\s\S]*?<span aria-hidden="true">▾<\/span>/);
+  assert.match(client, /data-community-sort-trigger[^>]*>[\s\S]*?<span aria-hidden="true">▾<\/span>/);
+  assert.doesNotMatch(`${app}\n${client}`, /<span aria-hidden="true">⌄<\/span>/);
+});
+
 test("원격 핏팅 로드 실패와 로그인 요구 상태에서도 브라우저 탭과 로컬 기능을 유지한다", () => {
   const client = read("public/firebase-community.js");
   assert.match(client, /publicLoadUnavailable: "현재 공개 핏팅을 불러올 수 없습니다\. 로컬 핏팅은 계속 사용할 수 있습니다\."/);
