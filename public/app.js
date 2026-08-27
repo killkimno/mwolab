@@ -140,7 +140,7 @@ const TEXT = {
     "community.actions": "핏팅 브라우저 / 저장하기",
     "community.open": "핏팅 브라우저",
     "community.browse": "브라우저",
-    "community.publish": "저장하기",
+    "community.publish": "저장하기/공유하기",
     "community.publicInfo": "공개 핏팅 정보",
     "community.restore": "원상복귀",
     "community.like": "좋아요",
@@ -699,7 +699,7 @@ const TEXT = {
     "community.actions": "Fitting Browser / Save",
     "community.open": "Fitting Browser",
     "community.browse": "Browse",
-    "community.publish": "Save Build",
+    "community.publish": "Save / Share",
     "community.publicInfo": "Public fitting",
     "community.restore": "Restore original",
     "community.like": "Like",
@@ -7559,7 +7559,7 @@ function renderMechlabActionPanel() {
   return `
     <section class="mechlab-action-panel" aria-label="MechLab actions">
       <div class="community-menu" data-community-ui-entry>
-        <button class="community-menu-trigger" type="button" data-community-menu-trigger aria-haspopup="menu" aria-expanded="false">${t("community.actions")} <span aria-hidden="true">▾</span></button>
+        <button class="community-menu-trigger" type="button" data-community-menu-trigger aria-haspopup="menu" aria-expanded="false"><span>${t("community.actions")}</span><span aria-hidden="true">▾</span></button>
         <div class="community-menu-popover" role="menu" hidden>
           <button type="button" role="menuitem" data-community-open="browse">${t("community.browse")}</button>
           <button type="button" role="menuitem" data-community-open="save">${t("community.publish")}</button>
@@ -11908,7 +11908,7 @@ function renderCommunitySourcePanel() {
       <strong>${escapeHtml(source.name)}</strong>
       <span class="public-fitting-source-author">${escapeHtml(t("community.author"))}: ${escapeHtml(source.authorName || "Pilot")}</span>
       <div class="public-fitting-source-actions">
-        <button type="button" data-community-source-like="${escapeHtml(source.id)}" class="${source.liked ? "liked" : ""}" ${source.canLike ? "" : "disabled"} aria-pressed="${source.liked ? "true" : "false"}" aria-label="${escapeHtml(likeAction)}" title="${escapeHtml(source.canLike ? likeAction : t("community.loginToLike"))}">${communityLikeIconHtml()}</button>
+        <button type="button" data-community-source-like="${escapeHtml(source.id)}" class="${source.liked ? "liked" : ""}${source.canLike ? "" : " login-required"}" ${source.canLike ? "" : 'aria-disabled="true"'} aria-pressed="${source.liked ? "true" : "false"}" aria-label="${escapeHtml(source.canLike ? likeAction : t("community.loginToLike"))}" title="${escapeHtml(source.canLike ? likeAction : t("community.loginToLike"))}">${communityLikeIconHtml()}</button>
         <button type="button" data-community-restore ${canRestore ? "" : "disabled"}>${t("community.restore")}</button>
       </div>
     </aside>

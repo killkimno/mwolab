@@ -46,7 +46,7 @@ const COPY = {
     publicLocation: "공개", publicHelp: "다른 사용자들이 볼 수 있습니다.", pcLocation: "내 PC", pcHelp: "이 PC에만 저장됩니다.",
     titleLabel: "2. 제목 (필수)", titlePlaceholder: "빌드 제목을 입력하세요.", titleCharactersOnly: "영문, 숫자, 특수문자만 사용할 수 있습니다.", titleHttpsBlocked: "제목에 https를 사용할 수 없습니다.",
     cancel: "취소", save: "저장하기", saving: "저장 중...", localSaved: "내 PC에 저장되었습니다.", publicSaved: "공개 핏팅으로 저장되었습니다.",
-    loginRequired: "공개 저장, 내가 올린 핏팅과 좋아요는 Google 로그인이 필요합니다.", signInAction: "로그인하기",
+    loginRequired: "공개 저장, 내가 올린 핏팅과 좋아요는 Google 로그인이 필요합니다.", likeLoginRequired: "좋아요를 사용하려면 Google 로그인이 필요합니다.", signInAction: "로그인하기",
     unavailable: "Firebase 연결을 사용할 수 없습니다. 잠시 후 다시 시도하세요.",
     httpRequired: "Firebase 연동은 localhost 또는 배포된 웹사이트에서 사용할 수 있습니다.", noFitting: "먼저 멕과 핏팅을 선택하세요.",
     loadFailed: "핏팅 목록을 불러오지 못했습니다.", saveFailed: "핏팅을 저장하지 못했습니다.", localSaveFailed: "이 PC에 핏팅을 저장할 수 없습니다.",
@@ -80,7 +80,7 @@ const COPY = {
     publicHelp: "Other users can view this fitting.", pcLocation: "My PC", pcHelp: "Saved only on this PC.", titleLabel: "2. Title (required)",
     titlePlaceholder: "Enter a build title.", titleCharactersOnly: "Use only English letters, numbers, and special characters.", titleHttpsBlocked: "Titles cannot contain https.",
     cancel: "Cancel", save: "Save", saving: "Saving...", localSaved: "Saved on this PC.", publicSaved: "Saved as a public fitting.",
-    loginRequired: "Google sign-in is required for public saves, uploads, and likes.", signInAction: "Sign in", unavailable: "Firebase is unavailable. Try again shortly.",
+    loginRequired: "Google sign-in is required for public saves, uploads, and likes.", likeLoginRequired: "Google sign-in is required to like this fitting.", signInAction: "Sign in", unavailable: "Firebase is unavailable. Try again shortly.",
     httpRequired: "Firebase is available on localhost or the deployed website.", noFitting: "Select a mech and fitting first.", loadFailed: "Could not load fittings.",
     saveFailed: "Could not save the fitting.", localSaveFailed: "Could not save the fitting on this PC.", deleteFailed: "Could not delete the fitting.",
     uploadLimit: "Each account can upload up to 100 public fittings.",
@@ -94,7 +94,7 @@ const COPY = {
 const copy = COPY[language];
 const elements = {
   login: document.getElementById("community-login"), authStatus: document.getElementById("community-auth-status"),
-  accountMenu: document.getElementById("community-account-menu"), accountName: document.getElementById("community-account-name"),
+  accountMenu: document.getElementById("community-account-menu"),
   setNickname: document.getElementById("community-set-nickname"), logout: document.getElementById("community-logout"),
   overlay: document.getElementById("community-overlay"), title: document.getElementById("community-title"), eyebrow: document.getElementById("community-eyebrow"),
   mechFilterTrigger: document.getElementById("community-mech-filter-trigger"), mechFilterMenu: document.getElementById("community-mech-filter-menu"),
@@ -218,15 +218,13 @@ function closeAccountMenu() {
 function updateAccountUi() {
   if (!elements.login) return;
   const signedIn = Boolean(currentUser);
-  const accountName = signedIn ? currentDisplayName() : copy.login;
   const buttonLabel = signedIn ? copy.profile : copy.login;
   elements.login.textContent = buttonLabel;
   elements.login.title = signedIn ? copy.account : buttonLabel;
-  elements.login.setAttribute("aria-label", signedIn ? `${copy.account}: ${accountName}` : buttonLabel);
+  elements.login.setAttribute("aria-label", signedIn ? copy.account : buttonLabel);
   elements.login.setAttribute("aria-haspopup", signedIn ? "menu" : "false");
   elements.login.classList.toggle("signed-in", signedIn);
   elements.login.disabled = signedIn ? false : !googleTokenClient;
-  if (elements.accountName) elements.accountName.textContent = accountName;
   if (elements.setNickname) {
     elements.setNickname.textContent = currentProfile?.nickname ? copy.nicknameChangeTitle : copy.nicknameTitle;
     elements.setNickname.hidden = !signedIn;
@@ -460,11 +458,11 @@ async function initializeCurrentProfile(user) {
     if (!profile || (!currentProfile?.nickname && currentProfile?.nicknamePrompted !== true)) {
       openNicknameDialog("first");
     }
-  } catch (error) {
+  } catch {
     if (generation !== profileLoadGeneration || currentUser?.uid !== user.uid) return;
     currentProfile = null;
     updateAccountUi();
-    setAuthStatus(firebaseErrorMessage(error, copy.nicknameCheckFailed));
+    // Nicknames are optional, so a profile read failure must not look like a login failure.
   }
 }
 async function signIn() {
@@ -844,7 +842,7 @@ function fittingDetailHtml(record) {
   const likeCount = Math.max(0, Number(record.likeCount) || 0);
   const likeAction = record.liked ? copy.unlike : copy.like;
   const detailLike = activeBrowserTab === "public"
-    ? `<button type="button" data-community-like="${escapeHtml(record.id)}" class="community-detail-like${record.liked ? " liked" : ""}" ${canLike ? "" : "disabled"} aria-pressed="${record.liked ? "true" : "false"}" aria-label="${escapeHtml(`${likeAction}: ${likeCount}`)}" title="${escapeHtml(likeAction)}">${likeIconHtml()}<strong>${likeCount}</strong></button>`
+    ? `<button type="button" data-community-like="${escapeHtml(record.id)}" class="community-detail-like${record.liked ? " liked" : ""}${canLike ? "" : " login-required"}" ${canLike ? "" : 'aria-disabled="true"'} aria-pressed="${record.liked ? "true" : "false"}" aria-label="${escapeHtml(`${canLike ? likeAction : copy.likeLoginRequired}: ${likeCount}`)}" title="${escapeHtml(canLike ? likeAction : copy.likeLoginRequired)}">${likeIconHtml()}<strong>${likeCount}</strong></button>`
     : activeBrowserTab === "mine"
       ? `<span class="community-detail-like community-detail-like-readonly" aria-label="${escapeHtml(`${copy.like}: ${likeCount}`)}">${likeIconHtml()}<strong>${likeCount}</strong></span>`
       : "";
@@ -1157,6 +1155,13 @@ async function toggleLike(id) {
     updateLikeViews(id, result.count, result.liked);
   } catch (error) { setStatus(firebaseErrorMessage(error, copy.likeFailed), "error"); }
 }
+function requestLike(id) {
+  if (!currentUser) {
+    setAuthStatus(copy.likeLoginRequired);
+    return;
+  }
+  toggleLike(id);
+}
 async function deleteRemoteFitting(record) {
   const user = currentUser;
   if (!user || record.ownerUid !== user.uid) throw new Error("Not fitting owner");
@@ -1257,7 +1262,7 @@ document.addEventListener("click", (event) => {
   }
   if (!event.target.closest(".community-menu")) closeAllMenus();
   const sourceLike = event.target.closest("[data-community-source-like]");
-  if (sourceLike) { toggleLike(sourceLike.dataset.communitySourceLike); return; }
+  if (sourceLike) { requestLike(sourceLike.dataset.communitySourceLike); return; }
   if (event.target.closest("[data-community-restore]")) bridge.restorePublicFitting?.();
 });
 elements.content.addEventListener("click", async (event) => {
@@ -1278,7 +1283,7 @@ elements.content.addEventListener("click", async (event) => {
   const select = event.target.closest("[data-community-select]");
   if (select) { selectedId = select.dataset.communitySelect; renderBrowser({ resetDetailScroll: true }); return; }
   const like = event.target.closest("[data-community-like]");
-  if (like) return toggleLike(like.dataset.communityLike);
+  if (like) return requestLike(like.dataset.communityLike);
   const remove = event.target.closest("[data-community-delete]");
   if (remove) return deleteFitting(remove.dataset.communityDelete);
   const share = event.target.closest("[data-community-share]");

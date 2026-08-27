@@ -74,6 +74,7 @@ test("선택형 고유 닉네임은 UID 소유권과 분리해 예약하고 공�
   const styles = read("public/styles.css");
 
   assert.match(html, /id="community-account-menu"[\s\S]*id="community-set-nickname"[\s\S]*id="community-logout"/);
+  assert.doesNotMatch(html, /id="community-account-name"/);
   assert.match(html, /id="nickname-overlay"[\s\S]*id="nickname-form"[\s\S]*id="nickname-later-notice"[\s\S]*id="nickname-input"[\s\S]*maxlength="20"/);
   assert.match(client, /const NICKNAME_MIN = 2;[\s\S]*const NICKNAME_MAX = 20;[\s\S]*const PILOT_NAME = "Pilot";[\s\S]*const PROFILE_CACHE_TTL_MS = 60_000/);
   assert.match(client, /function nicknameParts\(value\)[\s\S]*\.trim\(\)[\s\S]*\.toLowerCase\(\)[\s\S]*\^\[A-Za-z0-9\]\+\$/);
@@ -88,10 +89,14 @@ test("선택형 고유 닉네임은 UID 소유권과 분리해 예약하고 공�
   assert.match(client, /cacheAge < PROFILE_CACHE_TTL_MS[\s\S]*profileDataCache\.delete\(normalizedUid\)/);
   assert.match(client, /skipNicknamePrompt[\s\S]*if \(currentUser\?\.uid !== user\.uid\) return;[\s\S]*closeNicknameDialog\(\)/);
   assert.match(client, /const buttonLabel = signedIn \? copy\.profile : copy\.login;[\s\S]*elements\.login\.textContent = buttonLabel/);
+  assert.match(client, /elements\.login\.setAttribute\("aria-label", signedIn \? copy\.account : buttonLabel\)/);
+  assert.doesNotMatch(client, /elements\.accountName|accountName: document\.getElementById/);
   assert.match(client, /setNickname\.textContent = currentProfile\?\.nickname \? copy\.nicknameChangeTitle : copy\.nicknameTitle;[\s\S]*setNickname\.hidden = !signedIn/);
   assert.match(client, /nicknameLaterNotice\.hidden = nicknamePromptMode !== "first"[\s\S]*nicknameLater\.hidden = nicknamePromptMode !== "first"/);
   assert.match(client, /const changingNickname = nicknamePromptMode === "account"[\s\S]*nicknameInput\.value = changingNickname \? currentProfile\.nickname : ""/);
   assert.match(client, /if \(!profile \|\| \(!currentProfile\?\.nickname && currentProfile\?\.nicknamePrompted !== true\)\) \{\s*openNicknameDialog\("first"\)/);
+  const initializeProfile = client.match(/async function initializeCurrentProfile\(user\) \{[\s\S]*?(?=\nasync function signIn)/)?.[0] || "";
+  assert.doesNotMatch(initializeProfile, /setAuthStatus|copy\.nicknameCheckFailed/);
   assert.match(client, /async function registerNickname[\s\S]*catch \(error\) \{\s*if \(currentUser\?\.uid !== user\.uid\) return;[\s\S]*nicknameAvailableKey = ""/);
   assert.match(client, /previousNicknameRef[\s\S]*transaction\.get\(previousNicknameRef\)[\s\S]*transaction\.set\(nicknameRef[\s\S]*transaction\.delete\(previousNicknameRef\)[\s\S]*transaction\.set\(userRef/);
   assert.match(client, /new Set\(remoteRecords\.map\(\(record\) => String\(record\.ownerUid/);
@@ -163,7 +168,7 @@ test("공개 핏팅 공유는 문서 ID를 단건 조회해 기존 공개 적용
   assert.match(app, /rememberActiveMechlabTabBuild\(\);[\s\S]*applyMechlabHistorySnapshotToTab\(tab, snapshot, communityLikeCapability\);[\s\S]*applyActiveMechlabTabSelection\(\)/);
   assert.match(app, /importMwoCode\(source\.loadoutCode, \{ closeDialog: false, updateNavigation: false \}\)/);
   assert.doesNotMatch(app, /public-fitting-source-like-count/);
-  assert.match(app, /data-community-source-like="\$\{escapeHtml\(source\.id\)\}"[\s\S]*class="\$\{source\.liked \? "liked" : ""\}"/);
+  assert.match(app, /data-community-source-like="\$\{escapeHtml\(source\.id\)\}"[\s\S]*class="\$\{source\.liked \? "liked" : ""\}\$\{source\.canLike \? "" : " login-required"\}"/);
   assert.match(rules, /match \/fittings\/\{fittingId\} \{[\s\S]*allow get: if true;[\s\S]*allow list: if request\.query\.limit/);
   assert.match(styles, /\.community-share-button/);
   assert.match(styles, /\.community-share-url-overlay \{ z-index: 1750; \}/);
@@ -230,6 +235,18 @@ test("상세 좋아요는 상태별 헤더 컨트롤과 공용 메뉴형 정렬�
   assert.match(client, /await loadRemoteFittings\(true, \{ focusSort: true \}\)/);
   assert.match(client, /function renderBrowser\(\{[^}]*focusSort = false[^}]*\}[\s\S]*if \(focusSort && !elements\.overlay\.hidden\)[^\n]*data-community-sort-trigger/);
   assert.match(client, /openSortMenu[\s\S]*closeAllMenus\(\);[\s\S]*trigger\?\.focus\(\);[\s\S]*return;/);
+});
+
+test("비로그인 좋아요 버튼은 어두운 상태로 클릭 안내를 제공한다", () => {
+  const app = read("public/app.js");
+  const client = read("public/firebase-community.js");
+  const styles = read("public/styles.css");
+  assert.match(client, /likeLoginRequired: "좋아요를 사용하려면 Google 로그인이 필요합니다\."/);
+  assert.match(client, /class="community-detail-like[^`]*login-required[^`]*aria-disabled="true"/);
+  assert.match(client, /function requestLike\(id\) \{[\s\S]*if \(!currentUser\) \{[\s\S]*setAuthStatus\(copy\.likeLoginRequired\)[\s\S]*toggleLike\(id\)/);
+  assert.match(client, /if \(like\) return requestLike\(like\.dataset\.communityLike\)/);
+  assert.match(app, /data-community-source-like[^`]*login-required[^`]*aria-disabled="true"/);
+  assert.match(styles, /\.community-detail-like\.login-required,[\s\S]*background: #080c0e;[\s\S]*opacity: 1/);
 });
 
 test("좋아요 상태 캐시는 좋아요한 핏팅만 보관하고 재조회 레코드에 복원한다", () => {
@@ -356,6 +373,7 @@ test("설명 없는 v2 Firestore 생성 규칙과 기존 v1 읽기 호환을 유
 
 test("통합 액션 드롭다운과 3초 상태 메시지 제거를 사용한다", () => {
   const app = read("public/app.js");
+  const styles = read("public/styles.css");
   const client = read("public/firebase-community.js");
   assert.match(app, /<div class="community-menu" data-community-ui-entry>/);
   assert.match(app, /data-community-menu-trigger/);
@@ -363,6 +381,8 @@ test("통합 액션 드롭다운과 3초 상태 메시지 제거를 사용한다
   assert.match(app, /community\.actions/);
   assert.match(app, /data-community-open="browse"/);
   assert.match(app, /data-community-open="save"/);
+  assert.match(app, /"community\.publish": "저장하기\/공유하기"/);
+  assert.match(styles, /\.mechlab-action-panel \.community-menu-trigger \{[\s\S]*justify-content: center;[\s\S]*text-align: center/);
   assert.match(client, /setTimeout\(\(\) => \{[\s\S]*elements\.authStatus\.hidden = true;[\s\S]*\}, 3000\)/);
   assert.match(client, /function closeAllMenus/);
   assert.match(client, /const returnTarget = opener\.closest\("\.community-menu"\)\?\.querySelector\("\[data-community-menu-trigger\]"\) \|\| opener/);
@@ -399,7 +419,7 @@ test("공개 핏팅 원상복귀는 불러온 코드를 다시 적용하고 목�
   assert.doesNotMatch(client, /\$\{likeIconHtml\(\)\}<span>\$\{escapeHtml\(likeAction\)\}<\/span>/);
   assert.match(styles, /\.community-detail-like \{[\s\S]*min-width: 5\.25rem;[\s\S]*min-height: 3rem;[\s\S]*padding: 0\.6rem 1rem/);
   assert.match(app, /const likeAction = source\.liked \? t\("community\.unlike"\) : t\("community\.like"\)/);
-  assert.match(app, /data-community-source-like="\$\{escapeHtml\(source\.id\)\}"[\s\S]*aria-pressed="\$\{source\.liked \? "true" : "false"\}"[\s\S]*aria-label="\$\{escapeHtml\(likeAction\)\}"[\s\S]*>\$\{communityLikeIconHtml\(\)\}<\/button>/);
+  assert.match(app, /data-community-source-like="\$\{escapeHtml\(source\.id\)\}"[\s\S]*aria-pressed="\$\{source\.liked \? "true" : "false"\}"[\s\S]*aria-label="\$\{escapeHtml\(source\.canLike \? likeAction : t\("community\.loginToLike"\)\)\}"[\s\S]*>\$\{communityLikeIconHtml\(\)\}<\/button>/);
   assert.match(styles, /\.community-detail-like,[\s\S]*\.public-fitting-source-actions \[data-community-source-like\] \{[\s\S]*justify-content: center/);
   assert.match(app, /function publicFittingHasChanges\(source\) \{[\s\S]*currentCode !== \(source\.baselineLoadoutCode \|\| source\.loadoutCode\)/);
   assert.match(app, /baselineLoadoutCode: MWOCodec\.encode\(currentBuildAsMwoLoadout\(\)\)/);
