@@ -232,6 +232,15 @@ test("상세 좋아요는 상태별 헤더 컨트롤과 공용 메뉴형 정렬�
   assert.match(client, /openSortMenu[\s\S]*closeAllMenus\(\);[\s\S]*trigger\?\.focus\(\);[\s\S]*return;/);
 });
 
+test("좋아요 상태 캐시는 좋아요한 핏팅만 보관하고 재조회 레코드에 복원한다", () => {
+  const client = read("public/firebase-community.js");
+  assert.match(client, /const likedFittingKeys = new Set\(\);/);
+  assert.match(client, /liked: likedFittingKeys\.has\(likeKey\)/);
+  assert.match(client, /if \(liked\) likedFittingKeys\.add\(key\);[\s\S]*else likedFittingKeys\.delete\(key\)/);
+  assert.match(client, /if \(result\.liked\) likedFittingKeys\.add\(key\);[\s\S]*else likedFittingKeys\.delete\(key\)/);
+  assert.doesNotMatch(client, /loadedLikeStates/);
+});
+
 test("자동 태그와 하드포인트 배지는 DB 필드가 아닌 현재 피팅 계산에서 파생한다", () => {
   const app = read("public/app.js");
   const client = read("public/firebase-community.js");

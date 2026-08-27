@@ -143,7 +143,8 @@ const profileCache = new Map();
 const profileCacheTimes = new Map();
 const profileDataCache = new Map();
 const profileRequests = new Map();
-const loadedLikeStates = new Set();
+const likedFittingKeys = new Set();
+const pendingLikeStateRequests = new Set();
 const expandedMechFilterChassis = new Set();
 let authStatusTimer = null;
 
@@ -581,10 +582,11 @@ function analyzeRecord(record) {
 }
 function normalizeSnapshot(snapshot, source) {
   const data = snapshot.data();
+  const likeKey = currentUser ? `${currentUser.uid}:${snapshot.id}` : "";
   return analyzeRecord({
     id: snapshot.id, ownerUid: data.ownerUid, mechId: String(data.mechId ?? ""), name: data.name,
     loadoutCode: data.loadoutCode, likeCount: Number.isInteger(data.likeCount) ? data.likeCount : 0,
-    createdAt: data.createdAt, schemaVersion: data.schemaVersion, source, liked: false,
+    createdAt: data.createdAt, schemaVersion: data.schemaVersion, source, liked: likedFittingKeys.has(likeKey),
   });
 }
 
@@ -1087,17 +1089,31 @@ function updateLikeViews(id, count, liked) {
 async function ensureLikeState(id) {
   if (!currentUser || !firebaseApi || !db) return;
   const key = `${currentUser.uid}:${id}`;
-  if (loadedLikeStates.has(key)) return;
-  loadedLikeStates.add(key);
+  const record = records.find((entry) => entry.id === id);
+  if (likedFittingKeys.has(key)) {
+    if (record && !record.liked) {
+      record.liked = true;
+      bridge.updatePublicFittingLike?.(id, record.likeCount, true, true);
+      if (!elements.overlay.hidden && activeMode === "browse" && selectedId === id) renderBrowser();
+    }
+    return;
+  }
+  if (pendingLikeStateRequests.has(key)) return;
+  pendingLikeStateRequests.add(key);
   try {
     const snapshot = await firebaseApi.getDoc(firebaseApi.doc(db, "fittings", id, "likes", currentUser.uid));
-    const record = records.find((entry) => entry.id === id);
-    if (!record) return;
-    record.liked = snapshot.exists();
-    bridge.updatePublicFittingLike?.(id, record.likeCount, record.liked, true);
-    if (!elements.overlay.hidden && activeMode === "browse" && selectedId === id) renderBrowser();
+    const liked = snapshot.exists();
+    if (liked) likedFittingKeys.add(key);
+    const currentRecord = records.find((entry) => entry.id === id);
+    if (!currentRecord) return;
+    const changed = currentRecord.liked !== liked;
+    currentRecord.liked = liked;
+    bridge.updatePublicFittingLike?.(id, currentRecord.likeCount, liked, true);
+    if (changed && !elements.overlay.hidden && activeMode === "browse" && selectedId === id) renderBrowser();
   } catch {
-    loadedLikeStates.delete(key);
+    // The transaction will resolve the current state if the user clicks the button.
+  } finally {
+    pendingLikeStateRequests.delete(key);
   }
 }
 async function syncActiveSourceLikeState() {
@@ -1105,8 +1121,11 @@ async function syncActiveSourceLikeState() {
   if (!currentUser || !source || !firebaseApi || !db) return;
   try {
     const snapshot = await firebaseApi.getDoc(firebaseApi.doc(db, "fittings", source.id, "likes", currentUser.uid));
-    loadedLikeStates.add(`${currentUser.uid}:${source.id}`);
-    bridge.updatePublicFittingLike?.(source.id, source.likeCount, snapshot.exists(), true);
+    const key = `${currentUser.uid}:${source.id}`;
+    const liked = snapshot.exists();
+    if (liked) likedFittingKeys.add(key);
+    else likedFittingKeys.delete(key);
+    bridge.updatePublicFittingLike?.(source.id, source.likeCount, liked, true);
   } catch {
     // The source panel remains usable and the transaction will resolve the state on click.
   }
@@ -1132,7 +1151,9 @@ async function toggleLike(id) {
       transaction.update(fittingRef, { likeCount: count + 1 });
       return { count: count + 1, liked: true };
     });
-    loadedLikeStates.add(`${currentUser.uid}:${id}`);
+    const key = `${currentUser.uid}:${id}`;
+    if (result.liked) likedFittingKeys.add(key);
+    else likedFittingKeys.delete(key);
     updateLikeViews(id, result.count, result.liked);
   } catch (error) { setStatus(firebaseErrorMessage(error, copy.likeFailed), "error"); }
 }
@@ -1405,7 +1426,8 @@ async function initializeFirebase() {
         profileRequests.clear();
         closeAccountMenu();
         closeNicknameDialog();
-        loadedLikeStates.clear();
+        likedFittingKeys.clear();
+        pendingLikeStateRequests.clear();
         records.forEach((record) => { record.liked = false; });
         const source = bridge.getPublicFittingSource?.();
         if (source) bridge.updatePublicFittingLike?.(source.id, source.likeCount, false, false);
