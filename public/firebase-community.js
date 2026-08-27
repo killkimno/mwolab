@@ -1,7 +1,13 @@
 const FIREBASE_VERSION = "12.17.1";
-const LIST_LIMIT = 10;
+const PAGE_SIZE = 25;
+const FETCH_LIMIT = 100;
+const PAGE_GROUP_SIZE = 5;
 const TITLE_LIMIT = 20;
 const MAX_PUBLIC_FITTINGS = 100;
+const NICKNAME_MIN = 2;
+const NICKNAME_MAX = 20;
+const PILOT_NAME = "Pilot";
+const PROFILE_CACHE_TTL_MS = 60_000;
 const GOOGLE_IDENTITY_CLIENT_ID = "743748401179-u7uf1svvj8cbs64987om4969jq6eu0jo.apps.googleusercontent.com";
 const firebaseConfig = Object.freeze({
   apiKey: "AIzaSyAVs8fDgmsjhfh1KdHMRu_liF20dlcfGns",
@@ -16,7 +22,10 @@ const bridge = globalThis.MwoLabCommunityBridge;
 const language = bridge?.language === "en" ? "en" : "kr";
 const COPY = {
   kr: {
-    login: "Google 로그인", logout: "로그아웃", browserTitle: "핏팅 브라우저", saveTitle: "빌드 저장하기", browserEyebrow: "FITTING BROWSER", saveEyebrow: "SAVE BUILD",
+    login: "Google 로그인", logout: "로그아웃", account: "계정 메뉴", profile: "프로필", author: "작성자", browserTitle: "핏팅 브라우저", saveTitle: "빌드 저장하기", browserEyebrow: "FITTING BROWSER", saveEyebrow: "SAVE BUILD",
+    nicknameTitle: "닉네임 설정", nicknameChangeTitle: "닉네임 변경", nicknameDescription: "공개 핏팅에서 사용할 고유 닉네임을 설정할 수 있습니다.", nicknameLaterNotice: "지금 설정하지 않아도 나중에 프로필 메뉴에서 다시 설정할 수 있습니다.", nicknameLabel: "닉네임",
+    nicknameRules: "2~20자의 영문과 숫자만 사용할 수 있습니다. Pilot은 사용할 수 없습니다.", nicknameLater: "나중에 설정", nicknameSubmit: "설정하기", nicknameChangeSubmit: "변경하기",
+    nicknameInvalid: "사용할 수 없는 닉네임입니다.", nicknameReserved: "이 닉네임은 사용할 수 없습니다.", nicknameUnchanged: "현재 닉네임과 같습니다.", nicknameChecking: "중복을 확인하는 중입니다...", nicknameAvailable: "사용할 수 있는 닉네임입니다.", nicknameTaken: "이미 사용 중인 닉네임입니다.", nicknameCheckFailed: "닉네임을 확인할 수 없습니다. 잠시 후 다시 시도하세요.", nicknameRace: "방금 다른 사용자가 이 닉네임을 사용했습니다. 다른 닉네임을 선택해주세요.", nicknameSaved: "닉네임이 설정되었습니다.", nicknameChanged: "닉네임이 변경되었습니다.", nicknameSkipFailed: "닉네임 안내 상태를 저장하지 못했습니다. 로그인 상태는 유지됩니다.",
     publicTab: "공개", localTab: "로컬", mineTab: "내가 올린 핏팅", search: "제목 검색", allMechs: "전체", selectMech: "멕 선택",
     newest: "최신순", likesSort: "좋아요순", loading: "핏팅을 불러오는 중입니다...",
     publicEmpty: "등록된 공개 핏팅이 없습니다.", localEmpty: "이 PC에 저장된 핏팅이 없습니다.",
@@ -24,14 +33,18 @@ const COPY = {
     publicLoadUnavailable: "현재 공개 핏팅을 불러올 수 없습니다. 로컬 핏팅은 계속 사용할 수 있습니다.",
     mineLoadUnavailable: "현재 내가 올린 핏팅을 불러올 수 없습니다. 로컬 핏팅은 계속 사용할 수 있습니다.",
     select: "목록에서 핏팅을 선택하세요.", invalid: "현재 데이터에서 열 수 없는 핏팅",
-    apply: "이 핏팅 적용", like: "좋아요", delete: "삭제", deleteConfirm: "이 핏팅을 삭제하시겠습니까?",
+    apply: "이 핏팅 적용", like: "좋아요", unlike: "좋아요 취소", share: "URL로 공유하기", delete: "삭제", deleteConfirm: "이 핏팅을 삭제하시겠습니까?",
+    shareDialogTitle: "공유 URL", shareUrlLabel: "공유 URL", shareCopy: "URL 복사", shareClose: "닫기",
+    shareCopied: "공유 URL이 복사되었습니다.", shareFailed: "공유 URL을 복사하지 못했습니다.",
+    sharedLoaded: "공유 핏팅을 불러왔습니다.", sharedMissing: "이 공유 핏팅은 삭제되었거나 존재하지 않습니다.",
+    sharedInvalid: "올바르지 않은 공유 핏팅 링크입니다.", sharedLoadFailed: "공유 핏팅을 불러오지 못했습니다.",
     previousPage: "이전", nextPage: "다음", weapons: "장착 무기", details: "상세 정보", updated: "업데이트",
     tags: {
       highPower: "고화력", cooler: "쿨러", ghostHeat: "고스트 힛", fullArmor: "풀아머", glassArmor: "유리장갑",
       shortRange: "근거리", mediumRange: "중거리", longRange: "장거리", sniper: "스나이퍼", brawler: "브롤러",
     }, saveLocation: "1. 저장 위치 선택",
     publicLocation: "공개", publicHelp: "다른 사용자들이 볼 수 있습니다.", pcLocation: "내 PC", pcHelp: "이 PC에만 저장됩니다.",
-    titleLabel: "2. 제목 (필수)", titlePlaceholder: "빌드 제목을 입력하세요.", titleHttpsBlocked: "제목에 https를 사용할 수 없습니다.",
+    titleLabel: "2. 제목 (필수)", titlePlaceholder: "빌드 제목을 입력하세요.", titleCharactersOnly: "영문, 숫자, 특수문자만 사용할 수 있습니다.", titleHttpsBlocked: "제목에 https를 사용할 수 없습니다.",
     cancel: "취소", save: "저장하기", saving: "저장 중...", localSaved: "내 PC에 저장되었습니다.", publicSaved: "공개 핏팅으로 저장되었습니다.",
     loginRequired: "공개 저장, 내가 올린 핏팅과 좋아요는 Google 로그인이 필요합니다.", signInAction: "로그인하기",
     unavailable: "Firebase 연결을 사용할 수 없습니다. 잠시 후 다시 시도하세요.",
@@ -46,20 +59,26 @@ const COPY = {
     stat: { armor: "아머", tons: "톤수", engine: "엔진", maxSpeed: "최대 속도", dps: "DPS", alphaDamage: "알파샷 데미지", heatEfficiency: "열 효율", heatSinks: "히트싱크 수" },
   },
   en: {
-    login: "Google Sign in", logout: "Sign out", browserTitle: "Fitting Browser", saveTitle: "Save Build", browserEyebrow: "FITTING BROWSER", saveEyebrow: "SAVE BUILD",
+    login: "Google Sign in", logout: "Sign out", account: "Account menu", profile: "Profile", author: "Author", browserTitle: "Fitting Browser", saveTitle: "Save Build", browserEyebrow: "FITTING BROWSER", saveEyebrow: "SAVE BUILD",
+    nicknameTitle: "Set nickname", nicknameChangeTitle: "Change nickname", nicknameDescription: "Choose a unique nickname to show with public fittings.", nicknameLaterNotice: "You can skip this now and set it later from the Profile menu.", nicknameLabel: "Nickname",
+    nicknameRules: "Use 2–20 English letters or numbers. Pilot is reserved.", nicknameLater: "Set later", nicknameSubmit: "Set nickname", nicknameChangeSubmit: "Change nickname",
+    nicknameInvalid: "This nickname cannot be used.", nicknameReserved: "This nickname is reserved.", nicknameUnchanged: "This is your current nickname.", nicknameChecking: "Checking availability...", nicknameAvailable: "This nickname is available.", nicknameTaken: "This nickname is already in use.", nicknameCheckFailed: "Could not check the nickname. Try again shortly.", nicknameRace: "Someone just claimed this nickname. Choose another one.", nicknameSaved: "Nickname set.", nicknameChanged: "Nickname changed.", nicknameSkipFailed: "Could not save the nickname prompt state. You remain signed in.",
     publicTab: "Public", localTab: "Local", mineTab: "My Uploads", search: "Search titles", allMechs: "All", selectMech: "Select mech",
     newest: "Newest", likesSort: "Most liked", loading: "Loading fittings...", publicEmpty: "No public fittings yet.",
     localEmpty: "No fittings are saved on this PC.", mineEmpty: "You have not uploaded a fitting.", searchEmpty: "No fitting matches the search.",
     publicLoadUnavailable: "Public fittings are currently unavailable. Local fittings remain available.",
     mineLoadUnavailable: "Your uploaded fittings are currently unavailable. Local fittings remain available.",
-    select: "Select a fitting from the list.", invalid: "Fitting unavailable with current data", apply: "Apply fitting", like: "Like", delete: "Delete",
+    select: "Select a fitting from the list.", invalid: "Fitting unavailable with current data", apply: "Apply fitting", like: "Like", unlike: "Unlike", share: "Share URL", delete: "Delete",
+    shareDialogTitle: "Share URL", shareUrlLabel: "Share URL", shareCopy: "Copy URL", shareClose: "Close",
+    shareCopied: "Share URL copied.", shareFailed: "Could not copy the share URL.", sharedLoaded: "Shared fitting loaded.",
+    sharedMissing: "This shared fitting no longer exists.", sharedInvalid: "This shared fitting link is invalid.", sharedLoadFailed: "Could not load the shared fitting.",
     deleteConfirm: "Delete this fitting?", previousPage: "Previous", nextPage: "Next", weapons: "Installed weapons", details: "Details", updated: "Updated",
     tags: {
       highPower: "High Power", cooler: "Cooler", ghostHeat: "Ghost Heat", fullArmor: "Full Armor", glassArmor: "Glass Armor",
       shortRange: "Short Range", mediumRange: "Medium Range", longRange: "Long Range", sniper: "Sniper", brawler: "Brawler",
     }, saveLocation: "1. Save location", publicLocation: "Public",
     publicHelp: "Other users can view this fitting.", pcLocation: "My PC", pcHelp: "Saved only on this PC.", titleLabel: "2. Title (required)",
-    titlePlaceholder: "Enter a build title.", titleHttpsBlocked: "Titles cannot contain https.",
+    titlePlaceholder: "Enter a build title.", titleCharactersOnly: "Use only English letters, numbers, and special characters.", titleHttpsBlocked: "Titles cannot contain https.",
     cancel: "Cancel", save: "Save", saving: "Saving...", localSaved: "Saved on this PC.", publicSaved: "Saved as a public fitting.",
     loginRequired: "Google sign-in is required for public saves, uploads, and likes.", signInAction: "Sign in", unavailable: "Firebase is unavailable. Try again shortly.",
     httpRequired: "Firebase is available on localhost or the deployed website.", noFitting: "Select a mech and fitting first.", loadFailed: "Could not load fittings.",
@@ -75,9 +94,19 @@ const COPY = {
 const copy = COPY[language];
 const elements = {
   login: document.getElementById("community-login"), authStatus: document.getElementById("community-auth-status"),
+  accountMenu: document.getElementById("community-account-menu"), accountName: document.getElementById("community-account-name"),
+  setNickname: document.getElementById("community-set-nickname"), logout: document.getElementById("community-logout"),
   overlay: document.getElementById("community-overlay"), title: document.getElementById("community-title"), eyebrow: document.getElementById("community-eyebrow"),
   mechFilterTrigger: document.getElementById("community-mech-filter-trigger"), mechFilterMenu: document.getElementById("community-mech-filter-menu"),
   close: document.getElementById("close-community"), content: document.getElementById("community-content"), status: document.getElementById("community-status"),
+  nicknameOverlay: document.getElementById("nickname-overlay"), nicknameForm: document.getElementById("nickname-form"), nicknameInput: document.getElementById("nickname-input"),
+  nicknameTitle: document.getElementById("nickname-title"), nicknameDescription: document.getElementById("nickname-description"), nicknameLaterNotice: document.getElementById("nickname-later-notice"), nicknameStatus: document.getElementById("nickname-check-status"),
+  nicknameCount: document.getElementById("nickname-count"), nicknameRules: document.getElementById("nickname-rules"), nicknameLater: document.getElementById("nickname-later"),
+  nicknameSubmit: document.getElementById("nickname-submit"), closeNickname: document.getElementById("close-nickname"),
+  shareOverlay: document.getElementById("community-share-url-overlay"), shareTitle: document.getElementById("community-share-url-title"),
+  shareLabel: document.getElementById("community-share-url-label"), shareUrl: document.getElementById("community-share-url-text"),
+  shareStatus: document.getElementById("community-share-url-status"), shareCopy: document.getElementById("copy-community-share-url"),
+  closeShare: document.getElementById("close-community-share-url"),
 };
 
 let auth = null;
@@ -102,6 +131,18 @@ let browserNotice = null;
 let browserFooterNotice = null;
 let returnFocus = null;
 let loadRequestGeneration = 0;
+let sharedLoadGeneration = 0;
+let currentProfile = null;
+let profileLoadGeneration = 0;
+let nicknameCheckGeneration = 0;
+let nicknameCheckTimer = 0;
+let nicknameAvailableKey = "";
+let nicknamePromptMode = "account";
+let shareDialogTrigger = null;
+const profileCache = new Map();
+const profileCacheTimes = new Map();
+const profileDataCache = new Map();
+const profileRequests = new Map();
 const loadedLikeStates = new Set();
 const expandedMechFilterChassis = new Set();
 let authStatusTimer = null;
@@ -137,14 +178,293 @@ function firebaseErrorMessage(error, fallback) {
   const message = messages[error?.code] || fallback;
   return error?.code ? `${message} (${error.code})` : message;
 }
-function updateLoginButton() {
+
+function nicknameParts(value) {
+  const nickname = String(value || "").trim();
+  const nicknameKey = nickname.toLowerCase();
+  const validCharacters = /^[A-Za-z0-9]+$/.test(nickname);
+  return {
+    nickname,
+    nicknameKey,
+    valid: nickname.length >= NICKNAME_MIN && nickname.length <= NICKNAME_MAX && validCharacters && nicknameKey !== "pilot",
+    reserved: nicknameKey === "pilot",
+  };
+}
+
+function profileDisplayName(data) {
+  const parts = nicknameParts(data?.nickname);
+  return parts.valid && parts.nicknameKey === data?.nicknameKey ? parts.nickname : PILOT_NAME;
+}
+
+function fittingTitleParts(value) {
+  const title = String(value || "").trim();
+  return {
+    title,
+    validCharacters: /^[\x20-\x7E]+$/.test(title),
+    httpsBlocked: title.toLocaleLowerCase().includes("https"),
+  };
+}
+
+function currentDisplayName() {
+  return profileDisplayName(currentProfile);
+}
+
+function closeAccountMenu() {
+  if (elements.accountMenu) elements.accountMenu.hidden = true;
+  elements.login?.setAttribute("aria-expanded", "false");
+}
+
+function updateAccountUi() {
   if (!elements.login) return;
-  const label = currentUser ? copy.logout : copy.login;
-  elements.login.textContent = label;
-  elements.login.title = label;
-  elements.login.setAttribute("aria-label", label);
-  elements.login.classList.toggle("signed-in", Boolean(currentUser));
-  elements.login.disabled = currentUser ? false : !googleTokenClient;
+  const signedIn = Boolean(currentUser);
+  const accountName = signedIn ? currentDisplayName() : copy.login;
+  const buttonLabel = signedIn ? copy.profile : copy.login;
+  elements.login.textContent = buttonLabel;
+  elements.login.title = signedIn ? copy.account : buttonLabel;
+  elements.login.setAttribute("aria-label", signedIn ? `${copy.account}: ${accountName}` : buttonLabel);
+  elements.login.setAttribute("aria-haspopup", signedIn ? "menu" : "false");
+  elements.login.classList.toggle("signed-in", signedIn);
+  elements.login.disabled = signedIn ? false : !googleTokenClient;
+  if (elements.accountName) elements.accountName.textContent = accountName;
+  if (elements.setNickname) {
+    elements.setNickname.textContent = currentProfile?.nickname ? copy.nicknameChangeTitle : copy.nicknameTitle;
+    elements.setNickname.hidden = !signedIn;
+  }
+  if (elements.logout) elements.logout.textContent = copy.logout;
+  if (!signedIn) closeAccountMenu();
+}
+
+function updateLoginButton() {
+  updateAccountUi();
+}
+
+async function getProfileData(uid) {
+  const normalizedUid = String(uid || "");
+  if (!normalizedUid || !firebaseApi || !db) return null;
+  if (profileDataCache.has(normalizedUid)) return profileDataCache.get(normalizedUid);
+  if (profileRequests.has(normalizedUid)) return profileRequests.get(normalizedUid);
+  const request = firebaseApi.getDoc(firebaseApi.doc(db, "users", normalizedUid))
+    .then((snapshot) => {
+      const data = snapshot.exists() ? snapshot.data() : null;
+      profileDataCache.set(normalizedUid, data);
+      return data;
+    })
+    .finally(() => profileRequests.delete(normalizedUid));
+  profileRequests.set(normalizedUid, request);
+  return request;
+}
+
+async function getProfileName(uid) {
+  const normalizedUid = String(uid || "");
+  if (!normalizedUid) return PILOT_NAME;
+  if (profileCache.has(normalizedUid)) {
+    const cachedName = profileCache.get(normalizedUid);
+    const cacheAge = Date.now() - Number(profileCacheTimes.get(normalizedUid) || 0);
+    if (cacheAge < PROFILE_CACHE_TTL_MS) return cachedName;
+    profileCache.delete(normalizedUid);
+    profileCacheTimes.delete(normalizedUid);
+    profileDataCache.delete(normalizedUid);
+  }
+  try {
+    const name = profileDisplayName(await getProfileData(normalizedUid));
+    profileCache.set(normalizedUid, name);
+    profileCacheTimes.set(normalizedUid, Date.now());
+    return name;
+  } catch {
+    return PILOT_NAME;
+  }
+}
+
+async function hydrateRecordAuthors(recordList) {
+  const remoteRecords = (recordList || []).filter((record) => record?.source !== "local");
+  const ownerUids = [...new Set(remoteRecords.map((record) => String(record.ownerUid || "")).filter(Boolean))];
+  const names = new Map(await Promise.all(ownerUids.map(async (uid) => [uid, await getProfileName(uid)])));
+  remoteRecords.forEach((record) => { record.authorName = names.get(String(record.ownerUid || "")) || PILOT_NAME; });
+  return recordList;
+}
+
+function updateOwnAuthorViews(name) {
+  if (!currentUser) return;
+  profileCache.set(currentUser.uid, name);
+  profileCacheTimes.set(currentUser.uid, Date.now());
+  records.filter((record) => record.ownerUid === currentUser.uid).forEach((record) => { record.authorName = name; });
+  bridge.updatePublicFittingAuthor?.(currentUser.uid, name);
+  if (!elements.overlay.hidden && activeMode === "browse") renderBrowser();
+}
+
+function setNicknameStatus(message = "", tone = "") {
+  elements.nicknameStatus.textContent = message;
+  elements.nicknameStatus.className = tone;
+}
+
+function closeNicknameDialog() {
+  if (!elements.nicknameOverlay || elements.nicknameOverlay.hidden) return;
+  nicknameCheckGeneration += 1;
+  clearTimeout(nicknameCheckTimer);
+  elements.nicknameOverlay.hidden = true;
+  document.body.classList.remove("nickname-open");
+  setNicknameStatus();
+  elements.login?.focus();
+}
+
+function openNicknameDialog(mode = "account") {
+  if (!currentUser || !elements.nicknameOverlay) return;
+  nicknamePromptMode = mode === "first" ? "first" : "account";
+  const changingNickname = nicknamePromptMode === "account" && Boolean(currentProfile?.nickname);
+  closeAccountMenu();
+  elements.nicknameTitle.textContent = changingNickname ? copy.nicknameChangeTitle : copy.nicknameTitle;
+  elements.nicknameDescription.textContent = copy.nicknameDescription;
+  elements.nicknameLaterNotice.textContent = copy.nicknameLaterNotice;
+  elements.nicknameLaterNotice.hidden = nicknamePromptMode !== "first";
+  elements.nicknameRules.textContent = copy.nicknameRules;
+  elements.nicknameLater.textContent = copy.nicknameLater;
+  elements.nicknameLater.hidden = nicknamePromptMode !== "first";
+  elements.nicknameSubmit.textContent = changingNickname ? copy.nicknameChangeSubmit : copy.nicknameSubmit;
+  elements.closeNickname.hidden = nicknamePromptMode === "first";
+  elements.nicknameInput.value = changingNickname ? currentProfile.nickname : "";
+  elements.nicknameCount.textContent = `${elements.nicknameInput.value.length} / ${NICKNAME_MAX}`;
+  elements.nicknameSubmit.disabled = true;
+  nicknameAvailableKey = "";
+  setNicknameStatus();
+  elements.nicknameOverlay.hidden = false;
+  document.body.classList.add("nickname-open");
+  elements.nicknameInput.focus();
+  if (changingNickname) elements.nicknameInput.select();
+}
+
+async function checkNicknameAvailability(value) {
+  const generation = ++nicknameCheckGeneration;
+  const parts = nicknameParts(value);
+  nicknameAvailableKey = "";
+  elements.nicknameSubmit.disabled = true;
+  if (!parts.nickname) return setNicknameStatus();
+  if (parts.reserved) return setNicknameStatus(copy.nicknameReserved, "error");
+  if (!parts.valid) return setNicknameStatus(copy.nicknameInvalid, "error");
+  if (parts.nicknameKey === currentProfile?.nicknameKey) return setNicknameStatus(copy.nicknameUnchanged, "error");
+  setNicknameStatus(copy.nicknameChecking);
+  try {
+    const snapshot = await firebaseApi.getDoc(firebaseApi.doc(db, "nicknames", parts.nicknameKey));
+    if (generation !== nicknameCheckGeneration) return;
+    if (snapshot.exists()) return setNicknameStatus(copy.nicknameTaken, "error");
+    nicknameAvailableKey = parts.nicknameKey;
+    elements.nicknameSubmit.disabled = false;
+    setNicknameStatus(copy.nicknameAvailable, "success");
+  } catch {
+    if (generation === nicknameCheckGeneration) setNicknameStatus(copy.nicknameCheckFailed, "error");
+  }
+}
+
+async function skipNicknamePrompt() {
+  if (!currentUser || !firebaseApi || !db) return closeNicknameDialog();
+  const user = currentUser;
+  try {
+    const userRef = firebaseApi.doc(db, "users", user.uid);
+    const profile = await firebaseApi.runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(userRef);
+      if (snapshot.exists()) return snapshot.data();
+      const data = { nicknamePrompted: true, createdAt: firebaseApi.serverTimestamp(), updatedAt: firebaseApi.serverTimestamp() };
+      transaction.set(userRef, data);
+      return data;
+    });
+    if (currentUser?.uid !== user.uid) return;
+    currentProfile = { ...profile, nicknamePrompted: true };
+    profileDataCache.set(user.uid, currentProfile);
+  } catch (error) {
+    if (currentUser?.uid !== user.uid) return;
+    setAuthStatus(firebaseErrorMessage(error, copy.nicknameSkipFailed));
+  }
+  updateAccountUi();
+  updateOwnAuthorViews(currentDisplayName());
+  closeNicknameDialog();
+}
+
+async function registerNickname(value) {
+  if (!currentUser || !firebaseApi || !db) return;
+  const user = currentUser;
+  const parts = nicknameParts(value);
+  const changingNickname = Boolean(currentProfile?.nicknameKey);
+  if (parts.nicknameKey === currentProfile?.nicknameKey) {
+    setNicknameStatus(copy.nicknameUnchanged, "error");
+    return;
+  }
+  if (!parts.valid || parts.nicknameKey !== nicknameAvailableKey) {
+    setNicknameStatus(parts.reserved ? copy.nicknameReserved : copy.nicknameInvalid, "error");
+    return;
+  }
+  elements.nicknameSubmit.disabled = true;
+  try {
+    const userRef = firebaseApi.doc(db, "users", user.uid);
+    const nicknameRef = firebaseApi.doc(db, "nicknames", parts.nicknameKey);
+    await firebaseApi.runTransaction(db, async (transaction) => {
+      const userSnapshot = await transaction.get(userRef);
+      const nicknameSnapshot = await transaction.get(nicknameRef);
+      const previousNicknameKey = userSnapshot.exists() ? String(userSnapshot.data().nicknameKey || "") : "";
+      const previousNicknameRef = previousNicknameKey && previousNicknameKey !== parts.nicknameKey
+        ? firebaseApi.doc(db, "nicknames", previousNicknameKey)
+        : null;
+      const previousNicknameSnapshot = previousNicknameRef ? await transaction.get(previousNicknameRef) : null;
+      if (nicknameSnapshot.exists()) {
+        const error = new Error("Nickname already exists");
+        error.code = "nickname-taken";
+        throw error;
+      }
+      if (previousNicknameKey === parts.nicknameKey) {
+        const error = new Error("Nickname unchanged");
+        error.code = "nickname-unchanged";
+        throw error;
+      }
+      if (previousNicknameRef && (!previousNicknameSnapshot?.exists() || previousNicknameSnapshot.data().ownerUid !== user.uid)) {
+        const error = new Error("Previous nickname reservation mismatch");
+        error.code = "nickname-change-conflict";
+        throw error;
+      }
+      const profile = {
+        ...(userSnapshot.exists() ? { createdAt: userSnapshot.data().createdAt } : { createdAt: firebaseApi.serverTimestamp() }),
+        nickname: parts.nickname,
+        nicknameKey: parts.nicknameKey,
+        nicknamePrompted: true,
+        updatedAt: firebaseApi.serverTimestamp(),
+      };
+      transaction.set(nicknameRef, { ownerUid: user.uid, createdAt: firebaseApi.serverTimestamp() });
+      if (previousNicknameRef) transaction.delete(previousNicknameRef);
+      transaction.set(userRef, profile);
+    });
+    if (currentUser?.uid !== user.uid) return;
+    currentProfile = { nickname: parts.nickname, nicknameKey: parts.nicknameKey, nicknamePrompted: true };
+    profileDataCache.set(user.uid, currentProfile);
+    updateOwnAuthorViews(parts.nickname);
+    updateAccountUi();
+    setAuthStatus(changingNickname ? copy.nicknameChanged : copy.nicknameSaved);
+    closeNicknameDialog();
+  } catch (error) {
+    if (currentUser?.uid !== user.uid) return;
+    nicknameAvailableKey = "";
+    elements.nicknameSubmit.disabled = true;
+    setNicknameStatus(error?.code === "nickname-taken" ? copy.nicknameRace : firebaseErrorMessage(error, copy.nicknameCheckFailed), "error");
+  }
+}
+
+async function initializeCurrentProfile(user) {
+  const generation = ++profileLoadGeneration;
+  if (!user || !firebaseApi || !db) return;
+  try {
+    const profile = await getProfileData(user.uid);
+    if (generation !== profileLoadGeneration || currentUser?.uid !== user.uid) return;
+    currentProfile = profile;
+    const displayName = currentDisplayName();
+    profileCache.set(user.uid, displayName);
+    profileCacheTimes.set(user.uid, Date.now());
+    updateOwnAuthorViews(displayName);
+    updateAccountUi();
+    if (!profile || (!currentProfile?.nickname && currentProfile?.nicknamePrompted !== true)) {
+      openNicknameDialog("first");
+    }
+  } catch (error) {
+    if (generation !== profileLoadGeneration || currentUser?.uid !== user.uid) return;
+    currentProfile = null;
+    updateAccountUi();
+    setAuthStatus(firebaseErrorMessage(error, copy.nicknameCheckFailed));
+  }
 }
 async function signIn() {
   await firebaseReady;
@@ -267,6 +587,127 @@ function normalizeSnapshot(snapshot, source) {
     createdAt: data.createdAt, schemaVersion: data.schemaVersion, source, liked: false,
   });
 }
+
+function sharedFittingParameter() {
+  const params = new URL(window.location.href).searchParams;
+  return { present: params.has("fitting"), id: params.get("fitting") || "" };
+}
+
+function validSharedFittingId(value) {
+  return typeof value === "string"
+    && value.length >= 1
+    && value.length <= 128
+    && !value.includes("/");
+}
+
+function sharedFittingUrl(fittingId) {
+  if (!validSharedFittingId(fittingId)) throw new Error("Invalid shared fitting id");
+  const url = new URL(window.location.href);
+  const languageParam = url.searchParams.get("lang");
+  url.search = "";
+  url.hash = "";
+  if (languageParam) url.searchParams.set("lang", languageParam);
+  url.searchParams.set("fitting", fittingId);
+  return url.href;
+}
+
+function setShareStatus(message = "", tone = "") {
+  elements.shareStatus.textContent = message;
+  elements.shareStatus.classList.toggle("error", tone === "error");
+  elements.shareStatus.classList.toggle("success", tone === "success");
+}
+
+function closeShareDialog() {
+  if (!elements.shareOverlay || elements.shareOverlay.hidden) return;
+  elements.shareOverlay.hidden = true;
+  document.body.classList.remove("community-share-url-open");
+  shareDialogTrigger?.focus?.();
+  shareDialogTrigger = null;
+}
+
+function shareFitting(id, trigger = document.activeElement) {
+  const record = records.find((entry) => entry.id === id);
+  if (!record || activeBrowserTab === "local" || !validSharedFittingId(record.id)) return;
+  shareDialogTrigger = trigger;
+  elements.shareTitle.textContent = copy.shareDialogTitle;
+  elements.shareLabel.textContent = copy.shareUrlLabel;
+  elements.shareCopy.textContent = copy.shareCopy;
+  elements.closeShare.setAttribute("aria-label", copy.shareClose);
+  elements.shareUrl.value = sharedFittingUrl(record.id);
+  setShareStatus();
+  elements.shareOverlay.hidden = false;
+  document.body.classList.add("community-share-url-open");
+  requestAnimationFrame(() => {
+    elements.shareUrl.focus();
+    elements.shareUrl.select();
+  });
+}
+
+async function copyShareUrl() {
+  const url = elements.shareUrl.value.trim();
+  if (!url) return;
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+    await navigator.clipboard.writeText(url);
+    setShareStatus(copy.shareCopied, "success");
+  } catch {
+    elements.shareUrl.focus();
+    elements.shareUrl.select();
+    const copied = typeof document.execCommand === "function" && document.execCommand("copy");
+    setShareStatus(copied ? copy.shareCopied : copy.shareFailed, copied ? "success" : "error");
+  }
+}
+
+async function loadSharedFitting(fittingId) {
+  const generation = ++sharedLoadGeneration;
+  if (!validSharedFittingId(fittingId)) {
+    setAuthStatus(copy.sharedInvalid);
+    return false;
+  }
+  const [firebaseAvailable, appReady] = await Promise.all([
+    firebaseReady,
+    bridge?.ready || Promise.resolve(false),
+  ]);
+  if (generation !== sharedLoadGeneration) return false;
+  if (!firebaseAvailable || !appReady || !firebaseApi || !db) {
+    setAuthStatus(copy.sharedLoadFailed);
+    return false;
+  }
+  try {
+    const snapshot = await firebaseApi.getDoc(firebaseApi.doc(db, "fittings", fittingId));
+    if (generation !== sharedLoadGeneration) return false;
+    if (!snapshot.exists()) {
+      setAuthStatus(copy.sharedMissing);
+      return false;
+    }
+    const record = normalizeSnapshot(snapshot, "shared");
+    if (!record.valid) {
+      setAuthStatus(copy.sharedInvalid);
+      return false;
+    }
+    await hydrateRecordAuthors([record]);
+    if (generation !== sharedLoadGeneration) return false;
+    bridge.openPublicFitting({ ...record, canLike: Boolean(currentUser), navigationMode: "replace" });
+    if (currentUser) await syncActiveSourceLikeState();
+    if (generation === sharedLoadGeneration) setAuthStatus(copy.sharedLoaded);
+    return true;
+  } catch (error) {
+    if (generation === sharedLoadGeneration) {
+      setAuthStatus(firebaseErrorMessage(error, copy.sharedLoadFailed));
+    }
+    return false;
+  }
+}
+
+function loadSharedFittingFromLocation() {
+  const shared = sharedFittingParameter();
+  if (!shared.present) {
+    sharedLoadGeneration += 1;
+    syncActiveSourceLikeState();
+    return;
+  }
+  loadSharedFitting(shared.id);
+}
 function tagHtml(tags = []) {
   return tags.map((tag) => `<span class="community-tag tag-${escapeHtml(tag)}">${escapeHtml(copy.tags[tag] || tag)}</span>`).join("");
 }
@@ -277,6 +718,11 @@ function hardpointsHtml(hardpoints = {}) {
   return [["energy", "E"], ["missile", "M"], ["ballistic", "B"], ["ams", "AMS"]]
     .filter(([type]) => Number(hardpoints[type]) > 0)
     .map(([type, label]) => `<span class="hardpoint-chip ${type}" title="${type}"><span class="hardpoint-icon">${label}</span><span class="hardpoint-count">${Number(hardpoints[type])}</span></span>`).join("");
+}
+function representativeWeaponsHtml(weapons = []) {
+  return weapons.slice(0, 4)
+    .map((weapon) => `<span class="community-representative-weapon ${escapeHtml(weapon.type || "")}" title="${escapeHtml(weapon.name)}">${escapeHtml(weapon.name)}</span>`)
+    .join("");
 }
 function mechFilterSections() {
   return bridge.listFittingMechFilters?.() || [];
@@ -350,13 +796,15 @@ function filteredRecords() {
 }
 function fittingCardHtml(record) {
   const analysis = record.analysis;
+  const likeCount = Math.max(0, Number(record.likeCount) || 0);
   return `
     <button class="community-fitting-card${record.id === selectedId ? " selected" : ""}${record.valid ? "" : " invalid"}" type="button" data-community-select="${escapeHtml(record.id)}">
-      <img src="${escapeHtml(analysis?.image || "")}" alt="" loading="lazy">
+      <span class="community-card-thumbnail"><img src="${escapeHtml(analysis?.image || "")}" alt="" loading="lazy">${activeBrowserTab === "local" ? "" : `<span class="community-card-like-count" aria-label="${escapeHtml(`${copy.like}: ${likeCount}`)}">${likeIconHtml()} ${likeCount}</span>`}</span>
       <span class="community-card-main">
         <span class="community-card-title"><em>${escapeHtml(analysis?.mechName || "")}</em><strong>${escapeHtml(record.name || copy.invalid)}</strong></span>
         <span class="community-card-tags">${tagHtml(analysis?.tags)}</span>
-        <span class="community-card-meta">${activeBrowserTab === "local" ? "" : `<span>${likeIconHtml()} ${Math.max(0, Number(record.likeCount) || 0)}</span>`}<span>${escapeHtml(fittingDate(record.createdAt ?? record.updatedAt))}</span></span>
+        <span class="community-card-weapons"><span class="community-card-weapon-list">${representativeWeaponsHtml(analysis?.representativeWeapons)}</span></span>
+        <span class="community-card-meta">${activeBrowserTab === "local" ? "" : `<span class="community-author">${escapeHtml(copy.author)}: ${escapeHtml(record.authorName || PILOT_NAME)}</span>`}<span>${escapeHtml(fittingDate(record.createdAt ?? record.updatedAt))}</span></span>
       </span>
       <span class="community-card-hardpoints mech-slot-tags">${hardpointsHtml(analysis?.hardpoints)}</span>
     </button>`;
@@ -390,44 +838,49 @@ function fittingDetailHtml(record) {
     : `<li><span>-</span></li>`;
   const canLike = activeBrowserTab === "public" && Boolean(currentUser);
   const canDelete = activeBrowserTab === "local" || activeBrowserTab === "mine";
+  const canShare = activeBrowserTab !== "local";
+  const likeCount = Math.max(0, Number(record.likeCount) || 0);
+  const likeAction = record.liked ? copy.unlike : copy.like;
+  const detailLike = activeBrowserTab === "public"
+    ? `<button type="button" data-community-like="${escapeHtml(record.id)}" class="community-detail-like${record.liked ? " liked" : ""}" ${canLike ? "" : "disabled"} aria-pressed="${record.liked ? "true" : "false"}" aria-label="${escapeHtml(`${likeAction}: ${likeCount}`)}" title="${escapeHtml(likeAction)}">${likeIconHtml()}<strong>${likeCount}</strong></button>`
+    : activeBrowserTab === "mine"
+      ? `<span class="community-detail-like community-detail-like-readonly" aria-label="${escapeHtml(`${copy.like}: ${likeCount}`)}">${likeIconHtml()}<strong>${likeCount}</strong></span>`
+      : "";
   return `
     <article class="community-fitting-detail" data-community-detail-id="${escapeHtml(record.id)}">
-      <header><div class="community-detail-title"><span>${escapeHtml(analysis.mechName)}</span><h3>${escapeHtml(record.name)}</h3></div>
+      <header><div class="community-detail-heading-main"><div class="community-detail-title"><span>${escapeHtml(analysis.mechName)}</span><h3>${escapeHtml(record.name)}</h3></div>
         <div class="community-card-tags">${tagHtml(analysis.tags)}</div>
-        <div class="community-detail-meta">${activeBrowserTab === "local" ? "" : `<span class="community-detail-like-count">${likeIconHtml()} ${Math.max(0, Number(record.likeCount) || 0)}</span>`}<span>${copy.updated}: ${escapeHtml(fittingDate(record.createdAt ?? record.updatedAt))}</span></div>
+        <div class="community-detail-meta">${activeBrowserTab === "local" ? "" : `<span class="community-detail-author"><span>${escapeHtml(copy.author)}</span><strong>${escapeHtml(record.authorName || PILOT_NAME)}</strong></span><span class="community-detail-meta-separator" aria-hidden="true">·</span>`}<span><span>${escapeHtml(copy.updated)}</span><time>${escapeHtml(fittingDate(record.createdAt ?? record.updatedAt))}</time></span></div></div>
+        ${detailLike ? `<div class="community-detail-like-area">${detailLike}</div>` : ""}
       </header>
       <div class="community-detail-scroll">
         <section><h4>${copy.weapons}</h4><ul class="community-weapon-list">${weapons}</ul></section>
         <section><h4>${copy.details}</h4><div class="community-stat-grid">${statRowsHtml(analysis)}</div></section>
       </div>
-      <footer>${activeBrowserTab === "public" ? `<button type="button" data-community-like="${escapeHtml(record.id)}" class="community-detail-like${record.liked ? " liked" : ""}" ${canLike ? "" : "disabled"} aria-label="${escapeHtml(copy.like)}" title="${escapeHtml(copy.like)}">${likeIconHtml()}</button>` : ""}
-        ${canDelete ? `<button type="button" data-community-delete="${escapeHtml(record.id)}" class="community-delete-button">${copy.delete}</button>` : ""}
+      <footer>${canDelete ? `<button type="button" data-community-delete="${escapeHtml(record.id)}" class="community-delete-button">${copy.delete}</button>` : ""}
+        ${canShare ? `<button type="button" data-community-share="${escapeHtml(record.id)}" class="community-share-button">${copy.share}</button>` : ""}
         <button type="button" data-community-apply="${escapeHtml(record.id)}" class="community-apply-button">${copy.apply}</button></footer>
     </article>`;
 }
 function paginationHtml(visible) {
-  const loadedPages = Math.max(1, Math.ceil(visible.length / LIST_LIMIT));
+  const loadedPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const canDiscoverNext = activeBrowserTab !== "local" && hasMore;
   const pageCount = loadedPages + (canDiscoverNext ? 1 : 0);
   if (pageCount <= 1) return "";
-  const pageNumbers = pageCount <= 7
-    ? Array.from({ length: pageCount }, (_, index) => index + 1)
-    : Array.from(new Set([1, pageCount, currentPage - 1, currentPage, currentPage + 1]))
-      .filter((page) => page >= 1 && page <= pageCount)
-      .sort((left, right) => left - right);
-  const pages = pageNumbers.map((page, index) => {
-    const ellipsis = index > 0 && page - pageNumbers[index - 1] > 1 ? `<span class="community-page-ellipsis" aria-hidden="true">…</span>` : "";
-    return `${ellipsis}<button type="button" data-community-page="${page}" aria-current="${page === currentPage ? "page" : "false"}">${page}</button>`;
-  }).join("");
+  const groupStart = Math.floor((currentPage - 1) / PAGE_GROUP_SIZE) * PAGE_GROUP_SIZE + 1;
+  const groupEnd = Math.min(pageCount, groupStart + PAGE_GROUP_SIZE - 1);
+  const pages = Array.from({ length: groupEnd - groupStart + 1 }, (_, index) => groupStart + index)
+    .map((page) => `<button type="button" data-community-page="${page}" aria-current="${page === currentPage ? "page" : "false"}">${page}</button>`)
+    .join("");
   return `<nav class="community-pagination" aria-label="Pagination"><button type="button" data-community-page="${currentPage - 1}" ${currentPage <= 1 ? "disabled" : ""} aria-label="${copy.previousPage}">‹</button>${pages}<button type="button" data-community-page="${currentPage + 1}" ${currentPage >= pageCount ? "disabled" : ""} aria-label="${copy.nextPage}">›</button></nav>`;
 }
 function renderBrowser({ resetListScroll = false, resetDetailScroll = false, focusSort = false } = {}) {
   const previousListScroll = resetListScroll ? 0 : elements.content.querySelector(".community-list-scroll")?.scrollTop || 0;
   const previousDetailScroll = resetDetailScroll ? 0 : elements.content.querySelector(".community-detail-scroll")?.scrollTop || 0;
   const visible = filteredRecords();
-  const loadedPages = Math.max(1, Math.ceil(visible.length / LIST_LIMIT));
+  const loadedPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   currentPage = Math.max(1, Math.min(currentPage, loadedPages));
-  const pageRecords = visible.slice((currentPage - 1) * LIST_LIMIT, currentPage * LIST_LIMIT);
+  const pageRecords = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   if (!selectedId || !pageRecords.some((record) => record.id === selectedId)) selectedId = pageRecords[0]?.id || null;
   const selected = records.find((record) => record.id === selectedId) || null;
   const emptyText = searchText ? copy.searchEmpty : activeBrowserTab === "local" ? copy.localEmpty : activeBrowserTab === "mine" ? copy.mineEmpty : copy.publicEmpty;
@@ -499,12 +952,15 @@ async function loadRemoteFittings(reset = true, { focusSort = false } = {}) {
     if (requestedMechFilterId) constraints.push(firebaseApi.where("mechId", "==", requestedMechFilterId));
     constraints.push(firebaseApi.orderBy(requestedSort === "likes" ? "likeCount" : "createdAt", "desc"));
     if (requestLastDocument) constraints.push(firebaseApi.startAfter(requestLastDocument));
-    constraints.push(firebaseApi.limit(LIST_LIMIT));
+    constraints.push(firebaseApi.limit(FETCH_LIMIT + 1));
     const snapshot = await firebaseApi.getDocs(firebaseApi.query(firebaseApi.collection(db, "fittings"), ...constraints));
     if (generation !== loadRequestGeneration || requestedTab !== activeBrowserTab || requestedMechFilterId !== selectedMechFilterId) return;
-    requestLastDocument = snapshot.docs.at(-1) || requestLastDocument;
-    requestHasMore = snapshot.size === LIST_LIMIT;
-    const nextRecords = snapshot.docs.map((documentSnapshot) => normalizeSnapshot(documentSnapshot, requestedTab));
+    const batchDocuments = snapshot.docs.slice(0, FETCH_LIMIT);
+    requestLastDocument = batchDocuments.at(-1) || requestLastDocument;
+    requestHasMore = snapshot.size > FETCH_LIMIT;
+    const nextRecords = batchDocuments.map((documentSnapshot) => normalizeSnapshot(documentSnapshot, requestedTab));
+    await hydrateRecordAuthors(nextRecords);
+    if (generation !== loadRequestGeneration || requestedTab !== activeBrowserTab || requestedMechFilterId !== selectedMechFilterId) return;
     const merged = reset ? nextRecords : [...records, ...nextRecords];
     records = Array.from(new Map(merged.map((record) => [record.id, record])).values());
     lastDocument = requestLastDocument;
@@ -567,12 +1023,16 @@ function renderSaveForm() {
 }
 function updateSaveForm(form) {
   form.querySelectorAll(".community-save-location").forEach((label) => label.classList.toggle("selected", label.querySelector("input")?.checked));
-  const title = form.elements.title.value.trim();
-  const httpsBlocked = title.toLocaleLowerCase().includes("https");
+  const { title, validCharacters, httpsBlocked } = fittingTitleParts(form.elements.title.value);
+  const invalidCharacters = Boolean(title) && !validCharacters;
   const titleStatus = form.querySelector("[data-title-count]");
-  titleStatus.textContent = httpsBlocked ? copy.titleHttpsBlocked : `${form.elements.title.value.length} / ${TITLE_LIMIT}`;
-  titleStatus.classList.toggle("error", httpsBlocked);
-  form.querySelector("[data-community-save]").disabled = !title || httpsBlocked;
+  titleStatus.textContent = invalidCharacters
+    ? copy.titleCharactersOnly
+    : httpsBlocked
+      ? copy.titleHttpsBlocked
+      : `${form.elements.title.value.length} / ${TITLE_LIMIT}`;
+  titleStatus.classList.toggle("error", invalidCharacters || httpsBlocked);
+  form.querySelector("[data-community-save]").disabled = !title || invalidCharacters || httpsBlocked;
 }
 async function savePublicFitting(name) {
   const user = currentUser || await signIn();
@@ -597,11 +1057,11 @@ async function savePublicFitting(name) {
 async function submitSaveForm(form) {
   const button = form.querySelector("[data-community-save]");
   const location = form.elements["save-location"].value;
-  const name = form.elements.title.value.trim();
+  const { title: name, validCharacters, httpsBlocked } = fittingTitleParts(form.elements.title.value);
   if (!name) return;
-  if (name.toLocaleLowerCase().includes("https")) {
+  if (!validCharacters || httpsBlocked) {
     updateSaveForm(form);
-    setStatus(copy.titleHttpsBlocked, "error");
+    setStatus(validCharacters ? copy.titleHttpsBlocked : copy.titleCharactersOnly, "error");
     return;
   }
   button.disabled = true;
@@ -733,6 +1193,7 @@ function closeAllMenus(except = null) {
 }
 
 document.addEventListener("click", (event) => {
+  if (!event.target.closest(".topbar-account-actions")) closeAccountMenu();
   const mechFilterTrigger = event.target.closest("#community-mech-filter-trigger");
   if (mechFilterTrigger) {
     const opening = Boolean(elements.mechFilterMenu?.hidden);
@@ -799,16 +1260,18 @@ elements.content.addEventListener("click", async (event) => {
   if (like) return toggleLike(like.dataset.communityLike);
   const remove = event.target.closest("[data-community-delete]");
   if (remove) return deleteFitting(remove.dataset.communityDelete);
+  const share = event.target.closest("[data-community-share]");
+  if (share) return shareFitting(share.dataset.communityShare, share);
   const apply = event.target.closest("[data-community-apply]");
   if (apply) return applyFitting(apply.dataset.communityApply);
   const pageButton = event.target.closest("[data-community-page]");
   if (pageButton) {
     const requestedPage = Number(pageButton.dataset.communityPage);
     if (!Number.isInteger(requestedPage) || requestedPage < 1) return;
-    const loadedPages = Math.max(1, Math.ceil(filteredRecords().length / LIST_LIMIT));
+    const loadedPages = Math.max(1, Math.ceil(filteredRecords().length / PAGE_SIZE));
     if (requestedPage > loadedPages && activeBrowserTab !== "local" && hasMore) {
       return loadRemoteFittings(false).then(() => {
-        currentPage = Math.min(requestedPage, Math.max(1, Math.ceil(filteredRecords().length / LIST_LIMIT)));
+        currentPage = Math.min(requestedPage, Math.max(1, Math.ceil(filteredRecords().length / PAGE_SIZE)));
         selectedId = null;
         renderBrowser({ resetListScroll: true, resetDetailScroll: true });
       });
@@ -842,11 +1305,58 @@ elements.content.addEventListener("submit", (event) => {
   event.preventDefault();
   submitSaveForm(form);
 });
-elements.login.addEventListener("click", async () => currentUser ? firebaseApi.signOut(auth) : signIn());
+elements.login.addEventListener("click", async (event) => {
+  event.stopPropagation();
+  if (!currentUser) return signIn();
+  const opening = Boolean(elements.accountMenu.hidden);
+  elements.accountMenu.hidden = !opening;
+  elements.login.setAttribute("aria-expanded", String(opening));
+});
+elements.setNickname.addEventListener("click", () => openNicknameDialog("account"));
+elements.logout.addEventListener("click", () => firebaseApi?.signOut(auth));
+elements.nicknameInput.addEventListener("input", () => {
+  clearTimeout(nicknameCheckTimer);
+  nicknameCheckGeneration += 1;
+  nicknameAvailableKey = "";
+  elements.nicknameSubmit.disabled = true;
+  elements.nicknameCount.textContent = `${elements.nicknameInput.value.length} / ${NICKNAME_MAX}`;
+  const parts = nicknameParts(elements.nicknameInput.value);
+  if (!parts.nickname) return setNicknameStatus();
+  if (parts.reserved) return setNicknameStatus(copy.nicknameReserved, "error");
+  if (!parts.valid) return setNicknameStatus(copy.nicknameInvalid, "error");
+  if (parts.nicknameKey === currentProfile?.nicknameKey) return setNicknameStatus(copy.nicknameUnchanged, "error");
+  setNicknameStatus(copy.nicknameChecking);
+  nicknameCheckTimer = setTimeout(() => checkNicknameAvailability(elements.nicknameInput.value), 350);
+});
+elements.nicknameForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  registerNickname(elements.nicknameInput.value);
+});
+elements.nicknameLater.addEventListener("click", () => nicknamePromptMode === "first" ? skipNicknamePrompt() : closeNicknameDialog());
+elements.closeNickname.addEventListener("click", closeNicknameDialog);
+elements.closeShare.addEventListener("click", closeShareDialog);
+elements.shareCopy.addEventListener("click", copyShareUrl);
+elements.shareOverlay.addEventListener("mousedown", (event) => { if (event.target === elements.shareOverlay) closeShareDialog(); });
+elements.nicknameOverlay.addEventListener("mousedown", (event) => {
+  if (event.target === elements.nicknameOverlay && nicknamePromptMode !== "first") closeNicknameDialog();
+});
 elements.close.addEventListener("click", closeCommunity);
 elements.overlay.addEventListener("mousedown", (event) => { if (event.target === elements.overlay) closeCommunity(); });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (!elements.shareOverlay.hidden) {
+    closeShareDialog();
+    return;
+  }
+  if (!elements.nicknameOverlay.hidden) {
+    if (nicknamePromptMode !== "first") closeNicknameDialog();
+    return;
+  }
+  if (!elements.accountMenu.hidden) {
+    closeAccountMenu();
+    elements.login.focus();
+    return;
+  }
   if (elements.mechFilterMenu && !elements.mechFilterMenu.hidden) {
     closeMechFilterMenu();
     elements.mechFilterTrigger.focus();
@@ -880,12 +1390,21 @@ async function initializeFirebase() {
     googleTokenClient = googleAccounts.oauth2.initTokenClient({ client_id: GOOGLE_IDENTITY_CLIENT_ID, scope: "openid email profile", callback: handleGoogleAccessToken, error_callback: handleGooglePopupError });
     authModule.onAuthStateChanged(auth, (user) => {
       currentUser = user;
+      currentProfile = null;
+      profileLoadGeneration += 1;
       updateLoginButton();
       bridge.setPublicLikeCapability?.(Boolean(user));
       if (user) {
+        initializeCurrentProfile(user);
         syncActiveSourceLikeState();
         if (!elements.overlay.hidden && activeMode === "browse" && activeBrowserTab !== "mine") renderBrowser();
       } else {
+        profileCache.clear();
+        profileCacheTimes.clear();
+        profileDataCache.clear();
+        profileRequests.clear();
+        closeAccountMenu();
+        closeNicknameDialog();
         loadedLikeStates.clear();
         records.forEach((record) => { record.liked = false; });
         const source = bridge.getPublicFittingSource?.();
@@ -909,3 +1428,5 @@ async function initializeFirebase() {
 
 elements.close.setAttribute("aria-label", language === "en" ? "Close" : "닫기");
 firebaseReady = initializeFirebase();
+loadSharedFittingFromLocation();
+window.addEventListener("popstate", loadSharedFittingFromLocation);

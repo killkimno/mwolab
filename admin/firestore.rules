@@ -1,0 +1,387 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInWithGoogle() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
+
+    function fittingPath(fittingId) {
+      return /databases/$(database)/documents/fittings/$(fittingId);
+    }
+
+    function likePath(fittingId, uid) {
+      return /databases/$(database)/documents/fittings/$(fittingId)/likes/$(uid);
+    }
+
+    function usagePath(uid) {
+      return /databases/$(database)/documents/publisherUsage/$(uid);
+    }
+
+    function deletionRequestPath(fittingId) {
+      return /databases/$(database)/documents/deletionRequests/$(fittingId);
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function nicknamePath(nicknameKey) {
+      return /databases/$(database)/documents/nicknames/$(nicknameKey);
+    }
+
+    function validNickname(nickname, nicknameKey) {
+      return nickname is string
+        && nicknameKey is string
+        && nickname.size() >= 2
+        && nickname.size() <= 20
+        && nickname == nickname.trim()
+        && nickname.matches('^[A-Za-z0-9]{2,20}$')
+        && nicknameKey == nickname.lower()
+        && nicknameKey.matches('^[a-z0-9]{2,20}$')
+        && nicknameKey != 'pilot';
+    }
+
+    function validPromptedProfileCreate() {
+      return request.resource.data.keys().hasOnly([
+          'nicknamePrompted', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.nicknamePrompted == true
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function validNicknameProfileCreate() {
+      return request.resource.data.keys().hasOnly([
+          'nickname', 'nicknameKey', 'nicknamePrompted', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.nicknamePrompted == true
+        && validNickname(
+          request.resource.data.nickname,
+          request.resource.data.nicknameKey
+        )
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(nicknamePath(request.resource.data.nicknameKey))
+        && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.ownerUid
+          == request.auth.uid;
+    }
+
+    function validNicknameProfileUpdate() {
+      return resource.data.keys().hasOnly([
+          'nickname', 'nicknameKey', 'nicknamePrompted', 'createdAt', 'updatedAt'
+        ])
+        && resource.data.keys().hasAll([
+          'nicknamePrompted', 'createdAt', 'updatedAt'
+        ])
+        && resource.data.nicknamePrompted == true
+        && request.resource.data.keys().hasOnly([
+          'nickname', 'nicknameKey', 'nicknamePrompted', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.nicknamePrompted == true
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && validNickname(
+          request.resource.data.nickname,
+          request.resource.data.nicknameKey
+        )
+        && existsAfter(nicknamePath(request.resource.data.nicknameKey))
+        && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.ownerUid
+          == request.auth.uid
+        && (
+          !resource.data.keys().hasAny(['nickname', 'nicknameKey'])
+          || (
+            resource.data.keys().hasAll(['nickname', 'nicknameKey'])
+            && request.resource.data.nicknameKey != resource.data.nicknameKey
+            && exists(nicknamePath(resource.data.nicknameKey))
+            && get(nicknamePath(resource.data.nicknameKey)).data.ownerUid
+              == request.auth.uid
+            && !existsAfter(nicknamePath(resource.data.nicknameKey))
+          )
+        );
+    }
+
+    function validNicknameReservationCreate(nicknameKey) {
+      let profilePath = userPath(request.auth.uid);
+      let profileExistsBefore = exists(profilePath);
+      let profileBefore = get(profilePath);
+      let hadNickname = profileExistsBefore
+        && profileBefore.data.keys().hasAll(['nickname', 'nicknameKey']);
+      let oldNicknameKey = hadNickname
+        ? profileBefore.data.nicknameKey
+        : '__missing__';
+      let oldNicknamePath = nicknamePath(oldNicknameKey);
+      let profileExistsAfter = existsAfter(profilePath);
+      let profileAfter = getAfter(profilePath);
+      return request.resource.data.keys().hasOnly(['ownerUid', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && nicknameKey != 'pilot'
+        && nicknameKey.matches('^[a-z0-9]{2,20}$')
+        && (
+          !hadNickname
+          || (
+            oldNicknameKey != nicknameKey
+            && exists(oldNicknamePath)
+            && get(oldNicknamePath).data.ownerUid == request.auth.uid
+            && !existsAfter(oldNicknamePath)
+          )
+        )
+        && profileExistsAfter
+        && profileAfter.data.nicknameKey == nicknameKey
+        && validNickname(
+          profileAfter.data.nickname,
+          profileAfter.data.nicknameKey
+        );
+    }
+
+    function validNicknameReservationDelete(nicknameKey) {
+      let profilePath = userPath(request.auth.uid);
+      let profileExistsBefore = exists(profilePath);
+      let profileBefore = get(profilePath);
+      let profileExistsAfter = existsAfter(profilePath);
+      let profileAfter = getAfter(profilePath);
+      let nextNicknameKey = profileExistsAfter
+        ? profileAfter.data.nicknameKey
+        : '__missing__';
+      let nextNicknamePath = nicknamePath(nextNicknameKey);
+      return resource.data.keys().hasOnly(['ownerUid', 'createdAt'])
+        && resource.data.ownerUid == request.auth.uid
+        && profileExistsBefore
+        && profileBefore.data.nicknameKey == nicknameKey
+        && profileExistsAfter
+        && nextNicknameKey != nicknameKey
+        && validNickname(
+          profileAfter.data.nickname,
+          nextNicknameKey
+        )
+        && existsAfter(nextNicknamePath)
+        && getAfter(nextNicknamePath).data.ownerUid == request.auth.uid;
+    }
+
+    function validUsageCreateAdvance(fittingId) {
+      return existsAfter(usagePath(request.auth.uid))
+        && getAfter(usagePath(request.auth.uid)).data.keys().hasOnly([
+          'count', 'lastFittingId', 'operation', 'updatedAt'
+        ])
+        && getAfter(usagePath(request.auth.uid)).data.count is int
+        && getAfter(usagePath(request.auth.uid)).data.count >= 1
+        && getAfter(usagePath(request.auth.uid)).data.count <= 100
+        && getAfter(usagePath(request.auth.uid)).data.lastFittingId == fittingId
+        && getAfter(usagePath(request.auth.uid)).data.operation == 'create'
+        && getAfter(usagePath(request.auth.uid)).data.updatedAt == request.time
+        && (
+          (
+            !exists(usagePath(request.auth.uid))
+            && getAfter(usagePath(request.auth.uid)).data.count == 1
+          )
+          ||
+          (
+            exists(usagePath(request.auth.uid))
+            && get(usagePath(request.auth.uid)).data.count is int
+            && getAfter(usagePath(request.auth.uid)).data.count
+              == get(usagePath(request.auth.uid)).data.count + 1
+          )
+        );
+    }
+
+    function validUsageDeleteAdvance(fittingId) {
+      return existsAfter(usagePath(request.auth.uid))
+        && getAfter(usagePath(request.auth.uid)).data.keys().hasOnly([
+          'count', 'lastFittingId', 'operation', 'updatedAt'
+        ])
+        && getAfter(usagePath(request.auth.uid)).data.count is int
+        && getAfter(usagePath(request.auth.uid)).data.count >= 0
+        && getAfter(usagePath(request.auth.uid)).data.count <= 99
+        && getAfter(usagePath(request.auth.uid)).data.lastFittingId == fittingId
+        && getAfter(usagePath(request.auth.uid)).data.operation == 'delete'
+        && getAfter(usagePath(request.auth.uid)).data.updatedAt == request.time
+        && exists(usagePath(request.auth.uid))
+        && get(usagePath(request.auth.uid)).data.count is int
+        && get(usagePath(request.auth.uid)).data.count >= 1
+        && getAfter(usagePath(request.auth.uid)).data.count
+          == get(usagePath(request.auth.uid)).data.count - 1;
+    }
+
+    function validLoadoutCode(value) {
+      return value is string
+        && value.size() >= 36
+        && value.size() <= 4096
+        && value.matches(
+          '^A[0-o|]+p[0-o|]+q[0-o|]+r[0-o|]+s[0-o|]+t[0-o|]+u[0-o|]+v[0-o|]+w[0-o]+$'
+        );
+    }
+
+    function validNewFitting(fittingId) {
+      return request.resource.data.keys().hasOnly([
+          'ownerUid', 'mechId', 'name', 'loadoutCode',
+          'likeCount', 'createdAt', 'schemaVersion'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.mechId is string
+        && request.resource.data.mechId.size() >= 1
+        && request.resource.data.mechId.size() <= 32
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 20
+        && request.resource.data.name == request.resource.data.name.trim()
+        && request.resource.data.name.matches('^[ -~]{1,20}$')
+        && !request.resource.data.name.matches('.*[hH][tT][tT][pP][sS].*')
+        && validLoadoutCode(request.resource.data.loadoutCode)
+        && request.resource.data.likeCount == 0
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.schemaVersion == 2
+        && !exists(deletionRequestPath(fittingId))
+        && validUsageCreateAdvance(fittingId);
+    }
+
+    function validLikeCountChange(fittingId) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+        && resource.data.likeCount is int
+        && request.resource.data.likeCount is int
+        && request.resource.data.likeCount >= 0
+        && (
+          (
+            request.resource.data.likeCount == resource.data.likeCount + 1
+            && !exists(likePath(fittingId, request.auth.uid))
+            && existsAfter(likePath(fittingId, request.auth.uid))
+          )
+          || (
+            request.resource.data.likeCount == resource.data.likeCount - 1
+            && exists(likePath(fittingId, request.auth.uid))
+            && !existsAfter(likePath(fittingId, request.auth.uid))
+          )
+        );
+    }
+
+    match /fittings/{fittingId} {
+      allow get: if true;
+      allow list: if request.query.limit != null && request.query.limit <= 101;
+      allow create: if signedInWithGoogle()
+        && validNewFitting(fittingId);
+      allow update: if signedInWithGoogle() && validLikeCountChange(fittingId);
+      allow delete: if signedInWithGoogle()
+        && resource.data.ownerUid == request.auth.uid
+        && existsAfter(deletionRequestPath(fittingId))
+        && getAfter(deletionRequestPath(fittingId)).data.ownerUid == request.auth.uid
+        && getAfter(deletionRequestPath(fittingId)).data.mechId == resource.data.mechId
+        && validUsageDeleteAdvance(fittingId);
+
+      match /likes/{uid} {
+        allow get: if signedInWithGoogle() && uid == request.auth.uid;
+        allow list: if false;
+        allow create: if signedInWithGoogle()
+          && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt == request.time
+          && !exists(likePath(fittingId, uid))
+          && getAfter(fittingPath(fittingId)).data.likeCount
+            == get(fittingPath(fittingId)).data.likeCount + 1;
+        allow update: if false;
+        allow delete: if signedInWithGoogle()
+          && uid == request.auth.uid
+          && getAfter(fittingPath(fittingId)).data.likeCount
+            == get(fittingPath(fittingId)).data.likeCount - 1;
+      }
+    }
+
+    match /deletionRequests/{fittingId} {
+      allow create: if signedInWithGoogle()
+        && request.resource.data.keys().hasOnly(['ownerUid', 'mechId', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.mechId is string
+        && request.resource.data.createdAt == request.time
+        && exists(fittingPath(fittingId))
+        && get(fittingPath(fittingId)).data.ownerUid == request.auth.uid
+        && get(fittingPath(fittingId)).data.mechId == request.resource.data.mechId
+        && !existsAfter(fittingPath(fittingId));
+      allow read, update, delete: if false;
+    }
+
+    match /publisherUsage/{uid} {
+      allow get: if signedInWithGoogle() && uid == request.auth.uid;
+      allow list: if false;
+
+      allow create: if signedInWithGoogle()
+        && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'count', 'lastFittingId', 'operation', 'updatedAt'
+        ])
+        && request.resource.data.count == 1
+        && request.resource.data.lastFittingId is string
+        && request.resource.data.lastFittingId.size() >= 1
+        && request.resource.data.lastFittingId.size() <= 128
+        && request.resource.data.operation == 'create'
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(fittingPath(request.resource.data.lastFittingId))
+        && !exists(fittingPath(request.resource.data.lastFittingId))
+        && getAfter(fittingPath(request.resource.data.lastFittingId)).data.ownerUid
+          == request.auth.uid;
+
+      allow update: if signedInWithGoogle()
+        && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'count', 'lastFittingId', 'operation', 'updatedAt'
+        ])
+        && resource.data.count is int
+        && request.resource.data.count is int
+        && request.resource.data.count >= 0
+        && request.resource.data.count <= 100
+        && request.resource.data.lastFittingId is string
+        && request.resource.data.lastFittingId.size() >= 1
+        && request.resource.data.lastFittingId.size() <= 128
+        && request.resource.data.updatedAt == request.time
+        && (
+          (
+            request.resource.data.operation == 'create'
+            && resource.data.count < 100
+            && request.resource.data.count == resource.data.count + 1
+            && !exists(fittingPath(request.resource.data.lastFittingId))
+            && existsAfter(fittingPath(request.resource.data.lastFittingId))
+            && getAfter(fittingPath(request.resource.data.lastFittingId)).data.ownerUid
+              == request.auth.uid
+          )
+          ||
+          (
+            request.resource.data.operation == 'delete'
+            && resource.data.count >= 1
+            && request.resource.data.count == resource.data.count - 1
+            && exists(fittingPath(request.resource.data.lastFittingId))
+            && get(fittingPath(request.resource.data.lastFittingId)).data.ownerUid
+              == request.auth.uid
+            && !existsAfter(fittingPath(request.resource.data.lastFittingId))
+            && existsAfter(deletionRequestPath(request.resource.data.lastFittingId))
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    match /users/{uid} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedInWithGoogle()
+        && uid == request.auth.uid
+        && (validPromptedProfileCreate() || validNicknameProfileCreate());
+      allow update: if signedInWithGoogle()
+        && uid == request.auth.uid
+        && validNicknameProfileUpdate();
+      allow delete: if false;
+    }
+
+    match /nicknames/{nicknameKey} {
+      allow get: if signedInWithGoogle();
+      allow list: if false;
+      allow create: if signedInWithGoogle()
+        && validNicknameReservationCreate(nicknameKey);
+      allow update: if false;
+      allow delete: if signedInWithGoogle()
+        && validNicknameReservationDelete(nicknameKey);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

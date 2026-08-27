@@ -4,7 +4,13 @@ local-mech-icons/
 .local-preview-server.pid
 .local-preview-*.log
 .claude/settings.local.json
-/admin/
+/node_modules/
+/.pnpm-store/
+/pnpm-lock.yaml
+/admin/*
+!/admin/README.md
+!/admin/firestore.rules
+!/admin/firestore-rules.test.mjs
 __pycache__/
 *.pyc
 .vs/

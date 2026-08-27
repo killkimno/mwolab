@@ -10,6 +10,14 @@
 - When the available data and a requested formula do not identify the required input unambiguously, report the missing evidence and ask for the authoritative field or formula instead of guessing.
 - Tests and documentation must preserve the same evidence-based rule and must not encode an inferred value as fact.
 
+## Unit Test Scope Rules
+
+- Run only the unit tests that cover behavior directly affected or reasonably capable of being affected by the current task. Include indirect dependencies and shared code in that impact assessment; do not select tests solely from the files edited or the task's nominal responsibility.
+- Use the repository's impact-specific test commands: formulas, quirks, generated data, community UI/config, SEO metadata, data extraction, icon extraction, or admin Firestore rules.
+- Run multiple impact-specific suites when the change affects or could affect multiple behavior areas.
+- Reserve `npm test` and `npm run test:all` for an explicit full-suite request, a broad cross-cutting change, or an authoritative project workflow that requires full validation.
+- Report exactly which scoped suites were run and the affected behavior each suite covers. Do not imply that unrun suites were validated.
+
 ## Where to Write a Rule
 
 - Record intended product purpose, supported capabilities, target users, and product scope in `프로젝트 사양서.md`.

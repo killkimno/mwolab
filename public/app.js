@@ -32,8 +32,12 @@ let mechFilterTrigger = null;
 let loadoutCodeTrigger = null;
 const LOCAL_BUILDS_STORAGE_KEY = "mwolab:local-builds:v1";
 const SHARED_LOADOUT_QUERY_PARAM = "loadout";
+const SHARED_PUBLIC_FITTING_QUERY_PARAM = "fitting";
 const MAIN_TAB_NAMES = new Set(["mechlab", "equipment-info", "info", "compare", "stats"]);
 const SINGLE_MECH_SELECTION_TABS = new Set(["mechlab", "info"]);
+let resolveCommunityBridgeReady;
+const communityBridgeReady = new Promise((resolve) => { resolveCommunityBridgeReady = resolve; });
+let communityLikeCapability = false;
 // Fixed MWO escalation curve. Weapon-specific heat, penalty, threshold, and group values come from equipment.json.
 const GHOST_HEAT_LEVEL_MULTIPLIERS = Object.freeze([0, 0, 8, 18, 30, 45, 60, 80, 110, 150, 200, 300, 500]);
 const GHOST_HEAT_GROUPS = Object.freeze([
@@ -140,6 +144,8 @@ const TEXT = {
     "community.publicInfo": "공개 핏팅 정보",
     "community.restore": "원상복귀",
     "community.like": "좋아요",
+    "community.unlike": "좋아요 취소",
+    "community.author": "작성자",
     "community.loginToLike": "로그인 후 좋아요를 사용할 수 있습니다.",
     "skills.open": "스킬 적용",
     "skills.title": "스킬 적용",
@@ -697,6 +703,8 @@ const TEXT = {
     "community.publicInfo": "Public fitting",
     "community.restore": "Restore original",
     "community.like": "Like",
+    "community.unlike": "Unlike",
+    "community.author": "Author",
     "community.loginToLike": "Sign in to like this fitting.",
     "skills.open": "Apply skills",
     "skills.title": "Apply skills",
@@ -1240,6 +1248,7 @@ function closeHelpDialog() {
 function mechNavigationUrl(mechId = "") {
   const url = new URL(window.location.href);
   url.searchParams.delete(SHARED_LOADOUT_QUERY_PARAM);
+  url.searchParams.delete(SHARED_PUBLIC_FITTING_QUERY_PARAM);
   url.searchParams.delete("tab");
   if (mechId) url.searchParams.set("mech", mechId);
   else url.searchParams.delete("mech");
@@ -1249,6 +1258,7 @@ function mechNavigationUrl(mechId = "") {
 function mainTabNavigationUrl(tabName, mechId = null) {
   const url = new URL(window.location.href);
   url.searchParams.delete(SHARED_LOADOUT_QUERY_PARAM);
+  url.searchParams.delete(SHARED_PUBLIC_FITTING_QUERY_PARAM);
   if (tabName === "mechlab") url.searchParams.delete("tab");
   else url.searchParams.set("tab", tabName);
   if (mechId !== null) {
@@ -1262,12 +1272,90 @@ function sharedLoadoutUrl(code) {
   const url = new URL(window.location.href);
   const language = url.searchParams.get("lang");
   const remainingParams = Array.from(url.searchParams.entries())
-    .filter(([name]) => !["lang", "tab", "mech", SHARED_LOADOUT_QUERY_PARAM].includes(name));
+    .filter(([name]) => !["lang", "tab", "mech", SHARED_LOADOUT_QUERY_PARAM, SHARED_PUBLIC_FITTING_QUERY_PARAM].includes(name));
   url.search = "";
   if (language) url.searchParams.set("lang", language);
   remainingParams.forEach(([name, value]) => url.searchParams.append(name, value));
   url.searchParams.set(SHARED_LOADOUT_QUERY_PARAM, String(code || ""));
   return url.href;
+}
+
+function publicFittingUrl(fittingId) {
+  const url = new URL(window.location.href);
+  const language = url.searchParams.get("lang");
+  url.search = "";
+  url.hash = "";
+  if (language) url.searchParams.set("lang", language);
+  url.searchParams.set(SHARED_PUBLIC_FITTING_QUERY_PARAM, String(fittingId || ""));
+  return url.href;
+}
+
+function updatePublicFittingNavigation(fittingId, mode = "push") {
+  const historyState = {
+    mwolab: true,
+    view: "mech",
+    mechId: String(state.selectedMech?.id || ""),
+    fittingTabId: state.activeMechlabTabId,
+    publicFittingId: String(fittingId || ""),
+  };
+  if (mode === "replace") window.history.replaceState(historyState, "", publicFittingUrl(fittingId));
+  else window.history.pushState(historyState, "", publicFittingUrl(fittingId));
+}
+
+function captureMechlabHistorySnapshot() {
+  const tab = activeMechlabTab();
+  if (!tab || !state.currentBuild || state.mechlabBrowseMode) return null;
+  return {
+    tabId: String(tab.id),
+    mechId: String(tab.mechId),
+    build: JSON.parse(JSON.stringify(state.currentBuild)),
+    communitySource: tab.communitySource
+      ? JSON.parse(JSON.stringify(tab.communitySource))
+      : null,
+  };
+}
+
+function preserveCurrentFittingHistoryEntry() {
+  const snapshot = captureMechlabHistorySnapshot();
+  if (!snapshot) return;
+  window.history.replaceState(
+    { ...(window.history.state || {}), mwolab: true, fittingTabId: snapshot.tabId, mechlabSnapshot: snapshot },
+    "",
+    window.location.href,
+  );
+}
+
+function restoreMechlabHistorySnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || !snapshot.build) return false;
+  const tab = state.mechlabTabs.find((entry) => String(entry.id) === String(snapshot.tabId || ""));
+  const mech = mechById(snapshot.mechId);
+  if (!tab || !mech) return false;
+  rememberActiveMechlabTabBuild();
+  state.activeMechlabTabId = tab.id;
+  clearEmptyMechlabTabSlotFocus();
+  applyMechlabHistorySnapshotToTab(tab, snapshot, communityLikeCapability);
+  applyActiveMechlabTabSelection();
+  state.mechlabBrowseMode = false;
+  state.mechlabBrowseIntent = "replace";
+  state.mechlabBrowseSelectionId = String(mech.id);
+  state.mechlabCompactListOpen = false;
+  resetSelectedEquipmentForMech();
+  renderAll();
+  return true;
+}
+
+function applyMechlabHistorySnapshotToTab(tab, snapshot, canLike = false) {
+  if (!tab || !snapshot || typeof snapshot !== "object" || !snapshot.build) return false;
+  tab.mechId = snapshot.mechId;
+  tab.build = JSON.parse(JSON.stringify(snapshot.build));
+  if (snapshot.communitySource && typeof snapshot.communitySource === "object") {
+    tab.communitySource = JSON.parse(JSON.stringify(snapshot.communitySource));
+    tab.communitySource.canLike = Boolean(canLike);
+    if (!canLike) tab.communitySource.liked = false;
+  } else {
+    delete tab.communitySource;
+  }
+  return true;
 }
 
 function updateMainTabNavigation(tabName, mode = "push", mechId = null) {
@@ -11813,12 +11901,14 @@ function renderCommunitySourcePanel() {
   const source = activeMechlabTab()?.communitySource;
   if (!source) return "";
   const canRestore = publicFittingHasChanges(source);
+  const likeAction = source.liked ? t("community.unlike") : t("community.like");
   return `
     <aside class="public-fitting-source" aria-label="${escapeHtml(t("community.publicInfo"))}">
       <span class="public-fitting-source-label">${t("community.publicInfo")}</span>
       <strong>${escapeHtml(source.name)}</strong>
+      <span class="public-fitting-source-author">${escapeHtml(t("community.author"))}: ${escapeHtml(source.authorName || "Pilot")}</span>
       <div class="public-fitting-source-actions">
-        <button type="button" data-community-source-like="${escapeHtml(source.id)}" class="${source.liked ? "liked" : ""}" ${source.canLike ? "" : "disabled"} aria-label="${escapeHtml(t("community.like"))}" title="${escapeHtml(source.canLike ? t("community.like") : t("community.loginToLike"))}">${communityLikeIconHtml()}</button>
+        <button type="button" data-community-source-like="${escapeHtml(source.id)}" class="${source.liked ? "liked" : ""}" ${source.canLike ? "" : "disabled"} aria-pressed="${source.liked ? "true" : "false"}" aria-label="${escapeHtml(likeAction)}" title="${escapeHtml(source.canLike ? likeAction : t("community.loginToLike"))}">${communityLikeIconHtml()}</button>
         <button type="button" data-community-restore ${canRestore ? "" : "disabled"}>${t("community.restore")}</button>
       </div>
     </aside>
@@ -12178,6 +12268,8 @@ function selectMech(id, { historyMode = "push", enterFitting = true, mechlabMode
 function applyMechNavigationFromLocation() {
   if (!mechNavigationReady) return;
   const params = new URL(window.location.href).searchParams;
+  if (params.has(SHARED_PUBLIC_FITTING_QUERY_PARAM)) return;
+  if (restoreMechlabHistorySnapshot(window.history.state?.mechlabSnapshot)) return;
   const sharedLoadoutCode = params.get(SHARED_LOADOUT_QUERY_PARAM);
   if (sharedLoadoutCode) {
     try {
@@ -12233,6 +12325,10 @@ function applyMechNavigationFromLocation() {
 function initializeMechNavigation() {
   mechNavigationReady = true;
   const params = new URL(window.location.href).searchParams;
+  if (params.has(SHARED_PUBLIC_FITTING_QUERY_PARAM)) {
+    renderAll();
+    return;
+  }
   const sharedLoadoutCode = params.get(SHARED_LOADOUT_QUERY_PARAM);
   let sharedLoadoutError = "";
   if (sharedLoadoutCode) {
@@ -12565,19 +12661,13 @@ function describeMwoCode(code) {
 }
 
 const communityFittingAnalysisCache = new Map();
-const COMMUNITY_HAG_WEAPON_NAMES = new Set([
-  "clanhyperassaultgaussrifle20",
-  "clanhyperassaultgaussrifle30",
-  "clanhyperassaultgaussrifle40",
+const COMMUNITY_SNIPER_WEAPON_IDS = new Set([
+  1005, 1006, 1021, 1079, 1208,
+  1213, 1217, 1255, 1256, 1257,
 ]);
 
 function communitySniperWeapon(item) {
-  const aliasKeys = new Set(String(item?.aliases || "")
-    .split(",")
-    .map(normalizeLookupKey)
-    .filter(Boolean));
-  return ["erppc", "erlaser", "gaussrifle"].some((key) => aliasKeys.has(key))
-    || COMMUNITY_HAG_WEAPON_NAMES.has(normalizeLookupKey(item?.name));
+  return COMMUNITY_SNIPER_WEAPON_IDS.has(number(item?.id));
 }
 
 function communityFittingTagMetrics(weapons, metrics = {}) {
@@ -12644,11 +12734,23 @@ function communityInstalledWeaponSummary(items) {
         name: item.display_name || item.name || key,
         count: 0,
         type,
+        unitTons: itemTons(item),
+        totalTons: 0,
       });
     }
-    weaponCounts.get(key).count += 1;
+    const weapon = weaponCounts.get(key);
+    weapon.count += 1;
+    weapon.totalTons = weapon.unitTons * weapon.count;
   });
   return { hardpoints, weapons: Array.from(weaponCounts.values()) };
+}
+
+function communityRepresentativeWeapons(weapons, limit = 4) {
+  return (weapons || [])
+    .map((weapon, index) => ({ weapon, index }))
+    .sort((left, right) => number(right.weapon?.totalTons) - number(left.weapon?.totalTons) || left.index - right.index)
+    .slice(0, Math.max(0, Math.floor(number(limit))))
+    .map(({ weapon }) => weapon);
 }
 
 function analyzeMwoCode(code) {
@@ -12709,6 +12811,7 @@ function analyzeMwoCode(code) {
       loadoutCode: code,
       hardpoints: weaponSummary.hardpoints,
       weapons: weaponSummary.weapons,
+      representativeWeapons: communityRepresentativeWeapons(weaponSummary.weapons),
       tags: communityFittingTags(tagMetrics),
       metrics: {
         dps: metrics.dps,
@@ -12830,18 +12933,22 @@ function communityFittingMechFilterOptions() {
 }
 
 function applyCommunityFitting(record, isPublic = false) {
-  importMwoCode(record.loadoutCode, { closeDialog: false });
+  if (isPublic && record.navigationMode !== "replace") preserveCurrentFittingHistoryEntry();
+  importMwoCode(record.loadoutCode, { closeDialog: false, updateNavigation: !isPublic });
   const tab = activeMechlabTab();
   if (tab && isPublic) {
     tab.communitySource = {
       id: record.id,
+      ownerUid: record.ownerUid,
       name: record.name,
+      authorName: record.authorName || "Pilot",
       loadoutCode: record.loadoutCode,
       baselineLoadoutCode: MWOCodec.encode(currentBuildAsMwoLoadout()),
       likeCount: Number(record.likeCount || 0),
       liked: Boolean(record.liked),
       canLike: Boolean(record.canLike),
     };
+    updatePublicFittingNavigation(record.id, record.navigationMode === "replace" ? "replace" : "push");
     renderAll();
   }
 }
@@ -12850,7 +12957,7 @@ function restoreCommunityFitting() {
   const source = activeMechlabTab()?.communitySource;
   if (!source?.loadoutCode) return false;
   const retainedSource = { ...source };
-  importMwoCode(source.loadoutCode, { closeDialog: false });
+  importMwoCode(source.loadoutCode, { closeDialog: false, updateNavigation: false });
   const tab = activeMechlabTab();
   if (!tab) return false;
   retainedSource.baselineLoadoutCode = MWOCodec.encode(currentBuildAsMwoLoadout());
@@ -12861,6 +12968,7 @@ function restoreCommunityFitting() {
 
 globalThis.MwoLabCommunityBridge = Object.freeze({
   language: activeLanguage,
+  ready: communityBridgeReady,
   getCurrentFitting() {
     const loadoutCode = MWOCodec.encode(currentBuildAsMwoLoadout());
     return { loadoutCode, ...describeMwoCode(loadoutCode) };
@@ -12886,10 +12994,17 @@ globalThis.MwoLabCommunityBridge = Object.freeze({
     Object.assign(source, { likeCount, liked, canLike });
     renderComponents();
   },
+  updatePublicFittingAuthor(ownerUid, authorName) {
+    state.mechlabTabs.forEach((tab) => {
+      if (tab.communitySource?.ownerUid === ownerUid) tab.communitySource.authorName = authorName || "Pilot";
+    });
+    renderComponents();
+  },
   setPublicLikeCapability(canLike) {
+    communityLikeCapability = Boolean(canLike);
     const source = activeMechlabTab()?.communitySource;
     if (!source) return;
-    source.canLike = Boolean(canLike);
+    source.canLike = communityLikeCapability;
     renderComponents();
   },
   getPublicFittingSource() {
@@ -16130,9 +16245,11 @@ async function init() {
     scheduleStatsSummaryWarmup();
     $("data-status").textContent = t("status.loadedData", { count: state.index.counts.mechs });
     initializeMechNavigation();
+    resolveCommunityBridgeReady(true);
   } catch (error) {
     $("data-status").textContent = error.message;
     console.error(error);
+    resolveCommunityBridgeReady(false);
   }
 }
 
@@ -16280,11 +16397,15 @@ if (globalThis.__MWOLAB_TEST__) {
     communityFittingTagMetrics,
     communityFittingTags,
     communityInstalledWeaponSummary,
+    communityRepresentativeWeapons,
     mechSpecialFeatures,
     mechMatchesQuirkFilters,
     normalizeMechHardpointFilterMinimum,
     calculateBuild,
     sharedLoadoutUrl,
+    publicFittingUrl,
+    restoreMechlabHistorySnapshot,
+    applyMechlabHistorySnapshotToTab,
   });
 } else {
   init();

@@ -60,8 +60,56 @@ test("홈페이지는 공개 개인정보처리방침을 연결하고 실제 Fir
   assert.match(privacy, /Firebase 사용자 식별자\(UID\)|Firebase user identifier \(UID\)/);
   assert.match(privacy, /killkimno@gmail\.com/);
   assert.match(privacy, /Cloudflare Web Analytics/);
-  assert.match(privacy, /로그인 버튼이나 공개 핏팅에 Google 표시 이름을 표시하지 않습니다/);
-  assert.match(privacy, /ownership UID/);
+  assert.match(privacy, /Google 표시 이름을 닉네임이나 공개 핏팅 작성자명으로 사용하지 않습니다/);
+  assert.match(privacy, /users\/\{uid\}[\s\S]*nicknames\/\{key\}[\s\S]*Pilot/);
+  assert.match(privacy, /ownership checks[\s\S]*nickname lookup/);
+});
+
+test("선택형 고유 닉네임은 UID 소유권과 분리해 예약하고 공개 핏팅 작성자로 표시한다", () => {
+  const html = read("public/index.html");
+  const app = read("public/app.js");
+  const client = read("public/firebase-community.js");
+  const rules = read("admin/firestore.rules");
+  const privacy = read("public/privacy.html");
+  const styles = read("public/styles.css");
+
+  assert.match(html, /id="community-account-menu"[\s\S]*id="community-set-nickname"[\s\S]*id="community-logout"/);
+  assert.match(html, /id="nickname-overlay"[\s\S]*id="nickname-form"[\s\S]*id="nickname-later-notice"[\s\S]*id="nickname-input"[\s\S]*maxlength="20"/);
+  assert.match(client, /const NICKNAME_MIN = 2;[\s\S]*const NICKNAME_MAX = 20;[\s\S]*const PILOT_NAME = "Pilot";[\s\S]*const PROFILE_CACHE_TTL_MS = 60_000/);
+  assert.match(client, /function nicknameParts\(value\)[\s\S]*\.trim\(\)[\s\S]*\.toLowerCase\(\)[\s\S]*\^\[A-Za-z0-9\]\+\$/);
+  assert.doesNotMatch(client, /A-Za-z0-9가-힣|nicknameCancel/);
+  assert.match(client, /nicknameKey !== "pilot"/);
+  assert.doesNotMatch(client, /currentUser\.displayName|user\.displayName/);
+  assert.match(client, /onAuthStateChanged\(auth, \(user\) => \{[\s\S]*initializeCurrentProfile\(user\)/);
+  assert.match(client, /nicknamePrompted: true[\s\S]*createdAt: firebaseApi\.serverTimestamp\(\)[\s\S]*updatedAt: firebaseApi\.serverTimestamp\(\)/);
+  assert.match(client, /runTransaction\(db, async \(transaction\) => \{[\s\S]*transaction\.get\(userRef\)[\s\S]*transaction\.get\(nicknameRef\)[\s\S]*transaction\.set\(nicknameRef[\s\S]*transaction\.set\(userRef/);
+  assert.match(client, /const profileCache = new Map\(\);[\s\S]*const profileDataCache = new Map\(\);[\s\S]*const profileRequests = new Map\(\)/);
+  assert.match(client, /function getProfileData\(uid\)[\s\S]*profileDataCache\.has[\s\S]*profileRequests\.has/);
+  assert.match(client, /cacheAge < PROFILE_CACHE_TTL_MS[\s\S]*profileDataCache\.delete\(normalizedUid\)/);
+  assert.match(client, /skipNicknamePrompt[\s\S]*if \(currentUser\?\.uid !== user\.uid\) return;[\s\S]*closeNicknameDialog\(\)/);
+  assert.match(client, /const buttonLabel = signedIn \? copy\.profile : copy\.login;[\s\S]*elements\.login\.textContent = buttonLabel/);
+  assert.match(client, /setNickname\.textContent = currentProfile\?\.nickname \? copy\.nicknameChangeTitle : copy\.nicknameTitle;[\s\S]*setNickname\.hidden = !signedIn/);
+  assert.match(client, /nicknameLaterNotice\.hidden = nicknamePromptMode !== "first"[\s\S]*nicknameLater\.hidden = nicknamePromptMode !== "first"/);
+  assert.match(client, /const changingNickname = nicknamePromptMode === "account"[\s\S]*nicknameInput\.value = changingNickname \? currentProfile\.nickname : ""/);
+  assert.match(client, /if \(!profile \|\| \(!currentProfile\?\.nickname && currentProfile\?\.nicknamePrompted !== true\)\) \{\s*openNicknameDialog\("first"\)/);
+  assert.match(client, /async function registerNickname[\s\S]*catch \(error\) \{\s*if \(currentUser\?\.uid !== user\.uid\) return;[\s\S]*nicknameAvailableKey = ""/);
+  assert.match(client, /previousNicknameRef[\s\S]*transaction\.get\(previousNicknameRef\)[\s\S]*transaction\.set\(nicknameRef[\s\S]*transaction\.delete\(previousNicknameRef\)[\s\S]*transaction\.set\(userRef/);
+  assert.match(client, /new Set\(remoteRecords\.map\(\(record\) => String\(record\.ownerUid/);
+  assert.match(client, /await hydrateRecordAuthors\(nextRecords\)/);
+  assert.match(client, /normalizeSnapshot\(snapshot, "shared"\)[\s\S]*await hydrateRecordAuthors\(\[record\]\)[\s\S]*bridge\.openPublicFitting/);
+  assert.match(client, /community-author[^\n]+record\.authorName \|\| PILOT_NAME/);
+  assert.match(app, /ownerUid: record\.ownerUid[\s\S]*authorName: record\.authorName \|\| "Pilot"/);
+  assert.match(app, /public-fitting-source-author[\s\S]*source\.authorName \|\| "Pilot"/);
+  assert.doesNotMatch(client, /transaction\.set\(fittingRef, \{[^}]*nickname/s);
+  assert.match(rules, /function validNickname\(nickname, nicknameKey\)[\s\S]*nickname\.matches\('\^\[A-Za-z0-9\]\{2,20\}\$'\)[\s\S]*nicknameKey == nickname\.lower\(\)[\s\S]*nicknameKey != 'pilot'/);
+  assert.match(rules, /match \/users\/\{uid\}[\s\S]*allow get: if true;[\s\S]*allow list: if false;/);
+  assert.match(rules, /match \/nicknames\/\{nicknameKey\}[\s\S]*validNicknameReservationCreate\(nicknameKey\)[\s\S]*allow update: if false;[\s\S]*validNicknameReservationDelete\(nicknameKey\)/);
+  assert.match(rules, /validNicknameProfileCreate\(\)[\s\S]*getAfter\(nicknamePath\(request\.resource\.data\.nicknameKey\)\)/);
+  assert.match(rules, /validNicknameProfileUpdate\(\)[\s\S]*request\.resource\.data\.nicknameKey != resource\.data\.nicknameKey[\s\S]*!existsAfter\(nicknamePath\(resource\.data\.nicknameKey\)\)/);
+  assert.match(rules, /function validNicknameReservationCreate\(nicknameKey\)[\s\S]*let profileBefore = get\(profilePath\)[\s\S]*let profileAfter = getAfter\(profilePath\)[\s\S]*!existsAfter\(oldNicknamePath\)/);
+  assert.match(rules, /function validNicknameReservationDelete\(nicknameKey\)[\s\S]*profileBefore\.data\.nicknameKey == nicknameKey[\s\S]*nextNicknameKey != nicknameKey[\s\S]*getAfter\(nextNicknamePath\)\.data\.ownerUid/);
+  assert.match(privacy, /닉네임은 핏팅 문서에 복제하지 않으며/);
+  assert.match(styles, /\.community-account-menu[\s\S]*\.nickname-overlay[\s\S]*\.nickname-dialog/);
 });
 
 test("통합 브라우저는 공개·로컬·내 업로드 탭과 설명 없는 v2 저장 스키마를 사용한다", () => {
@@ -79,6 +127,48 @@ test("통합 브라우저는 공개·로컬·내 업로드 탭과 설명 없는 
   assert.doesNotMatch(client, /publicFittings|fittingOwners/);
 });
 
+test("공개 핏팅 공유는 문서 ID를 단건 조회해 기존 공개 적용과 좋아요 경로를 재사용한다", () => {
+  const app = read("public/app.js");
+  const client = read("public/firebase-community.js");
+  const html = read("public/index.html");
+  const rules = read("admin/firestore.rules");
+  const styles = read("public/styles.css");
+
+  assert.match(client, /share: "URL로 공유하기"/);
+  assert.match(client, /share: "Share URL"/);
+  assert.match(client, /const canShare = activeBrowserTab !== "local"/);
+  assert.match(client, /data-community-share="\$\{escapeHtml\(record\.id\)\}"/);
+  assert.doesNotMatch(client, /navigator\.share/);
+  assert.match(html, /id="community-share-url-overlay"[\s\S]*id="community-share-url-text"[\s\S]*readonly[\s\S]*id="copy-community-share-url"/);
+  assert.match(client, /function shareFitting\(id, trigger[\s\S]*elements\.shareUrl\.value = sharedFittingUrl\(record\.id\)[\s\S]*elements\.shareUrl\.focus\(\)[\s\S]*elements\.shareUrl\.select\(\)/);
+  assert.match(client, /async function copyShareUrl\(\)[\s\S]*navigator\.clipboard\.writeText\(url\)[\s\S]*document\.execCommand\("copy"\)/);
+  assert.match(client, /value\.length >= 1[\s\S]*value\.length <= 128[\s\S]*!value\.includes\("\/"\)/);
+  assert.match(client, /function sharedFittingUrl\(fittingId\)[\s\S]*const languageParam[\s\S]*url\.search = ""[\s\S]*url\.searchParams\.set\("fitting", fittingId\)/);
+  assert.match(client, /function loadSharedFitting\(fittingId\)[\s\S]*Promise\.all\([\s\S]*firebaseReady[\s\S]*bridge\?\.ready/);
+  assert.match(client, /getDoc\(firebaseApi\.doc\(db, "fittings", fittingId\)\)/);
+  assert.match(client, /normalizeSnapshot\(snapshot, "shared"\)[\s\S]*bridge\.openPublicFitting/);
+  assert.match(client, /if \(currentUser\) await syncActiveSourceLikeState\(\)/);
+  assert.match(client, /if \(!shared\.present\) \{[\s\S]*syncActiveSourceLikeState\(\)/);
+  assert.doesNotMatch(
+    client.match(/async function loadSharedFitting\(fittingId\) \{[\s\S]*?\n\}/)?.[0] || "",
+    /getDocs|loadRemoteFittings|switchBrowserTab/,
+  );
+  assert.match(app, /const SHARED_PUBLIC_FITTING_QUERY_PARAM = "fitting"/);
+  assert.match(app, /if \(params\.has\(SHARED_PUBLIC_FITTING_QUERY_PARAM\)\) return/);
+  assert.match(app, /ready: communityBridgeReady/);
+  assert.match(app, /updatePublicFittingNavigation\(record\.id, record\.navigationMode === "replace" \? "replace" : "push"\)/);
+  assert.match(app, /if \(isPublic && record\.navigationMode !== "replace"\) preserveCurrentFittingHistoryEntry\(\)/);
+  assert.match(app, /mechlabSnapshot: snapshot/);
+  assert.match(app, /restoreMechlabHistorySnapshot\(window\.history\.state\?\.mechlabSnapshot\)/);
+  assert.match(app, /rememberActiveMechlabTabBuild\(\);[\s\S]*applyMechlabHistorySnapshotToTab\(tab, snapshot, communityLikeCapability\);[\s\S]*applyActiveMechlabTabSelection\(\)/);
+  assert.match(app, /importMwoCode\(source\.loadoutCode, \{ closeDialog: false, updateNavigation: false \}\)/);
+  assert.doesNotMatch(app, /public-fitting-source-like-count/);
+  assert.match(app, /data-community-source-like="\$\{escapeHtml\(source\.id\)\}"[\s\S]*class="\$\{source\.liked \? "liked" : ""\}"/);
+  assert.match(rules, /match \/fittings\/\{fittingId\} \{[\s\S]*allow get: if true;[\s\S]*allow list: if request\.query\.limit/);
+  assert.match(styles, /\.community-share-button/);
+  assert.match(styles, /\.community-share-url-overlay \{ z-index: 1750; \}/);
+});
+
 test("공개 핏팅은 사용자별 원자적 카운터로 100개를 제한하고 탭에는 수량을 표시하지 않는다", () => {
   const client = read("public/firebase-community.js");
   const rules = read("admin/firestore.rules");
@@ -91,10 +181,12 @@ test("공개 핏팅은 사용자별 원자적 카운터로 100개를 제한하�
   assert.doesNotMatch(client, /community-tab-count|mineUploadCount|refreshMineUploadCount/);
   assert.match(client, /runTransaction\(db, async \(transaction\) => \{[\s\S]*transaction\.get\(usageRef\)[\s\S]*count >= MAX_PUBLIC_FITTINGS[\s\S]*operation: "create"/);
   assert.match(client, /deleteRemoteFitting[\s\S]*transaction\.get\(usageRef\)[\s\S]*operation: "delete"/);
-  assert.match(rules, /function publisherUsagePath\(uid\)/);
-  assert.match(rules, /usage\.count <= 100/);
-  assert.match(rules, /validUsageCreateForFitting\(fittingId\)/);
-  assert.match(rules, /validUsageDeleteForFitting\(fittingId\)/);
+  assert.match(rules, /function usagePath\(uid\)/);
+  assert.match(rules, /getAfter\(usagePath\(request\.auth\.uid\)\)\.data\.count <= 100/);
+  assert.match(rules, /validUsageCreateAdvance\(fittingId\)/);
+  assert.match(rules, /validUsageDeleteAdvance\(fittingId\)/);
+  assert.match(rules, /allow create: if signedInWithGoogle\(\)[\s\S]*request\.resource\.data\.count == 1/);
+  assert.match(rules, /allow update: if signedInWithGoogle\(\)[\s\S]*request\.resource\.data\.operation == 'create'[\s\S]*request\.resource\.data\.operation == 'delete'/);
   assert.match(rules, /match \/publisherUsage\/\{uid\}/);
   assert.match(admin, /collection\("publisherUsage"\)[\s\S]*operation: "admin-delete"/);
   assert.match(admin, /publisher-usage-invalid/);
@@ -111,15 +203,26 @@ test("공개 핏팅은 사용자별 원자적 카운터로 100개를 제한하�
   assert.match(adminReadme, /관리자 서버[\s\S]*deploy-maintenance-rules[\s\S]*sync-usage[\s\S]*deploy-rules/);
 });
 
-test("핏팅 제목의 https를 차단하고 내 업로드에서는 좋아요 버튼을 숨기며 공용 메뉴형 정렬을 사용한다", () => {
+test("핏팅 제목은 영문·숫자·ASCII 특수문자만 허용하고 https를 차단한다", () => {
   const client = read("public/firebase-community.js");
   const rules = read("admin/firestore.rules");
   const styles = read("public/styles.css");
-  assert.match(client, /title\.toLocaleLowerCase\(\)\.includes\("https"\)/);
-  assert.match(client, /name\.toLocaleLowerCase\(\)\.includes\("https"\)/);
+  assert.match(client, /function fittingTitleParts\(value\)[\s\S]*validCharacters: \/\^\[\\x20-\\x7E\]\+\$\/[\s\S]*httpsBlocked: title\.toLocaleLowerCase\(\)\.includes\("https"\)/);
+  assert.match(client, /titleCharactersOnly: "영문, 숫자, 특수문자만 사용할 수 있습니다\."/);
+  assert.match(client, /titleCharactersOnly: "Use only English letters, numbers, and special characters\."/);
+  assert.match(client, /disabled = !title \|\| invalidCharacters \|\| httpsBlocked/);
   assert.match(client, /titleHttpsBlocked: "제목에 https를 사용할 수 없습니다\."/);
+  assert.match(rules, /request\.resource\.data\.name == request\.resource\.data\.name\.trim\(\)/);
+  assert.match(rules, /request\.resource\.data\.name\.matches\('\^\[ -~\]\{1,20\}\$'\)/);
   assert.match(rules, /!request\.resource\.data\.name\.matches\('\.\*\[hH\]\[tT\]\[tT\]\[pP\]\[sS\]\.\*'\)/);
-  assert.match(client, /<footer>\$\{activeBrowserTab === "public" \? `<button[^`]+data-community-like/);
+});
+
+test("상세 좋아요는 상태별 헤더 컨트롤과 공용 메뉴형 정렬을 사용한다", () => {
+  const client = read("public/firebase-community.js");
+  const styles = read("public/styles.css");
+  assert.match(client, /const detailLike = activeBrowserTab === "public"[\s\S]*data-community-like/);
+  assert.match(client, /activeBrowserTab === "mine"[\s\S]*community-detail-like-readonly/);
+  assert.doesNotMatch(client, /<footer>[^`]*data-community-like/);
   assert.match(client, /if \(selected && activeBrowserTab === "public" && currentUser\) ensureLikeState/);
   assert.match(client, /community-menu community-sort-menu[\s\S]*data-community-menu-trigger[\s\S]*data-community-sort="newest"[\s\S]*data-community-sort="likes"/);
   assert.doesNotMatch(client, /<select data-community-sort/);
@@ -139,21 +242,22 @@ test("자동 태그와 하드포인트 배지는 DB 필드가 아닌 현재 피�
   assert.match(app, /number\(metrics\?\.sniperAlpha\) >= 20[\s\S]*\/ alphaDamage >= 0\.4/);
   assert.match(app, /number\(metrics\?\.brawlerAlpha\) >= 30[\s\S]*\/ alphaDamage >= 0\.7/);
   assert.match(app, /ghostHeatForSimulationWeapons\(simulationWeapons\) > 0/);
-  assert.match(app, /\["erppc", "erlaser", "gaussrifle"\]/);
-  assert.match(app, /String\(item\?\.aliases \|\| ""\)[\s\S]*\.split\(","\)[\s\S]*\.map\(normalizeLookupKey\)/);
-  assert.match(app, /"clanhyperassaultgaussrifle20"[\s\S]*"clanhyperassaultgaussrifle30"[\s\S]*"clanhyperassaultgaussrifle40"/);
+  assert.match(app, /COMMUNITY_SNIPER_WEAPON_IDS = new Set\(\[[\s\S]*1005[\s\S]*1079[\s\S]*1257/);
+  assert.match(app, /COMMUNITY_SNIPER_WEAPON_IDS\.has\(number\(item\?\.id\)\)/);
+  assert.doesNotMatch(app, /function communitySniperWeapon\(item\) \{\s*[^}]*item\?\.(?:aliases|name|display_name)/);
   assert.match(app, /installedMechItems\("weapon"\)/);
   assert.match(app, /equipmentHardpointType\(item\)/);
   assert.match(client, /ghostHeat: "고스트 힛"[\s\S]*fullArmor: "풀아머"[\s\S]*glassArmor: "유리장갑"/);
   assert.doesNotMatch(client, /transaction\.set\(fittingRef, \{[^}]*tags/s);
 });
 
-test("공개 핏팅 클라이언트는 전체 또는 선택 멕 하나를 페이지당 10개씩 조회한다", () => {
+test("공개 핏팅 클라이언트는 100개를 미리 읽고 페이지당 25개씩 표시한다", () => {
   const client = read("public/firebase-community.js");
-  assert.match(client, /const LIST_LIMIT = 10;/);
+  assert.match(client, /const PAGE_SIZE = 25;[\s\S]*const FETCH_LIMIT = 100;[\s\S]*const PAGE_GROUP_SIZE = 5;/);
   assert.match(client, /if \(requestedMechFilterId\) constraints\.push\(firebaseApi\.where\("mechId", "==", requestedMechFilterId\)\)/);
   assert.match(client, /let requestLastDocument = reset \? null : lastDocument/);
-  assert.match(client, /constraints\.push\(firebaseApi\.limit\(LIST_LIMIT\)\)/);
+  assert.match(client, /constraints\.push\(firebaseApi\.limit\(FETCH_LIMIT \+ 1\)\)/);
+  assert.match(client, /const batchDocuments = snapshot\.docs\.slice\(0, FETCH_LIMIT\)[\s\S]*requestHasMore = snapshot\.size > FETCH_LIMIT/);
   assert.match(client, /selectedMechFilterId = trigger\?\.dataset\.communityMechFilter === "all"[\s\S]*bridge\.currentMechId/);
   assert.doesNotMatch(client, /requestPriority|requestGeneral|priorityLastDocument|generalLastDocument/);
   assert.match(client, /generation !== loadRequestGeneration/);
@@ -205,17 +309,18 @@ test("원격 핏팅 로드 실패와 로그인 요구 상태에서도 브라우�
   assert.doesNotMatch(client, /elements\.content\.innerHTML = `<div class="community-empty">\$\{escapeHtml\(message\)\}<\/div>`/);
 });
 
-test("핏팅 브라우저는 고정 크기·10개 페이지·단일 상세 스크롤과 여덟 개 상세 수치를 사용한다", () => {
+test("핏팅 브라우저는 확장 크기·25개 페이지·5개 번호 그룹과 단일 상세 스크롤을 사용한다", () => {
   const client = read("public/firebase-community.js");
   const styles = read("public/styles.css");
-  assert.match(styles, /\.community-dialog\.browser-mode \{[\s\S]*height: min\(54rem, calc\(100vh - 3rem\)\)/);
+  assert.match(styles, /\.community-dialog\.browser-mode \{[\s\S]*height: min\(64rem, calc\(100vh - 2rem\)\)/);
   assert.match(styles, /\.community-dialog\.browser-mode \.community-content \{ overflow: hidden; \}/);
   assert.match(styles, /\.community-browser \{[\s\S]*height: 100%;[\s\S]*min-height: 0/);
   assert.match(styles, /@media \(max-width: 900px\) \{[\s\S]*\.community-browser-body \{[\s\S]*grid-template-rows: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*\.community-detail-pane \{ min-height: 0; \}/);
-  assert.match(client, /visible\.slice\(\(currentPage - 1\) \* LIST_LIMIT, currentPage \* LIST_LIMIT\)/);
+  assert.match(client, /visible\.slice\(\(currentPage - 1\) \* PAGE_SIZE, currentPage \* PAGE_SIZE\)/);
   assert.match(client, /data-community-page/);
-  assert.match(client, /pageCount <= 7/);
-  assert.match(client, /community-page-ellipsis/);
+  assert.match(client, /const groupStart = Math\.floor\(\(currentPage - 1\) \/ PAGE_GROUP_SIZE\) \* PAGE_GROUP_SIZE \+ 1/);
+  assert.match(client, /const groupEnd = Math\.min\(pageCount, groupStart \+ PAGE_GROUP_SIZE - 1\)/);
+  assert.doesNotMatch(client, /community-page-ellipsis/);
   assert.match(client, /const rows = \[[\s\S]*copy\.stat\.armor[\s\S]*copy\.stat\.tons[\s\S]*copy\.stat\.engine[\s\S]*copy\.stat\.maxSpeed[\s\S]*copy\.stat\.dps[\s\S]*copy\.stat\.alphaDamage[\s\S]*copy\.stat\.heatEfficiency[\s\S]*copy\.stat\.heatSinks[\s\S]*\];/);
   assert.match(styles, /\.community-detail-pane \{ overflow: hidden; \}/);
   assert.match(styles, /\.community-detail-scroll \{[\s\S]*overflow: auto/);
@@ -233,7 +338,7 @@ test("설명 없는 v2 Firestore 생성 규칙과 기존 v1 읽기 호환을 유
   const rules = read("admin/firestore.rules");
   assert.match(client, /\[1, 2\]\.includes\(record\.schemaVersion\)/);
   assert.match(rules, /request\.resource\.data\.schemaVersion == 2/);
-  assert.match(rules, /request\.query\.limit <= 10/);
+  assert.match(rules, /request\.query\.limit <= 101/);
   assert.match(client, /const TITLE_LIMIT = 20;/);
   assert.match(rules, /request\.resource\.data\.name\.size\(\) <= 20/);
   assert.doesNotMatch(rules, /request\.resource\.data\.description/);
@@ -259,12 +364,12 @@ test("공개 핏팅 원상복귀는 불러온 코드를 다시 적용하고 목�
   const client = read("public/firebase-community.js");
   const styles = read("public/styles.css");
   assert.match(app, /tab\.communitySource = \{[\s\S]*loadoutCode: record\.loadoutCode/);
-  assert.match(app, /function restoreCommunityFitting\(\) \{[\s\S]*importMwoCode\(source\.loadoutCode, \{ closeDialog: false \}\)/);
+  assert.match(app, /function restoreCommunityFitting\(\) \{[\s\S]*importMwoCode\(source\.loadoutCode, \{ closeDialog: false, updateNavigation: false \}\)/);
   assert.match(client, /\[\["energy", "E"\], \["missile", "M"\], \["ballistic", "B"\], \["ams", "AMS"\]\]/);
   assert.match(client, /class="hardpoint-chip \$\{type\}"/);
   assert.match(client, /community-card-title"><em>\$\{escapeHtml\(analysis\?\.mechName[\s\S]*<strong>\$\{escapeHtml\(record\.name/);
   assert.match(client, /community-detail-title"><span>\$\{escapeHtml\(analysis\.mechName[\s\S]*<h3>\$\{escapeHtml\(record\.name/);
-  assert.match(client, /community-card-meta[\s\S]*community-card-hardpoints/);
+  assert.match(client, /community-card-thumbnail[\s\S]*community-card-weapons[\s\S]*community-card-meta[\s\S]*community-card-hardpoints/);
   assert.match(client, /function likeIconHtml\(\)[\s\S]*community-like-icon/);
   assert.doesNotMatch(client, /community-card-bottom/);
   assert.match(styles, /\.community-card-meta \{[\s\S]*justify-content: flex-start/);
@@ -273,11 +378,19 @@ test("공개 핏팅 원상복귀는 불러온 코드를 다시 적용하고 목�
   assert.match(styles, /\.community-like-icon \{[\s\S]*fill: currentColor/);
   assert.doesNotMatch(client, /[♡♥]/);
   assert.doesNotMatch(app, /[♡♥]/);
-  assert.doesNotMatch(styles, /\.community-card-like-count/);
+  assert.match(styles, /\.community-card-like-count \{[\s\S]*justify-content: center/);
+  assert.match(client, /community-card-like-count" aria-label="\$\{escapeHtml\(`\$\{copy\.like\}: \$\{likeCount\}`\)\}"/);
+  assert.match(client, /representativeWeaponsHtml\(analysis\?\.representativeWeapons\)/);
+  assert.match(client, /representativeWeaponsHtml\(weapons = \[\]\) \{[\s\S]*weapons\.slice\(0, 4\)/);
+  assert.doesNotMatch(client, /representativeWeapons: "대표무기"|representativeWeapons: "Representative weapons"|community-card-weapons-label/);
+  assert.doesNotMatch(client, /community-representative-more|more installed|추가 장착 무기|\[\+\]/i);
   assert.match(styles, /\.community-weapon-list li\.energy span \{ color: var\(--yellow\); \}/);
   assert.match(styles, /\.community-weapon-list li\.ams span \{ color: var\(--ams\); \}/);
-  assert.match(client, /data-community-like="\$\{escapeHtml\(record\.id\)\}"[\s\S]*aria-label="\$\{escapeHtml\(copy\.like\)\}"[\s\S]*>\$\{likeIconHtml\(\)\}<\/button>/);
-  assert.match(app, /data-community-source-like="\$\{escapeHtml\(source\.id\)\}"[\s\S]*aria-label="\$\{escapeHtml\(t\("community\.like"\)\)\}"[\s\S]*>\$\{communityLikeIconHtml\(\)\}<\/button>/);
+  assert.match(client, /data-community-like="\$\{escapeHtml\(record\.id\)\}"[\s\S]*aria-pressed="\$\{record\.liked \? "true" : "false"\}"[\s\S]*\$\{likeIconHtml\(\)\}<strong>\$\{likeCount\}<\/strong><\/button>/);
+  assert.doesNotMatch(client, /\$\{likeIconHtml\(\)\}<span>\$\{escapeHtml\(likeAction\)\}<\/span>/);
+  assert.match(styles, /\.community-detail-like \{[\s\S]*min-width: 5\.25rem;[\s\S]*min-height: 3rem;[\s\S]*padding: 0\.6rem 1rem/);
+  assert.match(app, /const likeAction = source\.liked \? t\("community\.unlike"\) : t\("community\.like"\)/);
+  assert.match(app, /data-community-source-like="\$\{escapeHtml\(source\.id\)\}"[\s\S]*aria-pressed="\$\{source\.liked \? "true" : "false"\}"[\s\S]*aria-label="\$\{escapeHtml\(likeAction\)\}"[\s\S]*>\$\{communityLikeIconHtml\(\)\}<\/button>/);
   assert.match(styles, /\.community-detail-like,[\s\S]*\.public-fitting-source-actions \[data-community-source-like\] \{[\s\S]*justify-content: center/);
   assert.match(app, /function publicFittingHasChanges\(source\) \{[\s\S]*currentCode !== \(source\.baselineLoadoutCode \|\| source\.loadoutCode\)/);
   assert.match(app, /baselineLoadoutCode: MWOCodec\.encode\(currentBuildAsMwoLoadout\(\)\)/);

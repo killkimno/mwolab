@@ -8,7 +8,7 @@
     <meta name="description" content="MWO MechLab and build planner for MechWarrior Online. Compare mechs, equipment, quirks, hardpoints, loadouts, damage, heat and mobility stats.">
     <meta name="robots" content="max-image-preview:none">
     <link rel="canonical" href="https://kmonkeyhead.github.io/mwolab/">
-  <link rel="stylesheet" href="styles.css?v=20260827-5">
+  <link rel="stylesheet" href="styles.css?v=20260827-12">
   </head>
   <body>
     <div id="app">
@@ -24,7 +24,12 @@
         <button class="tab-button" type="button" data-main-tab="compare" aria-controls="tab-compare" data-i18n="tabs.compare">비교하기</button>
         <button class="tab-button" type="button" data-main-tab="stats" aria-controls="tab-stats" data-i18n="tabs.stats">통계</button>
         <div class="topbar-account-actions">
-          <button id="community-login" class="community-login" type="button" aria-label="Google 로그인" aria-live="polite">Google 로그인</button>
+          <button id="community-login" class="community-login" type="button" aria-label="Google 로그인" aria-live="polite" aria-controls="community-account-menu" aria-expanded="false">Google 로그인</button>
+          <div id="community-account-menu" class="community-account-menu" role="menu" hidden>
+            <strong id="community-account-name">프로필</strong>
+            <button id="community-set-nickname" type="button" role="menuitem">닉네임 설정</button>
+            <button id="community-logout" type="button" role="menuitem">로그아웃</button>
+          </div>
           <a id="donate-link" class="donate-link" href="https://ko-fi.com/killkimno" target="_blank" rel="noopener noreferrer" aria-label="후원 방법 열기" data-i18n="donate.label" data-i18n-aria-label="donate.aria" aria-haspopup="dialog" aria-controls="donate-overlay">후원하기</a>
           <span id="community-auth-status" class="community-auth-status" role="status" hidden></span>
         </div>
@@ -636,6 +641,51 @@
       </section>
     </div>
 
+    <div id="nickname-overlay" class="nickname-overlay" hidden>
+      <section class="nickname-dialog" role="dialog" aria-modal="true" aria-labelledby="nickname-title">
+        <header>
+          <div>
+            <p class="community-dialog-eyebrow">PILOT PROFILE</p>
+            <h2 id="nickname-title">닉네임 설정</h2>
+          </div>
+          <button id="close-nickname" class="community-close" type="button" aria-label="닫기">×</button>
+        </header>
+        <form id="nickname-form" novalidate>
+          <p id="nickname-description">공개 핏팅에서 사용할 고유 닉네임을 설정할 수 있습니다.</p>
+          <p id="nickname-later-notice" hidden>지금 설정하지 않아도 나중에 프로필 메뉴에서 다시 설정할 수 있습니다.</p>
+          <label class="nickname-field" for="nickname-input">
+            <span>닉네임</span>
+            <input id="nickname-input" type="text" minlength="2" maxlength="20" autocomplete="off" spellcheck="false">
+          </label>
+          <div class="nickname-input-meta"><span id="nickname-check-status" role="status" aria-live="polite"></span><span id="nickname-count">0 / 20</span></div>
+          <p id="nickname-rules">2~20자의 영문과 숫자만 사용할 수 있습니다. Pilot은 사용할 수 없습니다.</p>
+          <footer>
+            <button id="nickname-later" type="button">나중에 설정</button>
+            <button id="nickname-submit" type="submit" disabled>설정하기</button>
+          </footer>
+        </form>
+      </section>
+    </div>
+
+    <div id="community-share-url-overlay" class="loadout-code-overlay community-share-url-overlay" hidden>
+      <section class="loadout-code-dialog community-share-url-dialog" role="dialog" aria-modal="true" aria-labelledby="community-share-url-title">
+        <header>
+          <div>
+            <h2 id="community-share-url-title">공유 URL</h2>
+          </div>
+          <button id="close-community-share-url" class="loadout-code-close" type="button" aria-label="닫기">×</button>
+        </header>
+        <label class="loadout-code-field" for="community-share-url-text">
+          <span id="community-share-url-label">공유 URL</span>
+          <textarea id="community-share-url-text" class="community-share-url-text" rows="3" spellcheck="false" autocomplete="off" readonly></textarea>
+        </label>
+        <p id="community-share-url-status" class="loadout-code-status" aria-live="polite"></p>
+        <div class="loadout-code-dialog-actions">
+          <button id="copy-community-share-url" type="button">URL 복사</button>
+        </div>
+      </section>
+    </div>
+
     <div id="weapon-detail-overlay" class="weapon-detail-overlay" hidden>
       <section class="weapon-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-detail-title">
         <header class="weapon-detail-header">
@@ -819,8 +869,8 @@
 
     <script src="mwo-codec.js"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-    <script src="app.js?v=20260827-5"></script>
-    <script type="module" src="firebase-community.js?v=20260827-5"></script>
+    <script src="app.js?v=20260827-12"></script>
+    <script type="module" src="firebase-community.js?v=20260827-12"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->

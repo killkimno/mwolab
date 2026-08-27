@@ -114,33 +114,40 @@ test("핏팅 브라우저 방어·사거리·전투 성향 태그는 확정된 �
   })), ["highPower", "longRange"]);
 });
 
-test("스나이퍼 태그는 ER PPC·ER Laser·Gauss Rifle 계열 별칭만 허용한다", () => {
-  ["ERPPC", "ERLaser", "GaussRifle"].forEach((alias) => {
-    assert.equal(api.communitySniperWeapon({ aliases: alias }), true, alias);
-  });
-  ["PPC", "Laser", "ISGaussRifle", "LightGauss", "HAG"].forEach((alias) => {
-    assert.equal(api.communitySniperWeapon({ aliases: alias }), false, alias);
-  });
-  assert.equal(api.communitySniperWeapon({ name: "ERPPC" }), false);
-  assert.equal(api.communitySniperWeapon({ display_name: "ER LASER" }), false);
-  assert.equal(api.communitySniperWeapon({ name: "GaussRifle" }), false);
-});
-
-test("스나이퍼 태그는 추출된 실제 HAG 20·30·40 내부 이름을 포함한다", () => {
+test("스나이퍼 태그는 사용자가 검증한 정확한 무장 ID만 허용한다", () => {
   const equipment = JSON.parse(fs.readFileSync(
     path.join(__dirname, "..", "public", "data", "equipment.json"),
     "utf8",
   ));
-  [1255, 1256, 1257].forEach((itemId) => {
-    const item = equipment.items[String(itemId)];
-    assert.ok(item, `missing extracted HAG ${itemId}`);
-    assert.equal(api.communitySniperWeapon(item), true, item.name);
+  const expectedWeapons = new Map([
+    [1005, "ERLargeLaser"],
+    [1006, "ERPPC"],
+    [1021, "GaussRifle"],
+    [1079, "SilverBulletGaussRifle"],
+    [1208, "ClanGaussRifle"],
+    [1213, "ClanERLargeLaser"],
+    [1217, "ClanERPPC"],
+    [1255, "ClanHyperAssaultGaussRifle20"],
+    [1256, "ClanHyperAssaultGaussRifle30"],
+    [1257, "ClanHyperAssaultGaussRifle40"],
+  ]);
+  expectedWeapons.forEach((expectedName, id) => {
+    const item = equipment.items[String(id)];
+    assert.equal(item?.name, expectedName, id);
+    assert.equal(api.communitySniperWeapon(item), true, id);
   });
+  [1045, 1046, 1211, 1212, 1244, 1263].forEach((id) => {
+    assert.equal(api.communitySniperWeapon(equipment.items[String(id)]), false, id);
+  });
+  assert.equal(api.communitySniperWeapon({ id: 1005.5 }), false);
+  assert.equal(api.communitySniperWeapon({ aliases: "ERPPC,ERLaser,GaussRifle" }), false);
+  assert.equal(api.communitySniperWeapon({ name: "ClanHyperAssaultGaussRifle20" }), false);
 });
 
 test("핏팅 브라우저 태그 지표는 기존 사거리 타입과 무기 DPS·알파값을 합산한다", () => {
   const shortErLaser = {
     item: {
+      id: 1045,
       aliases: "Energy,ERLaser",
       ranges: [
         { start: 0, damageModifier: 1 },
@@ -153,6 +160,7 @@ test("핏팅 브라우저 태그 지표는 기존 사거리 타입과 무기 DPS
   };
   const longHag = {
     item: {
+      id: 1255,
       name: "ClanHyperAssaultGaussRifle20",
       aliases: "Ballistic,LargeWeapon,ClanGaussRifle",
       ranges: [
@@ -166,7 +174,7 @@ test("핏팅 브라우저 태그 지표는 기존 사거리 타입과 무기 DPS
   };
   const metrics = api.communityFittingTagMetrics([shortErLaser, longHag], { dps: 11, alphaDamage: 32 });
   assert.deepEqual({ ...metrics.rangeDps }, { short: 6, medium: 0, long: 5 });
-  assert.equal(metrics.sniperAlpha, 32);
+  assert.equal(metrics.sniperAlpha, 20);
   assert.equal(metrics.brawlerAlpha, 12);
 });
 
@@ -185,6 +193,38 @@ test("핏팅 브라우저 하드포인트 배지는 실제 장착 무기 타입�
     { id: "3", count: 1 },
     { id: "4", count: 1 },
   ]);
+});
+
+test("핏팅 브라우저 대표 무장은 장비별 총 톤수 순으로 최대 4종을 고른다", () => {
+  const summary = api.communityInstalledWeaponSummary([
+    ...Array.from({ length: 5 }, () => ({ id: 1, display_name: "Medium Laser", hardpoint_type: "energy", stats: { tons: 1 } })),
+    ...Array.from({ length: 12 }, () => ({ id: 2, display_name: "Small Laser", hardpoint_type: "energy", stats: { tons: 0.5 } })),
+    { id: 3, display_name: "AC/20", hardpoint_type: "ballistic", stats: { tons: 14 } },
+    { id: 4, display_name: "AMS", hardpoint_type: "ams", stats: { tons: 0.5 } },
+  ]);
+  assert.deepEqual(Array.from(summary.weapons, ({ name, count, totalTons }) => ({ name, count, totalTons })), [
+    { name: "Medium Laser", count: 5, totalTons: 5 },
+    { name: "Small Laser", count: 12, totalTons: 6 },
+    { name: "AC/20", count: 1, totalTons: 14 },
+    { name: "AMS", count: 1, totalTons: 0.5 },
+  ]);
+  assert.deepEqual(
+    api.communityRepresentativeWeapons(summary.weapons).map((weapon) => weapon.name),
+    ["AC/20", "Small Laser", "Medium Laser", "AMS"],
+  );
+
+  const fallbackAndTie = api.communityInstalledWeaponSummary([
+    { id: 10, display_name: "First Equal", hardpoint_type: "energy", stats: { weight: 2 } },
+    { id: 11, display_name: "Second Equal", hardpoint_type: "missile", stats: { weight: 1 } },
+    { id: 11, display_name: "Second Equal", hardpoint_type: "missile", stats: { weight: 1 } },
+  ]);
+  assert.deepEqual(
+    api.communityRepresentativeWeapons(fallbackAndTie.weapons).map(({ name, totalTons }) => ({ name, totalTons })),
+    [
+      { name: "First Equal", totalTons: 2 },
+      { name: "Second Equal", totalTons: 2 },
+    ],
+  );
 });
 
 test("기본 하드포인트 필터는 각 타입의 전체 최솟값을 1로 유지한다", () => {
@@ -357,6 +397,34 @@ test("shared loadout URL preserves the exact MWO code", () => {
   assert.equal(sharedUrl.searchParams.has("tab"), false);
   assert.equal(sharedUrl.searchParams.has("mech"), false);
   assert.ok(sharedUrl.search.startsWith("?lang=en&loadout="));
+});
+
+test("공개 핏팅 공유 URL은 언어와 문서 ID만 유지한다", () => {
+  const sharedUrl = new URL(api.publicFittingUrl("55gilU1WqsTZVVsouu6E"));
+
+  assert.equal(sharedUrl.origin, "http://localhost");
+  assert.equal(sharedUrl.searchParams.get("lang"), "en");
+  assert.equal(sharedUrl.searchParams.get("fitting"), "55gilU1WqsTZVVsouu6E");
+  assert.equal(Array.from(sharedUrl.searchParams.keys()).join(","), "lang,fitting");
+  assert.equal(sharedUrl.hash, "");
+});
+
+test("공개 핏팅 원상복귀와 이전 History 복원 경로는 공유 상태를 보존한다", () => {
+  const appSource = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
+  assert.match(appSource, /if \(isPublic && record\.navigationMode !== "replace"\) preserveCurrentFittingHistoryEntry\(\)/);
+  assert.match(appSource, /mechlabSnapshot: snapshot/);
+  assert.match(appSource, /restoreMechlabHistorySnapshot\(window\.history\.state\?\.mechlabSnapshot\)/);
+  assert.match(appSource, /importMwoCode\(source\.loadoutCode, \{ closeDialog: false, updateNavigation: false \}\)/);
+
+  const tab = { id: "fitting-1", mechId: 1, build: { marker: "public" }, communitySource: { id: "public-b", liked: true, canLike: true } };
+  const snapshot = { tabId: "fitting-1", mechId: 1, build: { marker: "previous" }, communitySource: { id: "public-a", liked: true, canLike: true } };
+  assert.equal(api.applyMechlabHistorySnapshotToTab(tab, snapshot, false), true);
+  assert.equal(tab.build.marker, "previous");
+  assert.equal(tab.communitySource.id, "public-a");
+  assert.equal(tab.communitySource.canLike, false);
+  assert.equal(tab.communitySource.liked, false);
+  snapshot.build.marker = "changed-after-restore";
+  assert.equal(tab.build.marker, "previous");
 });
 
 test("멕랩 핏팅 탭은 중복 멕의 독립 빌드를 생성하고 활성 탭만 교체한다", () => {
