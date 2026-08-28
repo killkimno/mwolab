@@ -21,9 +21,12 @@ test("로그인과 통합 핏팅 브라우저를 운영 페이지에 표시한�
 
 test("Firebase 공개 설정에는 서버 비밀키를 포함하지 않는다", () => {
   const client = read("public/firebase-community.js");
-  assert.match(client, /projectId:\s*"mwolab-2e145"/);
+  const config = read("public/firebase-public-config.js");
+  assert.match(client, /import \{ FIREBASE_VERSION, firebaseConfig \} from "\.\/firebase-public-config\.js"/);
+  assert.match(config, /projectId:\s*"mwolab-2e145"/);
+  assert.match(config, /export const firebaseConfig = Object\.freeze/);
   assert.match(client, /GOOGLE_IDENTITY_CLIENT_ID\s*=\s*"743748401179-[^"]+\.apps\.googleusercontent\.com"/);
-  assert.doesNotMatch(client, /clientSecret|privateKey|serviceAccount/i);
+  assert.doesNotMatch(`${client}\n${config}`, /clientSecret|privateKey|serviceAccount/i);
   assert.match(client, /logout: "로그아웃"/);
   assert.match(client, /logout: "Sign out"/);
   assert.doesNotMatch(client, /currentUser\.displayName/);

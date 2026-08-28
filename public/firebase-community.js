@@ -1,4 +1,5 @@
-const FIREBASE_VERSION = "12.17.1";
+import { FIREBASE_VERSION, firebaseConfig } from "./firebase-public-config.js";
+
 const PAGE_SIZE = 25;
 const FETCH_LIMIT = 100;
 const PAGE_GROUP_SIZE = 5;
@@ -9,15 +10,6 @@ const NICKNAME_MAX = 20;
 const PILOT_NAME = "Pilot";
 const PROFILE_CACHE_TTL_MS = 60_000;
 const GOOGLE_IDENTITY_CLIENT_ID = "743748401179-u7uf1svvj8cbs64987om4969jq6eu0jo.apps.googleusercontent.com";
-const firebaseConfig = Object.freeze({
-  apiKey: "AIzaSyAVs8fDgmsjhfh1KdHMRu_liF20dlcfGns",
-  authDomain: "mwolab-2e145.firebaseapp.com",
-  projectId: "mwolab-2e145",
-  storageBucket: "mwolab-2e145.firebasestorage.app",
-  messagingSenderId: "743748401179",
-  appId: "1:743748401179:web:923e7edd0c705189e420be",
-});
-
 const bridge = globalThis.MwoLabCommunityBridge;
 const language = bridge?.language === "en" ? "en" : "kr";
 const COPY = {

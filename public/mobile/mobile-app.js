@@ -47,7 +47,6 @@
       free: "남음",
       import: "IMPORT",
       export: "EXPORT",
-      publicFittingUnsupported: "공개 핏팅은 PC 버전에서만 지원합니다.",
     },
     en: {
       menu: "Menu",
@@ -76,7 +75,6 @@
       free: "Free",
       import: "IMPORT",
       export: "EXPORT",
-      publicFittingUnsupported: "Public fittings are supported on the PC version only.",
     },
   };
   const language = bridge.language() === "en" ? "en" : "kr";
@@ -94,7 +92,7 @@
   let activePickerComponent = "";
   let activePickerCategory = "weapons";
   let lastPickerCategory = "weapons";
-  let expandedMechCategory = "";
+  const expandedMechCategories = new Set();
   let detached = null;
   let suppressCanvasClickUntil = 0;
   let pendingRemovalTap = null;
@@ -193,8 +191,10 @@
   const mechListBody = mechListOverlay.querySelector(".mobile-overlay-body");
   const mechListControls = element("div", "mobile-mech-list-controls");
   const mechSearch = element("input", "mobile-mech-search", { type: "search", placeholder: t("search"), "aria-label": t("search") });
+  const sharedFittingStatus = element("p", "mobile-shared-fitting-status", { role: "status" });
+  sharedFittingStatus.hidden = true;
   const mechList = element("div", "mobile-mech-list");
-  mechListControls.appendChild(mechSearch);
+  mechListControls.append(mechSearch, sharedFittingStatus);
   mechListBody.append(mechListControls, mechList);
 
   const toolsCloseX = document.getElementById("close-build-actions-x");
@@ -320,7 +320,7 @@
             <section class="mobile-mech-faction-group">
               <h4 class="mobile-mech-faction-title" data-faction="${escapeHtml(faction.key)}">${escapeHtml(faction.label)}</h4>
               ${[...faction.categories.entries()].map(([chassis, entries]) => {
-                const expanded = Boolean(query) || expandedMechCategory === chassis;
+                const expanded = Boolean(query) || expandedMechCategories.has(chassis);
                 const representative = entries[0];
                 return `
                   <div class="mobile-mech-category${expanded ? " expanded" : ""}">
@@ -330,8 +330,8 @@
                     </button>
                     ${expanded ? `<div class="mobile-mech-category-items">${entries.map((mech) => `
                       <button class="mobile-mech-row" type="button" data-mobile-mech="${escapeHtml(mech.id)}">
-                        <span><strong>${escapeHtml(mech.name)}</strong><small>${escapeHtml(mech.faction)}${mech.omnimech ? " · OMNI" : ""}</small></span>
-                        <span class="mobile-hardpoints">${hardpointTags(mech.hardpoints)}</span>
+                        <span class="mech-title-main">${mech.omnipodIcon || ""}<strong>${escapeHtml(mech.name)}</strong></span>
+                        <span class="badge-line mech-slot-tags">${mech.slotBadges || ""}</span>
                       </button>
                     `).join("")}</div>` : ""}
                   </div>
@@ -621,7 +621,8 @@
     const mechCategory = event.target.closest("[data-mobile-mech-category]");
     if (mechCategory) {
       const category = mechCategory.dataset.mobileMechCategory;
-      expandedMechCategory = expandedMechCategory === category ? "" : category;
+      if (expandedMechCategories.has(category)) expandedMechCategories.delete(category);
+      else expandedMechCategories.add(category);
       renderMechList();
       requestAnimationFrame(() => {
         [...mechList.querySelectorAll("[data-mobile-mech-category]")]
@@ -751,6 +752,18 @@
 
   components?.addEventListener("dragstart", (event) => event.preventDefault(), true);
   window.addEventListener("resize", () => resetCanvasForSelectedMech(true), { passive: true });
+  window.addEventListener("mwolab:mobile-shared-fitting-status", (event) => {
+    const message = String(event.detail?.message || "");
+    sharedFittingStatus.textContent = message;
+    sharedFittingStatus.hidden = !message;
+    sharedFittingStatus.classList.toggle("error", event.detail?.tone === "error");
+    if (message) showOverlay(mechListOverlay);
+  });
+  window.addEventListener("mwolab:mobile-shared-fitting-loaded", () => {
+    closeOverlay(mechListOverlay);
+    resetCanvasForSelectedMech(true);
+    renderFittingStatus();
+  });
 
   const observer = new MutationObserver(() => {
     setupCanvasGestures();
@@ -768,10 +781,6 @@
     if (!bridge.ready()) return setTimeout(waitForData, 60);
     bridge.prepareMechList();
     setupCanvasGestures();
-    if (new URL(window.location.href).searchParams.has("fitting")) {
-      const status = document.getElementById("data-status");
-      if (status) status.textContent = t("publicFittingUnsupported");
-    }
     if (bridge.selectedMech()) resetCanvasForSelectedMech(true);
     else showMechList();
     renderFittingStatus();

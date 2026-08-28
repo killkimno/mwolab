@@ -482,6 +482,23 @@ html.mobile-app body {
   color: #e3edef;
 }
 
+.mobile-shared-fitting-status {
+  margin: 0.55rem 0 0;
+  border: 1px solid #4b8795;
+  border-radius: 4px;
+  padding: 0.6rem 0.7rem;
+  background: #10272d;
+  color: #b9e9ff;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.mobile-shared-fitting-status.error {
+  border-color: #b64c4c;
+  background: #35191b;
+  color: #ff9b9b;
+}
+
 .mobile-mech-list {
   display: grid;
   gap: 0.35rem;
@@ -590,12 +607,6 @@ html.mobile-app body {
   text-align: left;
   align-items: center;
   gap: 0.45rem;
-}
-
-.mobile-mech-row small {
-  display: block;
-  margin-top: 0.15rem;
-  color: #7f969c;
 }
 
 .mobile-hardpoints {

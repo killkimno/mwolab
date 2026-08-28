@@ -12381,7 +12381,7 @@ function applyMechNavigationFromLocation() {
 function initializeMechNavigation() {
   mechNavigationReady = true;
   const params = new URL(window.location.href).searchParams;
-  if (params.has(SHARED_PUBLIC_FITTING_QUERY_PARAM) && !globalThis.__MWOLAB_MOBILE__) {
+  if (params.has(SHARED_PUBLIC_FITTING_QUERY_PARAM)) {
     renderAll();
     return;
   }
@@ -16339,8 +16339,6 @@ async function init() {
 
 function mobileMechListData() {
   return (state.mechs || []).map((mech) => {
-    const stockBuild = buildFromLoadout(mech);
-    const counts = hardpointCountsFromDefinition(effectiveDefinition(mech, stockBuild));
     return {
       id: String(mech.id),
       name: mech.display_name || variantCode(mech),
@@ -16352,8 +16350,8 @@ function mobileMechListData() {
       weightClass: WEIGHT_CLASS_LABELS[mech.weight_class] || mech.weight_class || "",
       weightClassKey: String(mech.weight_class || ""),
       tons: number(mech.definition?.stats?.MaxTons),
-      hardpoints: Object.fromEntries(HARDPOINT_ORDER.map((type) => [type, number(counts[type])])),
-      omnimech: hasFixedOmnipods(mech),
+      omnipodIcon: omnipodIcon(mech),
+      slotBadges: mechSlotBadges(mech),
     };
   });
 }
@@ -16538,6 +16536,11 @@ globalThis.MwoLabMobileBridge = Object.freeze({
   },
   openTools: openBuildActionsDialog,
   openLoadout: openLoadoutCodeDialog,
+  openSharedFittingCode(code) {
+    importMwoCode(code, { closeDialog: false, updateNavigation: false });
+    replaceSharedLoadoutNavigation(code);
+    return true;
+  },
 });
 
 if (globalThis.__MWOLAB_TEST__) {

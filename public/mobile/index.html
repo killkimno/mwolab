@@ -30,7 +30,7 @@
           );
           html = html.replace(
             "</head>",
-            '<link rel="stylesheet" href="mobile/mobile.css?v=20260829-13"></head>',
+            '<link rel="stylesheet" href="mobile/mobile.css?v=20260829-14"></head>',
           );
           html = html.replace(
             '<meta name="robots" content="max-image-preview:none">',
@@ -42,7 +42,7 @@
           );
           html = html.replace(
             "</body>",
-            '<script src="mobile/mobile-app.js?v=20260829-21"><\/script></body>',
+            '<script src="mobile/mobile-app.js?v=20260829-26"><\/script><script type="module" src="mobile/mobile-shared-fitting.js?v=20260829-2"><\/script></body>',
           );
           document.open();
           document.write(html);
