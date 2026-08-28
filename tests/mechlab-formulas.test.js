@@ -12,6 +12,8 @@ function loadMechLab({
   storageWriteError = false,
   storageWrites = [],
   elements = {},
+  mobile = false,
+  windowHref = "http://localhost/?lang=en",
 } = {}) {
   const quirkSource = fs.readFileSync(
     path.join(__dirname, "..", "public", "quirk-calculations.js"),
@@ -20,6 +22,7 @@ function loadMechLab({
   const source = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
   const sandbox = {
     __MWOLAB_TEST__: true,
+    __MWOLAB_MOBILE__: mobile,
     console,
     URL,
     URLSearchParams,
@@ -51,7 +54,7 @@ function loadMechLab({
       },
       removeItem: () => {},
     },
-    location: { protocol: "http:" },
+    location: { protocol: new URL(windowHref).protocol },
     fetch: async () => { throw new Error("fetch must not run in unit tests"); },
     document: {
       getElementById: (id) => elements[id] || null,
@@ -63,7 +66,7 @@ function loadMechLab({
     },
   };
   sandbox.window = {
-    location: { href: "http://localhost/?lang=en", search: "?lang=en" },
+    location: { href: windowHref, search: new URL(windowHref).search },
     history: { pushState: () => {}, replaceState: () => {} },
     addEventListener: () => {},
     innerWidth: 1280,
@@ -79,6 +82,19 @@ function loadMechLab({
 }
 
 const api = loadMechLab();
+
+test("모바일 아머 입력은 쿼크 최종값 대신 실제 할당 포인트를 표시한다", () => {
+  const mobileApi = loadMechLab({ mobile: true });
+  const desktopHtml = api.renderArmorStepper("left_arm", "front", 10, 20, 0, false, 3, 20, 0, 0, 0, true);
+  const mobileHtml = mobileApi.renderArmorStepper("left_arm", "front", 10, 20, 0, false, 3, 20, 0, 0, 0, true);
+
+  assert.match(desktopHtml, /value="13"/);
+  assert.match(desktopHtml, /data-armor-quirk="3"/);
+  assert.match(mobileHtml, /value="10"/);
+  assert.match(mobileHtml, /max="20"/);
+  assert.match(mobileHtml, /data-armor-quirk="0"/);
+  assert.match(mobileHtml, /data-armor-include-skill="false"/);
+});
 
 test("핏팅 브라우저 자동 태그는 지정된 DPS와 열효율 경계에서만 생성한다", () => {
   assert.deepEqual(Array.from(api.communityFittingTags({ dps: 19.999, heatEfficiency: 79.999 })), []);
@@ -397,6 +413,15 @@ test("shared loadout URL preserves the exact MWO code", () => {
   assert.equal(sharedUrl.searchParams.has("tab"), false);
   assert.equal(sharedUrl.searchParams.has("mech"), false);
   assert.ok(sharedUrl.search.startsWith("?lang=en&loadout="));
+
+  const mobileApi = loadMechLab({
+    mobile: true,
+    windowHref: "https://kmonkeyhead.github.io/mwolab/mobile/?lang=kr&mech=713",
+  });
+  const mobileSharedUrl = new URL(mobileApi.sharedLoadoutUrl(code));
+  assert.equal(mobileSharedUrl.pathname, "/mwolab/");
+  assert.equal(mobileSharedUrl.searchParams.get("lang"), "kr");
+  assert.equal(mobileSharedUrl.searchParams.get("loadout"), code);
 });
 
 test("공개 핏팅 공유 URL은 언어와 문서 ID만 유지한다", () => {
@@ -885,6 +910,7 @@ test("기본 숫자와 장비 공식", async (t) => {
       assert.match(standardHtml, /data-engine-heat-sink-item/);
       assert.match(standardHtml, /data-engine-heat-sink-drop/);
       assert.match(standardHtml, /empty-engine-heat-sink/);
+      assert.doesNotMatch(standardHtml, /data-mobile-engine-heat-sink-delta/);
     } finally {
       Object.assign(api.state, previous);
       api.state.fixedOmniEngineCache.clear();
@@ -3024,6 +3050,137 @@ test("빌드 집계 공식은 개별 공식과 같은 최종값을 만든다", (
   assert.equal(result.totalHeatSinkCount, 10);
   assert.equal(result.currentSlotUsage, 7);
   assert.equal(result.warnings.some((warning) => warning.includes("Tonnage")), false);
+});
+
+test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호된 편집 경로를 재사용한다", () => {
+  const componentNames = [
+    "head",
+    "centre_torso",
+    "left_torso",
+    "right_torso",
+    "left_arm",
+    "right_arm",
+    "left_leg",
+    "right_leg",
+  ];
+  const engine = {
+    id: 500,
+    item_type: "engine",
+    name: "StandardEngine_200",
+    display_name: "STD ENGINE 200",
+    faction: "InnerSphere",
+    stats: { tons: 5, slots: 6, rating: 200, heatsinks: 12, sideSlots: 0 },
+  };
+  const smallLaser = weapon({ id: 501, name: "SmallLaser", stats: { slots: 1, tons: 1 } });
+  const largeLaser = weapon({ id: 502, name: "LargeLaser", stats: { slots: 3, tons: 5 } });
+  const missile = weapon({ id: 503, name: "TestMissile", hardpoint_type: "missile", stats: { slots: 1, tons: 1 } });
+  const heatSink = {
+    id: 504,
+    item_type: "module",
+    ctype: "CHeatSinkStats",
+    name: "DoubleHeatSink",
+    display_name: "DOUBLE HEAT SINK",
+    faction: "InnerSphere",
+    stats: { slots: 1, tons: 1 },
+  };
+  const heatSinkUpgrade = {
+    id: 505,
+    item_type: "upgrade",
+    name: "DoubleHeatSinkUpgrade",
+    display_name: "DOUBLE HEAT SINKS",
+    faction: "InnerSphere",
+    stats: { compatibleHeatSink: heatSink.id },
+  };
+  const incompatibleHeatSink = {
+    ...heatSink,
+    id: 506,
+    name: "SingleHeatSink",
+    display_name: "SINGLE HEAT SINK",
+  };
+  const components = Object.fromEntries(componentNames.map((name) => [name, {
+    hp: name === "head" ? 15 : 20,
+    slots: name === "left_arm" ? 2 : 12,
+    hardpoints: name === "left_arm"
+      ? [
+        { hardpoint_type: "energy", weapon_slots: 1 },
+        { hardpoint_type: "missile", weapon_slots: 1 },
+      ]
+      : [],
+    internals: [],
+    fixed: [],
+  }]));
+  const mech = {
+    id: "mobile-fixture",
+    chassis: "MobileFixture",
+    faction: "InnerSphere",
+    definition: {
+      stats: { MaxTons: 50, MinEngineRating: 100, MaxEngineRating: 300, MaxJumpJets: 0 },
+      components,
+      quirks: [],
+    },
+  };
+  api.state.equipment = {
+    items: { 500: engine, 501: smallLaser, 502: largeLaser, 503: missile, 504: heatSink, 505: heatSinkUpgrade, 506: incompatibleHeatSink },
+    families: { weapons: [501, 502, 503], ammo: [], equipment: [504, 506], jumpjets: [], masc: [], engines: [500], upgrades: [505] },
+  };
+  api.state.loadouts = {};
+  api.state.omnipods = {};
+  api.state.omnipodDefinitionCache.clear();
+  api.state.selectedMech = mech;
+  api.state.currentBuild = {
+    components: Object.fromEntries(componentNames.map((name) => [name, {
+      armor: 0,
+      items: name === "centre_torso" ? [{ item_id: 500 }] : [],
+    }])),
+    engineHeatSinks: [],
+    rearArmor: {},
+    upgrades: { heatsinks: { ItemID: 505 }, artemis: { Equipped: false } },
+  };
+
+  const picker = api.mobilePickerData("left_arm", "weapons");
+  assert.equal(picker.hardpointCapacity.energy, 1);
+  assert.equal(picker.hardpointCapacity.missile, 1);
+  assert.equal(picker.remainingHardpoints.energy, 1);
+  assert.equal(picker.remainingHardpoints.missile, 1);
+  assert.deepEqual(new Set(picker.items.map((item) => item.type)), new Set(["energy", "missile"]));
+  assert.equal(picker.items.find((item) => item.id === "502").slotShortage, true);
+  const slotSummary = api.mobileSlotSummary();
+  const calculated = api.calculateBuild();
+  assert.equal(slotSummary.tons, calculated.totalTons);
+  assert.equal(slotSummary.maxTons, calculated.maxTons);
+  assert.equal(slotSummary.current, calculated.currentSlotUsage);
+  assert.equal(slotSummary.remaining, calculated.freeSlots);
+  assert.equal(api.installWarehouseItemInComponent(largeLaser, "left_arm", { render: false }), false);
+  assert.equal(api.installWarehouseItemInComponent(smallLaser, "left_arm", { render: false }), true);
+  assert.equal(api.installWarehouseItemInComponent(missile, "left_arm", { render: false }), true);
+  const fullPicker = api.mobilePickerData("left_arm", "weapons");
+  assert.equal(fullPicker.remainingHardpoints.energy, 0);
+  assert.equal(fullPicker.remainingHardpoints.missile, 0);
+  assert.deepEqual(new Set(fullPicker.items.map((item) => item.type)), new Set(["energy", "missile"]));
+  assert.equal(fullPicker.items.every((item) => Boolean(item.warning)), true);
+  assert.equal(api.mobileRemoveItem("left_arm", 1, { render: false }), true);
+  assert.equal(api.mobileRemoveItem("left_arm", 0, { render: false }), true);
+  assert.equal(api.mobileRemoveItem("centre_torso", 0, { render: false }), false);
+  assert.equal(api.state.currentBuild.components.centre_torso.items[0].item_id, 500);
+
+  assert.equal(api.mobileInstallEngineHeatSink(506, { render: false }), false);
+  assert.equal(api.mobileAdjustEngineHeatSink(1, { render: false }), true);
+  assert.equal(api.state.currentBuild.engineHeatSinks.length, 1);
+  assert.equal(api.mobileAdjustEngineHeatSink(1, { render: false }), true);
+  assert.equal(api.state.currentBuild.engineHeatSinks.length, 2);
+  assert.equal(api.mobileAdjustEngineHeatSink(1, { render: false }), false);
+  assert.equal(api.mobileAdjustEngineHeatSink(-1, { render: false }), true);
+  assert.equal(api.mobileAdjustEngineHeatSink(-1, { render: false }), true);
+  assert.equal(api.state.currentBuild.engineHeatSinks.length, 0);
+  assert.equal(api.mobileAdjustEngineHeatSink(-1, { render: false }), false);
+
+  api.state.omnipods = {
+    700: { id: 700, chassis: "MobileFixture", component: "left_arm", set: "MOB-A", hardpoints: [], internals: [], fixed: [] },
+  };
+  api.state.currentBuild.components.left_arm.items = [{ item_id: 501 }];
+  assert.equal(api.replaceOmnipod("left_arm", 700), true);
+  assert.equal(api.state.currentBuild.components.left_arm.omnipod, 700);
+  assert.deepEqual(Array.from(api.state.currentBuild.components.left_arm.items), []);
 });
 
 test("고정 9031은 유효 정의에서 BANE 무기 계산과 시뮬레이션에 전달된다", () => {

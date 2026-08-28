@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,follow">
+    <title>MwoLab Mobile</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #071013; color: #dce8ea; font-family: Arial, sans-serif; }
+      body { display: grid; place-items: center; }
+      .mobile-bootstrap { text-align: center; }
+      .mobile-bootstrap strong { display: block; margin-bottom: 0.5rem; color: #7fe66b; letter-spacing: 0.08em; }
+      .mobile-bootstrap p { margin: 0; color: #91a3a8; font-size: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <div class="mobile-bootstrap" role="status">
+      <strong>MWOLAB MOBILE</strong>
+      <p>모바일 멕랩을 불러오는 중입니다.</p>
+    </div>
+    <script>
+      (async function loadMobileShell() {
+        try {
+          const response = await fetch("../index.html", { cache: "no-cache" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          let html = await response.text();
+          html = html.replace(
+            "<head>",
+            '<head><base href="../"><script>globalThis.__MWOLAB_MOBILE__ = true; document.documentElement.classList.add("mobile-app");<\/script>',
+          );
+          html = html.replace(
+            "</head>",
+            '<link rel="stylesheet" href="mobile/mobile.css?v=20260828-10"></head>',
+          );
+          html = html.replace(
+            '<meta name="robots" content="max-image-preview:none">',
+            '<meta name="robots" content="noindex,follow,max-image-preview:none">',
+          );
+          html = html.replace(
+            /\s*<script type="module" src="firebase-community\.js[^>]*><\/script>/,
+            "",
+          );
+          html = html.replace(
+            "</body>",
+            '<script src="mobile/mobile-app.js?v=20260828-18"><\/script></body>',
+          );
+          document.open();
+          document.write(html);
+          document.close();
+        } catch (error) {
+          document.querySelector(".mobile-bootstrap p").textContent = `모바일 페이지를 불러오지 못했습니다: ${error.message}`;
+        }
+      }());
+    </script>
+  </body>
+</html>

@@ -1,0 +1,870 @@
+:root {
+  --mobile-bar-height: 3.65rem;
+  --mobile-status-height: 2.2rem;
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html.mobile-app,
+html.mobile-app body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: #071013;
+}
+
+.mobile-app body {
+  min-width: 0;
+}
+
+.mobile-app #app,
+.mobile-app .app-main,
+.mobile-app .mech-browser-layout,
+.mobile-app .tab-content,
+.mobile-app #tab-mechlab {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mobile-app #app {
+  display: block;
+  height: 100dvh;
+}
+
+.mobile-app .main-tabs,
+.mobile-app .topbar-state,
+.mobile-app .sidebar,
+.mobile-app .mech-browser-preview,
+.mobile-app #tab-info,
+.mobile-app #tab-compare,
+.mobile-app #tab-equipment-info,
+.mobile-app #tab-stats,
+.mobile-app .mech-summary-panel,
+.mobile-app .equipment-panel,
+.mobile-app .mechlab-compact-list-panel,
+.mobile-app .mechlab-action-panel,
+.mobile-app .mechlab-fitting-tabs,
+.mobile-app .variant-panel .actions,
+.mobile-app .public-fitting-source {
+  display: none !important;
+}
+
+.mobile-app .mech-browser-layout,
+.mobile-app .mech-browser-layout.mechlab-focused-layout,
+.mobile-app .mech-browser-layout.mechlab-browse-layout {
+  display: block;
+}
+
+.mobile-app .tab-content {
+  display: block !important;
+  overflow: hidden !important;
+}
+
+.mobile-app #tab-mechlab .mechlab-workspace {
+  display: grid;
+  grid-template-rows: 2.65rem minmax(0, 1fr);
+  width: 100%;
+  height: calc(100dvh - var(--mobile-bar-height) - var(--mobile-status-height) - var(--mobile-safe-bottom));
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.mobile-app #tab-mechlab .variant-panel {
+  display: flex;
+  min-height: 0;
+  padding: 0.38rem 3.2rem 0.35rem;
+  border-bottom: 1px solid #26383e;
+  background: #0b1518;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-app .mechlab-variant-identity {
+  min-width: 0;
+  text-align: center;
+}
+
+.mobile-app .variant-title-row {
+  justify-content: center;
+}
+
+.mobile-app #variant-name {
+  overflow: hidden;
+  margin: 0;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-app #variant-meta,
+.mobile-app #show-mech-list {
+  display: none !important;
+}
+
+.mobile-app #tab-mechlab .mechlab-grid {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.mobile-app #tab-mechlab .components-panel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 0;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(30, 63, 72, 0.2), transparent 42%),
+    #070e10;
+  touch-action: none;
+  cursor: grab;
+}
+
+.mobile-app #tab-mechlab .components-panel.mobile-panning {
+  cursor: grabbing;
+}
+
+.mobile-app #components {
+  grid-template-columns: repeat(5, minmax(14rem, 1fr));
+  width: 72.2rem;
+  min-width: 72.2rem;
+  transform-origin: 0 0;
+  will-change: transform;
+  user-select: none;
+}
+
+.mobile-app #components .component-column {
+  align-content: start;
+}
+
+.mobile-app #components .component-items {
+  --mechlab-slot-row-height: 2.541rem;
+  --mechlab-slot-fill-height: 2.475rem;
+}
+
+.mobile-app #components .critical-slot,
+.mobile-app #components .slot-item,
+.mobile-app #components .component-omnipod-card,
+.mobile-app #components button,
+.mobile-app #components input {
+  touch-action: manipulation;
+}
+
+.mobile-app #components .empty-slot[data-empty-slot-component],
+.mobile-app #components .structure-upgrade-slot.empty-slot,
+.mobile-app #components .armor-upgrade-slot.empty-slot {
+  cursor: pointer;
+}
+
+.mobile-app #components .slot-item[data-loadout-item] {
+  cursor: pointer;
+}
+
+.mobile-app .equipment-tooltip {
+  display: none !important;
+}
+
+.mobile-app #components .engine-rating-controls {
+  display: none;
+}
+
+.mobile-engine-heat-sink-layout {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.mobile-engine-heat-sink-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 10.66rem);
+  gap: 0.38rem;
+}
+
+.mobile-engine-heat-sink-controls button {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 2.4rem;
+  padding: 0;
+  border-color: #81b8d7;
+  border-radius: 3px;
+  background: #1d5778;
+  color: #eaf8ff;
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.mobile-engine-heat-sink-controls button:disabled {
+  border-color: #42677b;
+  background: #24485c;
+  color: #668a9c;
+  opacity: 1;
+}
+
+.mobile-app #components .component.invalid {
+  border-color: #ff4f55;
+  box-shadow: inset 0 0 0 1px rgba(255, 79, 85, 0.7);
+}
+
+.mobile-app .component-armor-allocation {
+  display: grid;
+  grid-template-columns: minmax(2.7rem, 1fr) 1.55rem 2.6rem 1.55rem;
+  align-items: center;
+  gap: 0.18rem;
+}
+
+.mobile-app .component-stat-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.mobile-component-armor-summary {
+  display: none;
+}
+
+.mobile-app .mobile-component-armor-summary {
+  display: inline;
+  color: #dce8ea;
+  font-weight: 900;
+}
+
+.mobile-app .component-armor-capacity,
+.mobile-app .component-armor-max-row,
+.mobile-app .component-armor-max-detail {
+  display: none;
+}
+
+.mobile-app .component-armor-side {
+  grid-column: 1;
+}
+
+.mobile-app .component-armor-value {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.mobile-app .component-armor-stepper {
+  display: contents;
+}
+
+.mobile-app .component-armor-stepper [data-armor-delta="-1"] {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.mobile-app .component-armor-stepper [data-armor-delta="1"] {
+  grid-column: 4;
+  grid-row: 1;
+}
+
+.mobile-app .component-armor-stepper button {
+  width: 1.55rem;
+  height: 1.55rem;
+  min-height: 0;
+  padding: 0;
+}
+
+.mobile-menu-button {
+  position: fixed;
+  z-index: 1200;
+  top: calc(0.45rem + env(safe-area-inset-top, 0px));
+  left: 0.55rem;
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.15rem;
+  border: 1px solid #3c6671;
+  border-radius: 5px;
+  background: rgba(12, 31, 36, 0.96);
+  color: #d7e6e9;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.mobile-bottom-nav {
+  position: fixed;
+  z-index: 1100;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  height: calc(var(--mobile-bar-height) + var(--mobile-safe-bottom));
+  padding: 0 0.35rem var(--mobile-safe-bottom);
+  border-top: 1px solid #345761;
+  background: rgba(8, 23, 27, 0.98);
+  box-shadow: 0 -0.35rem 1rem rgba(0, 0, 0, 0.35);
+}
+
+.mobile-fitting-status {
+  position: fixed;
+  z-index: 1090;
+  right: 0;
+  bottom: calc(var(--mobile-bar-height) + var(--mobile-safe-bottom));
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: var(--mobile-status-height);
+  border-top: 1px solid #29474f;
+  background: rgba(7, 17, 20, 0.98);
+  color: #94a9ae;
+  font-size: 0.68rem;
+}
+
+.mobile-fitting-status[hidden] {
+  display: none;
+}
+
+.mobile-fitting-status span {
+  display: flex;
+  min-width: 0;
+  padding: 0 0.55rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.mobile-fitting-status span + span {
+  border-left: 1px solid #203940;
+}
+
+.mobile-fitting-status strong {
+  color: #e0ebed;
+  white-space: nowrap;
+}
+
+.mobile-fitting-status .over-limit,
+.mobile-fitting-status .over-limit strong {
+  color: #ff777d;
+}
+
+.mobile-bottom-nav button {
+  min-width: 0;
+  border: 0;
+  border-right: 1px solid #203940;
+  background: transparent;
+  color: #b9c9cd;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.mobile-bottom-nav button:last-child {
+  border-right: 0;
+}
+
+.mobile-bottom-nav button:active,
+.mobile-bottom-nav button.active {
+  background: #173b45;
+  color: #8be779;
+}
+
+.mobile-overlay {
+  position: fixed;
+  z-index: 1300;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: #081215;
+  color: #dbe8ea;
+}
+
+.mobile-overlay[hidden] {
+  display: none;
+}
+
+.mobile-overlay > header {
+  display: flex;
+  min-height: 3.35rem;
+  padding: calc(0.55rem + env(safe-area-inset-top, 0px)) 0.85rem 0.55rem;
+  border-bottom: 1px solid #2d4d56;
+  background: #0d1d21;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.mobile-overlay > header h2 {
+  overflow: hidden;
+  margin: 0;
+  color: #dce9eb;
+  font-size: 0.95rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-overlay-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.mobile-overlay-close {
+  min-height: 3.1rem;
+  margin: 0.6rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  border: 1px solid #3e6e79;
+  border-radius: 5px;
+  background: #153c47;
+  color: #e5f1f2;
+  font-weight: 900;
+}
+
+.mobile-drawer {
+  z-index: 1500;
+  grid-template-rows: auto minmax(0, 1fr);
+  right: auto;
+  width: min(18rem, 82vw);
+  border-right: 1px solid #3b5e67;
+  box-shadow: 1rem 0 2rem rgba(0, 0, 0, 0.55);
+}
+
+.mobile-drawer .mobile-overlay-body {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+}
+
+.mobile-drawer button,
+.mobile-drawer a,
+.mobile-save-options button {
+  display: flex;
+  min-height: 3.15rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #365963;
+  border-radius: 5px;
+  background: #10272d;
+  color: #dce9eb;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-drawer-language {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.mobile-save-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.mobile-mech-list-controls {
+  position: sticky;
+  z-index: 3;
+  top: -0.75rem;
+  margin: -0.75rem -0.75rem 0.7rem;
+  padding: 0.75rem 0.75rem 0;
+  background: #081215;
+}
+
+.mobile-mech-search {
+  width: 100%;
+  min-height: 2.65rem;
+  margin-bottom: 0;
+  border: 1px solid #365963;
+  border-radius: 4px;
+  padding: 0 0.75rem;
+  background: #071013;
+  color: #e3edef;
+}
+
+.mobile-mech-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mobile-mech-group-title {
+  margin: 0.45rem 0 0;
+  padding: 0.55rem 0.4rem;
+  background: #081215;
+  color: #87a3aa;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+
+.mobile-mech-weight-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mobile-mech-category {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.mobile-mech-category-button {
+  display: flex;
+  min-height: 2.8rem;
+  border: 1px solid #31535c;
+  border-radius: 4px;
+  padding: 0.5rem 0.6rem;
+  background: #10242a;
+  color: #b8c9cd;
+  font: inherit;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mobile-mech-category-button > span:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.mobile-mech-category-button > span:last-child {
+  color: #81999f;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.mobile-mech-category-indicator {
+  color: #79d468;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.mobile-mech-category.expanded > .mobile-mech-category-button {
+  border-color: #4b8795;
+  background: #173840;
+  color: #e2edef;
+}
+
+.mobile-mech-category-button:disabled {
+  opacity: 0.82;
+}
+
+.mobile-mech-category-items {
+  display: grid;
+  gap: 0.28rem;
+  padding-left: 0.5rem;
+}
+
+.mobile-mech-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 2.85rem;
+  border: 1px solid #29474f;
+  border-radius: 4px;
+  padding: 0.45rem 0.55rem;
+  background: #0e1d21;
+  color: #d8e5e7;
+  text-align: left;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.mobile-mech-row small {
+  display: block;
+  margin-top: 0.15rem;
+  color: #7f969c;
+}
+
+.mobile-hardpoints {
+  display: flex;
+  max-width: 8.8rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.18rem;
+}
+
+.mobile-hardpoint-tag {
+  min-width: 1.45rem;
+  padding: 0.16rem 0.24rem;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.mobile-hardpoint-tag.energy { color: var(--yellow); }
+.mobile-hardpoint-tag.missile { color: var(--missile); }
+.mobile-hardpoint-tag.ballistic { color: var(--purple); }
+.mobile-hardpoint-tag.ams { color: var(--ams); }
+
+.mobile-picker-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.mobile-picker-tabs button {
+  min-width: 0;
+  min-height: 2.35rem;
+  border: 1px solid #31535c;
+  border-radius: 4px;
+  padding: 0.35rem 0.2rem;
+  background: #10242a;
+  color: #9db0b5;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.mobile-picker-tabs button.active {
+  border-color: #4b8795;
+  background: #17414b;
+  color: #e1edef;
+}
+
+.mobile-picker-hardpoints,
+.mobile-upgrade-slots {
+  display: flex;
+  margin-bottom: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #28474f;
+  border-radius: 4px;
+  background: #0b1b1f;
+  color: #9eb1b6;
+  font-size: 0.72rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mobile-picker-hardpoints {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr));
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+}
+
+.mobile-picker-summary-item {
+  display: flex;
+  min-width: 0;
+  min-height: 3.25rem;
+  padding: 0.42rem 0.5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+}
+
+.mobile-picker-summary-item + .mobile-picker-summary-item {
+  border-left: 1px solid #28474f;
+}
+
+.mobile-picker-summary-item small {
+  color: #7f969c;
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+
+.mobile-picker-summary-item strong {
+  color: #e1edef;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.mobile-picker-summary-item.over-limit small,
+.mobile-picker-summary-item.over-limit strong {
+  color: #ff777d;
+}
+
+.mobile-picker-list {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.mobile-picker-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3rem 3rem;
+  min-height: 5.3rem;
+  border: 1px solid #2f515a;
+  border-radius: 4px;
+  padding: 0.45rem 0.55rem;
+  background: #10242a;
+  color: #dbe8ea;
+  text-align: left;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mobile-picker-item.invalid {
+  border-color: #d94b52;
+  background: #3a181c;
+  color: #ffb3b7;
+}
+
+.mobile-picker-item.active {
+  border-color: #75d866;
+  box-shadow: inset 0 0 0 1px #75d866;
+}
+
+.mobile-picker-item small {
+  color: #91a6ab;
+  text-align: right;
+}
+
+.mobile-weapon-group {
+  --mobile-weapon-tone: #668089;
+}
+
+.mobile-weapon-group + .mobile-weapon-group {
+  margin-top: 0.55rem;
+}
+
+.mobile-weapon-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  margin: 0 0 0.28rem;
+  color: var(--mobile-weapon-tone);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.mobile-weapon-group h3 span {
+  display: grid;
+  place-items: center;
+  min-width: 1.7rem;
+  min-height: 1.35rem;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+}
+
+.mobile-weapon-group > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.mobile-weapon-group.energy { --mobile-weapon-tone: var(--yellow); }
+.mobile-weapon-group.missile { --mobile-weapon-tone: var(--missile); }
+.mobile-weapon-group.ballistic { --mobile-weapon-tone: var(--purple); }
+.mobile-weapon-group.ams { --mobile-weapon-tone: var(--ams); }
+
+.mobile-picker-item.energy {
+  border-color: #d5c724;
+  background: #59520b;
+}
+
+.mobile-picker-item.missile {
+  border-color: var(--missile);
+  background: #064c47;
+}
+
+.mobile-picker-item.ballistic {
+  border-color: #b970dd;
+  background: #4f2267;
+}
+
+.mobile-picker-item.ams {
+  border-color: var(--ams);
+  background: #34470f;
+}
+
+.mobile-picker-item.invalid {
+  border-color: #d94b52;
+  background: #3a181c;
+  color: #ffb3b7;
+}
+
+.mobile-picker-status,
+.mobile-empty-message {
+  margin: 0.65rem 0;
+  color: #ff858a;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.mobile-detached-panel,
+.mobile-detached-panel#mech-summary-panel,
+.mobile-detached-panel#upgrade-panel {
+  display: block !important;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.mobile-detached-panel .mech-summary-content {
+  overflow: visible;
+}
+
+.mobile-app .build-actions-overlay,
+.mobile-app .loadout-code-overlay {
+  z-index: 1700;
+  padding: 0;
+  background: #081215;
+}
+
+.mobile-app .build-actions-dialog,
+.mobile-app .loadout-code-dialog {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 0.8rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-app .loadout-code-dialog-actions {
+  margin-top: auto;
+}
+
+.mobile-app .loadout-code-dialog.mobile-export .loadout-code-dialog-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.mobile-app .loadout-code-dialog.mobile-export .loadout-code-dialog-actions button {
+  min-width: 0;
+  min-height: 3.1rem;
+  padding: 0.45rem 0.25rem;
+}
+
+.mobile-loadout-code-close {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.mobile-app .build-actions-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.mobile-app #build-actions-overlay .build-actions-close {
+  display: none !important;
+}
+
+.mobile-app #close-build-actions.mobile-overlay-close {
+  width: auto;
+  margin: 0.6rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-app .build-actions-list {
+  align-content: start;
+  overflow: auto;
+}
+
+.mobile-app .build-actions-cancel {
+  min-height: 3.1rem;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --mobile-bar-height: 3rem; }
+  .mobile-app #tab-mechlab .mechlab-workspace { grid-template-rows: 2.25rem minmax(0, 1fr); }
+  .mobile-app #tab-mechlab .variant-panel { padding-top: 0.2rem; padding-bottom: 0.2rem; }
+  .mobile-bottom-nav button { font-size: 0.66rem; }
+}

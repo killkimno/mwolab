@@ -14,6 +14,8 @@
   --missile: #00aa9d;
   --ams: #85b82f;
   --compare-mech-column-width: 8.15rem;
+  --mechlab-slot-row-height: 1.694rem;
+  --mechlab-slot-fill-height: 1.65rem;
 }
 
 * {
@@ -8381,7 +8383,7 @@ body.weapon-detail-open {
 
 .component-items {
   display: grid;
-  grid-auto-rows: minmax(1.694rem, auto);
+  grid-auto-rows: minmax(var(--mechlab-slot-row-height), auto);
   gap: 1px;
   padding: 3px;
   background: #080d0f;
@@ -8393,11 +8395,11 @@ body.weapon-detail-open {
   grid-row: span var(--slot-span, 1);
   gap: 0.35rem;
   align-items: center;
-  min-height: calc(1.694rem * var(--slot-span, 1) + (var(--slot-span, 1) - 1) * 1px);
+  min-height: calc(var(--mechlab-slot-row-height) * var(--slot-span, 1) + (var(--slot-span, 1) - 1) * 1px);
   padding: 0 0.32rem 0 0;
   border: 1px solid #4b7483;
   border-radius: 2px;
-  background: repeating-linear-gradient(to bottom, #1b3540 0, #1b3540 1.65rem, #294c59 1.65rem, #294c59 calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #1b3540 0, #1b3540 var(--mechlab-slot-fill-height), #294c59 var(--mechlab-slot-fill-height), #294c59 calc(var(--mechlab-slot-fill-height) + 1px));
   cursor: grab;
   overflow: hidden;
   touch-action: none;
@@ -8468,46 +8470,46 @@ body.pointer-drag-active * {
 
 .slot-item.energy {
   border-color: #d5c724;
-  background: repeating-linear-gradient(to bottom, #59520b 0, #59520b 1.65rem, #716a11 1.65rem, #716a11 calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #59520b 0, #59520b var(--mechlab-slot-fill-height), #716a11 var(--mechlab-slot-fill-height), #716a11 calc(var(--mechlab-slot-fill-height) + 1px));
 }
 .slot-item.energy .slot-item-mark { background: #77700b; color: #fff45c; }
 .slot-item.missile {
   border-color: var(--missile);
-  background: repeating-linear-gradient(to bottom, #064c47 0, #064c47 1.65rem, #08645d 1.65rem, #08645d calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #064c47 0, #064c47 var(--mechlab-slot-fill-height), #08645d var(--mechlab-slot-fill-height), #08645d calc(var(--mechlab-slot-fill-height) + 1px));
 }
 .slot-item.missile .slot-item-mark { background: #007c73; color: #9dfff7; }
 .slot-item.ballistic {
   border-color: #b970dd;
-  background: repeating-linear-gradient(to bottom, #4f2267 0, #4f2267 1.65rem, #65317e 1.65rem, #65317e calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #4f2267 0, #4f2267 var(--mechlab-slot-fill-height), #65317e var(--mechlab-slot-fill-height), #65317e calc(var(--mechlab-slot-fill-height) + 1px));
 }
 .slot-item.ballistic .slot-item-mark { background: #6f358a; color: #edc2ff; }
 .slot-item.ams {
   border-color: var(--ams);
-  background: repeating-linear-gradient(to bottom, #34470f 0, #34470f 1.65rem, #465f16 1.65rem, #465f16 calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #34470f 0, #34470f var(--mechlab-slot-fill-height), #465f16 var(--mechlab-slot-fill-height), #465f16 calc(var(--mechlab-slot-fill-height) + 1px));
 }
 .slot-item.ams .slot-item-mark { background: #587b1a; color: #dbff94; }
 .slot-item.ecm {
   border-color: #ff9b42;
-  background: repeating-linear-gradient(to bottom, #65300d 0, #65300d 1.65rem, #824313 1.65rem, #824313 calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #65300d 0, #65300d var(--mechlab-slot-fill-height), #824313 var(--mechlab-slot-fill-height), #824313 calc(var(--mechlab-slot-fill-height) + 1px));
   box-shadow: inset 3px 0 #ffad61;
 }
 .slot-item.ecm .slot-item-mark { background: #91470f; color: #ffe0bd; }
 
 .slot-item.energy.ammo {
   border-color: #7d761f;
-  background: repeating-linear-gradient(to bottom, #2c2908 0, #2c2908 1.65rem, #39350a 1.65rem, #39350a calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #2c2908 0, #2c2908 var(--mechlab-slot-fill-height), #39350a var(--mechlab-slot-fill-height), #39350a calc(var(--mechlab-slot-fill-height) + 1px));
 }
 .slot-item.missile.ammo {
   border-color: #176f69;
-  background: repeating-linear-gradient(to bottom, #052c29 0, #052c29 1.65rem, #073c38 1.65rem, #073c38 calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #052c29 0, #052c29 var(--mechlab-slot-fill-height), #073c38 var(--mechlab-slot-fill-height), #073c38 calc(var(--mechlab-slot-fill-height) + 1px));
 }
 .slot-item.ballistic.ammo {
   border-color: #725083;
-  background: repeating-linear-gradient(to bottom, #281333 0, #281333 1.65rem, #351a43 1.65rem, #351a43 calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #281333 0, #281333 var(--mechlab-slot-fill-height), #351a43 var(--mechlab-slot-fill-height), #351a43 calc(var(--mechlab-slot-fill-height) + 1px));
 }
 .slot-item.ams.ammo {
   border-color: #5f7929;
-  background: repeating-linear-gradient(to bottom, #202b0b 0, #202b0b 1.65rem, #2b3a0f 1.65rem, #2b3a0f calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #202b0b 0, #202b0b var(--mechlab-slot-fill-height), #2b3a0f var(--mechlab-slot-fill-height), #2b3a0f calc(var(--mechlab-slot-fill-height) + 1px));
 }
 
 .slot-item.energy.ammo .slot-item-mark { background: #3d390b; color: #c8bd50; }
@@ -8519,7 +8521,7 @@ body.pointer-drag-active * {
 .slot-item.masc,
 .slot-item.jumpjet {
   border-color: #69baf0;
-  background: repeating-linear-gradient(to bottom, #285c7c 0, #285c7c 1.65rem, #34789f 1.65rem, #34789f calc(1.65rem + 1px));
+  background: repeating-linear-gradient(to bottom, #285c7c 0, #285c7c var(--mechlab-slot-fill-height), #34789f var(--mechlab-slot-fill-height), #34789f calc(var(--mechlab-slot-fill-height) + 1px));
   box-shadow: inset 3px 0 #84c9f7;
 }
 
@@ -8705,7 +8707,7 @@ body.pointer-drag-active * {
   display: flex;
   align-items: center;
   min-width: 0;
-  min-height: 1.694rem;
+  min-height: var(--mechlab-slot-row-height);
   padding: 0 0.35rem;
   border: 1px solid #24343a;
   border-radius: 2px;
@@ -8718,7 +8720,7 @@ body.pointer-drag-active * {
 
 .fixed-slot {
   grid-row: span var(--slot-span, 1);
-  min-height: calc(1.694rem * var(--slot-span, 1) + (var(--slot-span, 1) - 1) * 1px);
+  min-height: calc(var(--mechlab-slot-row-height) * var(--slot-span, 1) + (var(--slot-span, 1) - 1) * 1px);
   border-color: #6d7b80;
   background: #353d40;
   box-shadow: inset 4px 0 #96a2a7, inset 0 0 0 1px #1d2528;

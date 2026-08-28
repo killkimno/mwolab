@@ -496,6 +496,11 @@
         <div class="intent"><strong>제작 의도:</strong> 멕 선택과 장비 편집을 별개 화면으로 끊지 않고, 장착 가능 여부·중량·슬롯·발열·탄약·화력을 즉시 확인하며 시행착오를 줄이는 것이 목표다. 게임과 가까운 부위 배치를 유지하되 계산 정보는 빠르게 읽을 수 있는 왼쪽 요약에 모은다.</div>
         <p><strong>세부 카테고리:</strong> 멕 탐색, 빌드 헤더, 컴포넌트, 장비 목록, 업그레이드, 피팅 요약, 로컬 저장·MWO 코드, 스킬 적용, 사격 시뮬레이션.</p>
         <ul>
+          <li><strong>모바일 컴포넌트 폭과 엔진 히트싱크:</strong> 모바일 5열 캔버스는 열 최소폭 14rem·전체폭 72.2rem을 사용한다. 일반 엔진의 내부 히트싱크 레이아웃 아래에는 한 개씩 조절하는 −/+ 버튼을 렌더링하며, 추가는 현재 업그레이드의 명시적 <code>stats.compatibleHeatSink</code> 장비만 공용 엔진 용량·진영·고정 엔진 검증을 통과해 설치한다. 제거는 사용자 장착 배열의 마지막 항목만 대상으로 하고 고정 옴니 엔진에는 컨트롤을 표시하지 않는다.</li>
+          <li><strong>모바일 업그레이드 즉시 반영:</strong> 공용 <code>selectUpgrade()</code>가 업그레이드 버튼의 활성 상태와 빌드를 다시 렌더링하면 모바일은 <code>upgrade-controls</code>의 변경을 감지해 공용 <code>slotSummary()</code>를 다시 읽는다. 업그레이드 페이지를 유지한 채 현재/전체 슬롯과 남은 슬롯을 같은 프레임에 갱신한다.</li>
+          <li><strong>모바일 PC판 전환:</strong> 햄버거 메뉴의 PC판으로 보기는 모바일 경로를 기본 경로로 바꾸고 현재 쿼리·해시와 <code>view=desktop</code>을 전달한다. 루트의 초기 분기가 PC 선호를 저장하고 제어 파라미터를 제거하므로 이후 같은 브라우저에서는 기본 주소도 PC판을 유지한다.</li>
+          <li><strong>모바일 선택 탭 기억:</strong> 무장 선택 전체화면은 마지막으로 사용자가 본 무기·탄약·장비·옵니포드 탭을 페이지 세션 동안 유지한다. 빈 슬롯에서 다시 열면 기억한 탭을 우선하고 해당 부위에 그 탭이 없으면 무기로 대체한다. 엔진과 엔진 히트싱크 전용 목록은 기억값을 바꾸지 않는다.</li>
+          <li><strong>모바일 전용 멕랩:</strong> 루트의 <code>mobile-redirect.js</code>가 CSS와 앱 초기화 전에 휴대폰·태블릿을 판별해 쿼리와 해시를 보존한 <code>mobile/</code>로 <code>location.replace()</code>한다. <code>view=desktop</code>은 <code>mwolab:preferred-view:v1</code>에 PC 선호를 저장하고, <code>view=mobile</code>은 이를 해제한다. 모바일 진입점은 루트 HTML 골격에 <code>base href="../"</code>와 모바일 플래그를 먼저 넣어 공용 데이터·계산·DOM 계약을 재사용하되 Firebase 모듈과 스킬 데이터 로드를 제외한다. <code>MwoLabMobileBridge</code>는 멕 목록, 부위별 공용 장착 검증, 더블탭 제거, 엔진·옵니포드 교체, 톤수·슬롯 요약, 툴즈와 MWO 코드 대화상자만 노출한다. 모바일 멕 목록은 상단 고정 검색창 아래에서 체급별 기종 카테고리를 접어 표시하고, 카테고리 탭 또는 검색 결과에 해당하는 배리언트 행만 펼친다. 모바일 앱 루트는 숨긴 PC 상단 행이 공간을 차지하지 않도록 단일 블록과 <code>100dvh</code>를 사용한다. 모바일 UI는 5열 컴포넌트를 팬·핀치 줌 캔버스로 표시하며, 초기 배율은 상태줄 위까지 피팅 높이를 사용하도록 세로 맞춤하고 중앙 몸통을 가운데 둬 좌우 부위는 팬으로 확인한다. 아머는 쿼크 분해 없이 실제 할당 포인트와 기본 최대값을 <code>ARMOR 현재/최대</code>로 표시하고 전·후면 입력에도 같은 할당 포인트를 사용한다. 일반 빈 슬롯과 계산상 이동 가능한 구조·장갑 업그레이드 슬롯은 같은 장비 선택 목록을 열고, <code>*-upgrade-slot-occupied</code>로 확정된 행은 열지 않는다. 빈 슬롯의 무기 목록은 원래 보유한 하드포인트 무기군을 기준으로 0개 그룹까지 유지하고 공용 E/M/B/AMS 색을 사용하며, 모두 사용한 계열의 후보는 공용 검증 경고에 따라 빨간색으로 남긴다. 목록 상단은 선택 부위의 남은 하드포인트와 공용 계산의 현재/최대 톤수·슬롯을 한 줄로 표시한다. 모바일 장비 툴팁은 비활성화한다. 무장 선택 행은 PC 슬롯 높이의 2배, 피팅 컴포넌트의 슬롯 행과 여러 슬롯 장비의 반복 배경은 PC 높이의 1.5배로 렌더링한다. 하단 메뉴 위에는 현재/최대 톤수와 현재/전체 슬롯을 고정 표시한다. 툴즈는 전체화면 공용 작업 목록을 재사용하되 헤더 X를 숨기고 다른 모바일 페이지와 같은 하단 <code>닫기</code> 버튼만 표시한다. 저장/불러오기는 같은 너비의 두 열이며 EXPORT는 하단에 URL 복사·코드 복사·X 작업줄을 사용하고, 공유 URL에서는 <code>/mobile/</code>을 제거한다. 그 밖에 양옆 아머 조절, 전체화면 오버뷰·업그레이드·IMPORT/EXPORT 선택과 하단 메뉴를 제공한다. 로그인·통합 핏팅 브라우저·다른 주 탭·시뮬레이션·스킬 진입점은 표시하지 않는다.</li>
           <li><strong>피팅 탭:</strong> 피팅 헤더의 <code>mechlab-fitting-tabs</code>는 최대 10개의 세션 전용 탭을 표시하며 각 레코드는 임시 ID, 멕 ID, 빌드 객체를 가진다. 활성 레코드의 빌드 객체를 <code>currentBuild</code>로 참조하므로 기존 편집·계산 함수는 활성 피팅에만 적용된다. 같은 멕의 중복 탭은 표시 순서에 따라 두 번째부터 번호를 붙인다. 마지막 한 탭은 닫을 수 없고 활성 탭을 닫으면 왼쪽 탭을 우선 활성화한다. 스킬·시뮬레이션·장비 목록 UI 상태는 탭별 레코드에 넣지 않는다.</li>
           <li><strong>피팅 추가와 교체:</strong> 마지막 <code>+</code>는 <code>state.mechlabPendingTabIndex</code>로 표현하는 비어 있는 탭 슬롯이다. 슬롯을 누르면 현재 탭 개수와 같은 마지막 인덱스가 포커스되고 멕 브라우저를 연다. 이 포커스는 정보·통계 등 다른 주 화면을 왕복해도 유지되며, 이후 전체 멕 목록의 피팅 확정, 정보·통계의 피팅 버튼, IMPORT 중 먼저 실행된 결과를 새 탭으로 할당한 뒤 해제된다. 기존 피팅 탭을 직접 선택하면 빈 슬롯 포커스를 취소하고 이후 동작은 그 탭을 교체한다. 전체 목록의 단일 클릭과 호버는 <code>mechlabBrowseSelectionId</code>와 미리보기만 갱신하며 기존 피팅을 변경하지 않는다. History state에는 세션 탭 ID를 함께 기록하지만 URL은 기존 <code>mech</code>·<code>loadout</code> 계약을 유지하고 새로고침 시 URL 대상 하나만 첫 탭으로 만든다.</li>
           <li><strong>목록 복귀:</strong> 멕랩 전체 목록 툴바의 <code>mech-toolbar-return</code>은 <code>activeMechlabTab()</code>이 있을 때 IMPORT 옆에 표시한다. 누르면 마지막 활성 탭 ID를 <code>openMechlabTab</code>으로 열어 빈 슬롯 포커스와 목록 모드를 끝내고 해당 피팅 화면 및 URL로 복귀한다.</li>
@@ -930,6 +935,8 @@
             <tr><td><code>public/index.html</code></td><td>탭, 패널, 대화상자, 시뮬레이션 HUD의 정적 골격</td></tr>
             <tr><td><code>public/styles.css</code></td><td>전체 UI, 반응형 레이아웃, 멕랩·표·시뮬레이션 표현</td></tr>
             <tr><td><code>public/app.js</code></td><td>번역, 상태, 계산, 필터, 렌더링, 이벤트, 로컬 저장, 시뮬레이션</td></tr>
+            <tr><td><code>public/mobile-redirect.js</code></td><td>휴대폰·태블릿 자동 판별, PC 보기 선호와 모바일 경로 전환</td></tr>
+            <tr><td><code>public/mobile/</code></td><td>모바일 진입점, 제한된 멕랩 UI, 전체화면 패널과 팬·핀치 줌 표현</td></tr>
             <tr><td><code>public/firebase-community.js</code></td><td>Firebase 초기화, Google 로그인, 공개·로컬·내 게시물 브라우저, 통합 저장·삭제·좋아요·공유와 문서 ID 직접 진입 및 장애 격리</td></tr>
             <tr><td><code>public/privacy.html</code></td><td>Google OAuth 브랜딩과 사용자 안내를 위한 공개 한국어·영어 개인정보처리방침</td></tr>
             <tr><td><code>public/mwo-codec.js</code></td><td>MWO 로드아웃 문자열 encode/decode</td></tr>
@@ -938,6 +945,7 @@
             <tr><td><code>.firebaserc</code></td><td>배포할 Firebase 프로젝트 <code>mwolab-2e145</code> 연결</td></tr>
             <tr><td><code>public/quirk-calculations.js</code></td><td>쿼크 이름 정규화, 동일 이름 수치 합산, additive·multiplier·감소·증가·부호 보존 공용 계산</td></tr>
             <tr><td><code>tests/mechlab-formulas.test.js</code></td><td>멕랩 공식의 Node 내장 테스트 러너 기반 단위·회귀 테스트</td></tr>
+            <tr><td><code>tests/mobile-routing.test.js</code></td><td>모바일·태블릿 라우팅, 보기 선호, 쿼리 보존과 모바일 UI 정적 계약</td></tr>
             <tr><td><code>tests/quirk-calculations.test.js</code></td><td>분리된 쿼크 이름·수치 공용 계산의 전용 단위 테스트</td></tr>
             <tr><td><code>tests/generated-data.test.js</code></td><td>MDF 명시 CT 포드가 게시 기본 로드아웃에 보존되는지 확인하는 생성 데이터 회귀 테스트</td></tr>
             <tr><td><code>tests/test_extract_mwo_data.py</code></td><td>MDF·로드아웃 포드 결합과 충돌·chassis·component 검증을 확인하는 Python 추출기 테스트</td></tr>
@@ -1022,6 +1030,7 @@
             <tr><td>2026-08-26</td><td>Google OAuth 브랜딩의 공개 URL 요건과 실제 데이터 처리 범위를 맞추기 위해 한국어·영어 개인정보처리방침 페이지를 추가하고 홈페이지 상단에서 연결. Google 로그인, 공개 핏팅, 비공개 운영 레코드, 브라우저 로컬 저장, Firebase·GitHub Pages·Cloudflare 사용과 삭제 문의 범위를 명시</td></tr>
             <tr><td>2026-08-27</td><td>공개·내 게시물 상세에 `URL로 공유하기` 기능을 추가하고 언어와 Firestore 문서 ID만 포함하는 <code>fitting</code> URL을 EXPORT형 팝업에서 전체 선택해 복사하도록 구성. 공유 링크 방문은 Firebase·앱 데이터 준비 후 해당 문서만 단건 조회해 기존 공개 핏팅 적용·좋아요 경로를 재사용하며, 출처 패널은 집계 수 없이 좋아요 여부 버튼만 표시</td></tr>
             <tr><td>2026-08-27</td><td>선택형 고유 닉네임을 추가. 최초 로그인 안내를 건너뛸 수 있고 미설정 사용자는 <code>Pilot</code>으로 표시하며, 영문·숫자 닉네임의 설정·변경 시 프로필과 예약 키를 Firestore 트랜잭션·Rules로 원자 연결해 대소문자 중복을 방지. 공개 목록의 UID를 중복 제거해 프로필을 캐시하되 선택 닉네임과 <code>Pilot</code>을 60초 뒤 다시 확인하고 카드·상세·직접 공유 출처에 작성자를 표시</td></tr>
+            <tr><td>2026-08-28</td><td>휴대폰·태블릿 자동 분기와 별도 모바일 멕랩을 추가. 소형 멕 목록, 5열 피팅 캔버스 팬·핀치 줌, 동일 장비 450ms 이내 더블탭 제거, 부위별 빈 슬롯 장비 선택, 엔진·옵니포드 교체, 양옆 아머 조절, 전체화면 오버뷰·툴즈·업그레이드·IMPORT/EXPORT와 하단·3선 메뉴를 제공하고 로그인·핏팅 브라우저·다른 주 탭을 제외</td></tr>
             <tr><td>2026-08-15</td><td>마지막 <code>+</code>를 현재 포커스 가능한 빈 탭 슬롯으로 변경. 다른 주 화면 왕복 중에도 빈 슬롯 인덱스를 유지하고 다음 멕 피팅과 IMPORT 결과가 기존 탭을 교체하지 않고 해당 슬롯을 채우도록 대상 결정 경로를 통합</td></tr>
             <tr><td>2026-08-15</td><td>멕랩 전체 목록의 IMPORT 옆에 채워진 피팅이 있을 때만 표시되는 RETURN 버튼을 추가하고 마지막 활성 피팅 탭으로 즉시 돌아가는 경로를 연결</td></tr>
             <tr><td>2026-08-15</td><td>피팅 중 여는 컴팩트 멕 목록 슬롯 오른쪽에 독립적인 새 탭 추가 + 버튼을 추가하고, 10개 한도 비활성화 및 하드포인트 태그 4개 단위 줄바꿈을 적용</td></tr>
@@ -1031,7 +1040,7 @@
       </section>
 
       <footer>
-        마지막 문서 갱신: 2026-08-27 · 구현 시 관련 내용을 참고하고, 기능 구현·코드 수정 작업 후 재사용 가능한 규칙 변경이 있어 필요하다고 판단하면 별도 위키 갱신 요청 없이 즉시 갱신한다.
+        마지막 문서 갱신: 2026-08-28 · 구현 시 관련 내용을 참고하고, 기능 구현·코드 수정 작업 후 재사용 가능한 규칙 변경이 있어 필요하다고 판단하면 별도 위키 갱신 요청 없이 즉시 갱신한다.
       </footer>
     </main>
   </div>

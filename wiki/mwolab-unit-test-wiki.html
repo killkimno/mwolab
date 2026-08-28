@@ -126,7 +126,7 @@
     <main>
       <header>
         <h1>MwoLab 유닛 테스트 위키</h1>
-        <p class="meta">기준일 2026-08-27 · <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>의 테스트 전용 문서</p>
+        <p class="meta">기준일 2026-08-28 · <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>의 테스트 전용 문서</p>
         <p>Node 계산·생성 데이터 테스트와 Python 추출기 테스트의 실행법 및 유지 규칙을 정리한다.</p>
         <div class="notice">브라우저 화면이나 로컬 미리보기 서버를 사용하지 않는다. Node 테스트는 실제 브라우저 계산 코드와 게시 JSON을 검증하고, Python 표준 <code>unittest</code>는 실제 추출기 파서를 메모리 fixture로 호출한다.</div>
       </header>
@@ -154,6 +154,7 @@
             <tr><td><code>npm run test:quirks</code></td><td>쿼크 이름·수치 공용 계산 테스트만 실행</td></tr>
             <tr><td><code>npm run test:data</code></td><td>게시 생성 데이터 회귀 테스트만 실행</td></tr>
             <tr><td><code>npm run test:community</code></td><td>커뮤니티 UI·Firebase 공개 설정 테스트만 실행</td></tr>
+            <tr><td><code>npm run test:mobile</code></td><td>휴대폰·태블릿 자동 라우팅과 모바일 멕랩 정적 UI 계약 테스트만 실행</td></tr>
             <tr><td><code>npm run test:seo</code></td><td>SEO 메타데이터 테스트만 실행</td></tr>
             <tr><td><code>npm run test:extract-data</code></td><td>MDF·로드아웃 데이터 추출기 테스트만 실행</td></tr>
             <tr><td><code>npm run test:extract-icons</code></td><td>멕 아이콘 추출기 테스트만 실행</td></tr>
@@ -181,7 +182,8 @@
           <thead><tr><th>분류</th><th>검증 내용</th></tr></thead>
           <tbody>
             <tr><td>탐색·공유</td><td>기본·톤수·알파벳순, 오름·내림차순, 진영 그룹 정렬, 쿼크 보유·수치 필터, 공유 URL의 MWO 코드 보존과 멕랩 다중 피팅 탭 수명주기</td></tr>
-            <tr><td>기본 피팅</td><td>구조·장갑 톤수, 0.5톤 올림, 컴팩트 자이로, 엔진 히트싱크, 사이드 슬롯, 업그레이드 슬롯, 빌드 집계</td></tr>
+            <tr><td>모바일 라우팅</td><td>iPhone·Android 태블릿·iPadOS 판별, PC 보기 선호, 명시적 보기 전환, 쿼리·해시 보존, 모바일 셸 무한 이동 방지와 제한된 멕랩 UI 계약</td></tr>
+            <tr><td>기본 피팅</td><td>구조·장갑 톤수, 0.5톤 올림, 컴팩트 자이로, 엔진 히트싱크, 모바일 내부 히트싱크 −/+ 경계, 사이드 슬롯, 업그레이드 슬롯, 빌드 집계</td></tr>
             <tr><td>쿼크 공용 계산</td><td>이름 정규화, 동일 이름 +수치 합산, 출처·기여도, 표시 문자열, 필터용 퍼센트·원본 수치 크기, additive, multiplier, 감소·증가·부호 보존, 유해 수치, 내구 스킬</td></tr>
             <tr><td>내구도</td><td>최대 장갑, 전후면·구조 쿼크, Survival 스킬 내림, 현재 장갑과 컴포넌트 기여도</td></tr>
             <tr><td>무기</td><td>펠릿·순차 발사, 로켓런처, SSRM, 모듈 추가 피해·발열, 스플래시, 쿨다운, 듀레이션, 연속형 무기의 초당 DAMAGE·HEAT·HPS·DPH, AMS, UAC 더블탭·재밍</td></tr>
@@ -195,7 +197,7 @@
 
       <section id="cases">
         <h2>개별 테스트 항목</h2>
-        <p>Node 테스트 131개와 Python 추출기 테스트 10개가 현재 검증 범위를 구성한다. 관리자 Firestore 정적 규칙 테스트 3개는 <code>npm run test:admin</code>으로 별도 실행한다.</p>
+        <p>Node 테스트 140개와 Python 추출기 테스트 10개가 현재 검증 범위를 구성한다. 관리자 Firestore 정적 규칙 테스트 3개는 <code>npm run test:admin</code>으로 별도 실행한다.</p>
 
         <h3>추출기와 생성 데이터</h3>
         <ol class="test-list">
@@ -227,7 +229,7 @@
           <li><strong>항상 적용되는 무기 모듈</strong> — 호환 모듈의 additive 피해·발열을 허용 수량만큼 더한다.</li>
           <li><strong>스플래시와 모듈 피해</strong> — 기본 양쪽 스플래시와 모듈 총 스플래시를 구분한다.</li>
           <li><strong>구조·장갑 톤수</strong> — 구조 0.5톤 올림, 장갑 환산, 컴팩트 자이로 중량을 확인한다.</li>
-          <li><strong>엔진 히트싱크·사이드 슬롯</strong> — 포함 10개 제한, 추가 용량과 음수 슬롯 경계를 확인한다.</li>
+          <li><strong>엔진 히트싱크·사이드 슬롯</strong> — 포함 10개 제한, 추가 용량과 음수 슬롯 경계, 모바일 −/+의 현재 업그레이드 호환 장비 선택·최대 용량·빈 상태 제거 방지를 확인한다.</li>
         </ol>
 
         <h3>탄약·Artemis·하드포인트</h3>
@@ -323,7 +325,7 @@
       </section>
 
       <footer>
-        마지막 문서 갱신: 2026-08-27 · 상위 문서: <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>
+        마지막 문서 갱신: 2026-08-28 · 상위 문서: <a href="mwolab-implementation-wiki.html">MwoLab 구현 위키</a>
       </footer>
     </main>
   </div>

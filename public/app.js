@@ -587,6 +587,8 @@ const TEXT = {
     "build.engineHeatSinkOnly": "엔진 내부에는 히트싱크만 장착할 수 있습니다",
     "build.engineHeatSinkFull": "엔진 히트싱크 슬롯이 가득 찼습니다",
     "build.engineHeatSinksFixed": "옴니멕의 엔진 히트싱크는 고정되어 변경할 수 없습니다",
+    "build.removeEngineHeatSink": "엔진 히트싱크 제거",
+    "build.addEngineHeatSink": "엔진 히트싱크 추가",
     "build.noAutoInstallLocation": "장착 가능한 부위가 없습니다",
     "build.noEngineHeatSinkSlots": "이 엔진에는 추가 히트싱크 슬롯이 없습니다",
     "build.heatSinkMismatch": "{item}은(는) 현재 히트싱크 업그레이드와 호환되지 않습니다",
@@ -1146,6 +1148,8 @@ const TEXT = {
     "build.engineHeatSinkOnly": "Only heat sinks can be installed inside the engine",
     "build.engineHeatSinkFull": "Engine heat sink slots are full",
     "build.engineHeatSinksFixed": "This OmniMech's engine heat sinks are fixed and cannot be changed",
+    "build.removeEngineHeatSink": "Remove engine heat sink",
+    "build.addEngineHeatSink": "Add engine heat sink",
     "build.noAutoInstallLocation": "No component can install this item",
     "build.noEngineHeatSinkSlots": "This engine has no additional heat sink slots",
     "build.heatSinkMismatch": "{item} is incompatible with the current heat sink upgrade",
@@ -1270,6 +1274,9 @@ function mainTabNavigationUrl(tabName, mechId = null) {
 
 function sharedLoadoutUrl(code) {
   const url = new URL(window.location.href);
+  if (globalThis.__MWOLAB_MOBILE__) {
+    url.pathname = url.pathname.replace(/\/mobile(?:\/index\.html)?\/?$/i, "/");
+  }
   const language = url.searchParams.get("lang");
   const remainingParams = Array.from(url.searchParams.entries())
     .filter(([name]) => !["lang", "tab", "mech", SHARED_LOADOUT_QUERY_PARAM, SHARED_PUBLIC_FITTING_QUERY_PARAM].includes(name));
@@ -1282,6 +1289,9 @@ function sharedLoadoutUrl(code) {
 
 function publicFittingUrl(fittingId) {
   const url = new URL(window.location.href);
+  if (globalThis.__MWOLAB_MOBILE__) {
+    url.pathname = url.pathname.replace(/\/mobile(?:\/index\.html)?\/?$/i, "/");
+  }
   const language = url.searchParams.get("lang");
   url.search = "";
   url.hash = "";
@@ -3269,6 +3279,12 @@ function buildAsMwoLoadout(mech = state.selectedMech, build = state.currentBuild
   };
 }
 
+function compatibleHeatSinkForUpgrade(build = state.currentBuild) {
+  const upgrade = itemById(build?.upgrades?.heatsinks?.ItemID);
+  const item = itemById(upgrade?.stats?.compatibleHeatSink);
+  return isHeatSink(item) ? item : null;
+}
+
 function currentBuildAsMwoLoadout() {
   return buildAsMwoLoadout();
 }
@@ -3653,7 +3669,7 @@ function setMainTab(tabName) {
   } else if (tabName === "stats") {
     renderStatsPanel();
   } else {
-    renderMechList();
+    if (!globalThis.__MWOLAB_MOBILE__) renderMechList();
     if (tabName === "info") renderInfoPanel();
     if (tabName === "compare") renderComparePanel();
   }
@@ -3666,6 +3682,16 @@ function updateMechlabScale() {
   const panel = $("tab-mechlab");
   const workspace = panel?.querySelector(".mechlab-workspace");
   if (!panel || !workspace) return;
+
+  if (globalThis.__MWOLAB_MOBILE__) {
+    mechlabScale = 1;
+    workspace.style.zoom = "";
+    workspace.style.width = "";
+    workspace.style.height = "";
+    workspace.dataset.scale = "1";
+    panel.classList.remove("mechlab-scale-limited");
+    return;
+  }
 
   const availableWidth = panel.clientWidth;
   const availableHeight = panel.clientHeight;
@@ -11695,6 +11721,7 @@ function renderArmorStepper(
   pairedQuirkBonus = 0,
   includeSkillBonus = true,
 ) {
+  const mobileArmorDisplay = Boolean(globalThis.__MWOLAB_MOBILE__);
   const available = Math.max(0, capacity - value - pairedValue);
   const label = side === "rear" ? "REAR" : "FRONT";
   const finalValue = finalArmorAllocation(
@@ -11727,11 +11754,17 @@ function renderArmorStepper(
       includeSkillBonus,
     ),
   );
+  const displayedValue = mobileArmorDisplay ? value : finalValue;
+  const displayedTone = mobileArmorDisplay
+    ? (value > 0 ? "allocated" : "empty")
+    : valueTone;
+  const displayedMin = mobileArmorDisplay ? 0 : inputMin;
+  const displayedMax = mobileArmorDisplay ? Math.max(0, capacity - pairedValue) : inputMax;
   return `
     <div class="component-armor-row">
       <div class="component-armor-allocation">
         <span class="component-armor-side">${showLabel ? label : ""}</span>
-        <input class="component-armor-value ${valueTone}" type="number" inputmode="numeric" step="1" min="${inputMin}" max="${inputMax}" value="${finalValue}" data-armor-input data-armor-component="${name}" data-armor-side="${side}" data-armor-quirk="${quirkBonus}" data-armor-paired-quirk="${pairedQuirkBonus}" data-armor-skill-multiplier="${skillMultiplier}" data-armor-include-skill="${includeSkillBonus}" aria-label="${MECHLAB_COMPONENT_NAMES[name] || name} ${side} armor value">
+        <input class="component-armor-value ${displayedTone}" type="number" inputmode="numeric" step="1" min="${displayedMin}" max="${displayedMax}" value="${displayedValue}" data-armor-input data-armor-component="${name}" data-armor-side="${side}" data-armor-quirk="${mobileArmorDisplay ? 0 : quirkBonus}" data-armor-paired-quirk="${mobileArmorDisplay ? 0 : pairedQuirkBonus}" data-armor-skill-multiplier="${mobileArmorDisplay ? 0 : skillMultiplier}" data-armor-include-skill="${mobileArmorDisplay ? false : includeSkillBonus}" aria-label="${MECHLAB_COMPONENT_NAMES[name] || name} ${side} armor value">
         <div class="component-armor-stepper" aria-label="${MECHLAB_COMPONENT_NAMES[name] || name} ${side} armor">
           <button type="button" data-armor-component="${name}" data-armor-side="${side}" data-armor-delta="1" ${available <= 0 ? "disabled" : ""} aria-label="Increase ${side} armor">+</button>
           <button type="button" data-armor-component="${name}" data-armor-side="${side}" data-armor-delta="-1" ${value <= 0 ? "disabled" : ""} aria-label="Decrease ${side} armor">-</button>
@@ -11860,13 +11893,13 @@ function renderComponent(name, calc, quirkValues, ghostHeatGroups = new Set()) {
     ? renderLoadoutItem(name, buildComp.items[installedEngineIndex], installedEngineIndex, calc, ghostHeatGroups)
     : "";
   const emptySlots = Math.max(0, slotLimit - usage.slots - number(usage.movableUpgradeSlots));
-  const emptyRows = Array.from({ length: emptySlots }, () => `<div class="critical-slot empty-slot">-</div>`).join("");
+  const emptyRows = Array.from({ length: emptySlots }, () => `<div class="critical-slot empty-slot" data-empty-slot-component="${name}">-</div>`).join("");
   return `
     <article class="component component-location-${name} ${usage.warnings.length ? "invalid" : ""}" data-component-drop="${name}">
         <div class="component-head">
           <div>
             <div class="component-title">${MECHLAB_COMPONENT_NAMES[name] || name}</div>
-            <div class="component-stat-title">ARMOR</div>
+            <div class="component-stat-title">ARMOR${globalThis.__MWOLAB_MOBILE__ ? ` <span class="mobile-component-armor-summary">${fmt(frontArmor + rearArmor)}/${fmt(armorCapacity)}</span>` : ""}</div>
             <div class="component-armor-controls">${armorControls}</div>
             <div class="component-structure-row">
               <span>STRUCTURE</span>
@@ -12005,6 +12038,11 @@ function renderEngineHeatSinkBay(engine, calc) {
         <span class="engine-heat-sink-box filled fixed-engine-heat-sink omnipod-engine-heat-sink"${tooltipItem} aria-label="${escapeHtml(name)}"></span>
       `;
     }
+    if (globalThis.__MWOLAB_MOBILE__) {
+      return `
+        <span class="engine-heat-sink-box filled installed-engine-heat-sink" aria-label="${escapeHtml(name)}"></span>
+      `;
+    }
     return `
       <span class="engine-heat-sink-box filled installed-engine-heat-sink" data-engine-heat-sink-item="${index}" role="button" tabindex="0" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}"></span>
     `;
@@ -12014,9 +12052,27 @@ function renderEngineHeatSinkBay(engine, calc) {
   )).join("");
   const dropTarget = fixedOmniBay ? "" : " data-engine-heat-sink-drop";
   const displayedCapacity = fixedOmniBay ? used : capacity;
-  return `
+  const bay = `
     <div class="engine-inline-heat-sinks${fixedOmniBay ? " fixed-omni-engine-heat-sinks" : ""}"${dropTarget} style="--engine-heat-sink-columns:3" aria-label="${t("build.engineHeatSinks")} ${used}/${displayedCapacity}">
       ${fixedBoxes}${installedBoxes}${emptyBoxes}
+    </div>
+  `;
+  if (!globalThis.__MWOLAB_MOBILE__ || fixedOmniBay) return bay;
+  const userCapacity = engineUserHeatSinkCapacity(engine);
+  const compatibleSink = compatibleHeatSinkForUpgrade();
+  const canRemove = installedEntries.length > 0;
+  const canAdd = Boolean(
+    compatibleSink
+    && installedEntries.length < userCapacity
+    && !engineHeatSinkDropValidation(compatibleSink, { source: "warehouse", itemId: compatibleSink.id }),
+  );
+  return `
+    <div class="mobile-engine-heat-sink-layout">
+      ${bay}
+      <div class="mobile-engine-heat-sink-controls" aria-label="${t("build.engineHeatSinks")}">
+        <button type="button" data-mobile-engine-heat-sink-delta="-1" aria-label="${t("build.removeEngineHeatSink")}" ${canRemove ? "" : "disabled"}>−</button>
+        <button type="button" data-mobile-engine-heat-sink-delta="1" aria-label="${t("build.addEngineHeatSink")}" ${canAdd ? "" : "disabled"}>+</button>
+      </div>
     </div>
   `;
 }
@@ -12136,7 +12192,7 @@ function renderAll() {
     renderStatsPanel();
     return;
   }
-  renderMechList();
+  if (!globalThis.__MWOLAB_MOBILE__) renderMechList();
   if (state.activeMainTab === "info") {
     renderInfoPanel();
     return;
@@ -12325,7 +12381,7 @@ function applyMechNavigationFromLocation() {
 function initializeMechNavigation() {
   mechNavigationReady = true;
   const params = new URL(window.location.href).searchParams;
-  if (params.has(SHARED_PUBLIC_FITTING_QUERY_PARAM)) {
+  if (params.has(SHARED_PUBLIC_FITTING_QUERY_PARAM) && !globalThis.__MWOLAB_MOBILE__) {
     renderAll();
     return;
   }
@@ -12341,7 +12397,9 @@ function initializeMechNavigation() {
     }
   }
   const tabParam = params.get("tab");
-  const requestedTab = MAIN_TAB_NAMES.has(tabParam) ? tabParam : "mechlab";
+  const requestedTab = globalThis.__MWOLAB_MOBILE__
+    ? "mechlab"
+    : MAIN_TAB_NAMES.has(tabParam) ? tabParam : "mechlab";
   const requestedMechId = params.get("mech");
   const requestedMech = requestedMechId ? mechById(requestedMechId) : null;
   if (requestedTab === "mechlab") {
@@ -12389,6 +12447,10 @@ function openLoadoutCodeDialog(mode) {
   $("apply-loadout-code").hidden = !importing;
   $("copy-loadout-code").hidden = importing;
   $("copy-loadout-url").hidden = importing;
+  const mobileExport = Boolean(globalThis.__MWOLAB_MOBILE__ && !importing);
+  $("close-loadout-code").hidden = mobileExport;
+  $("close-loadout-code-mobile").hidden = !mobileExport;
+  $("loadout-code-overlay").querySelector(".loadout-code-dialog")?.classList.toggle("mobile-export", mobileExport);
   urlField.hidden = importing;
   textarea.readOnly = !importing;
   textarea.placeholder = importing ? t("loadout.importPlaceholder") : "";
@@ -13365,7 +13427,10 @@ function closeBuildActionsDialog() {
   if ($("build-actions-overlay").hidden) return;
   $("build-actions-overlay").hidden = true;
   document.body.classList.remove("build-actions-open");
-  $("open-build-actions")?.focus();
+  const returnTarget = globalThis.__MWOLAB_MOBILE__
+    ? document.querySelector('[data-mobile-action="tools"]')
+    : $("open-build-actions");
+  returnTarget?.focus();
 }
 
 function renderUiSettingsDialog() {
@@ -14368,6 +14433,10 @@ function positionEquipmentTooltip(target = activeEquipmentTooltipTarget) {
 }
 
 function showEquipmentTooltip(target) {
+  if (globalThis.__MWOLAB_MOBILE__) {
+    hideEquipmentTooltip();
+    return;
+  }
   const item = equipmentTooltipItem(target);
   const omnipod = equipmentTooltipOmnipod(target);
   const ghostHeatWarning = target?.dataset.ghostHeatWarning !== undefined;
@@ -14440,7 +14509,7 @@ function reflowInstalledEquipment() {
   return dropped;
 }
 
-function installWarehouseItemInComponent(item, component) {
+function installWarehouseItemInComponent(item, component, { render = true } = {}) {
   const warning = dropValidation(item, component);
   if (warning) return false;
   if (item.item_type === "engine") {
@@ -14452,7 +14521,7 @@ function installWarehouseItemInComponent(item, component) {
   state.currentBuild.components[component].items.push(buildEntryForItem(item));
   normalizeEngineHeatSinks(state.selectedMech, state.currentBuild);
   if (item.item_type === "engine") reflowInstalledEquipment();
-  renderVariant();
+  if (render) renderVariant();
   return true;
 }
 
@@ -14481,7 +14550,7 @@ function autoInstallWarehouseItem(item) {
   return false;
 }
 
-function removeInstalledItem(component, index) {
+function removeInstalledItem(component, index, { render = true } = {}) {
   const items = state.currentBuild?.components?.[component]?.items;
   if (!items?.[index]) return false;
   const [removed] = items.splice(index, 1);
@@ -14489,17 +14558,21 @@ function removeInstalledItem(component, index) {
     normalizeEngineHeatSinks(state.selectedMech, state.currentBuild);
     reflowInstalledEquipment();
   }
-  hideEquipmentTooltip();
-  renderVariant();
+  if (render) {
+    hideEquipmentTooltip();
+    renderVariant();
+  }
   return true;
 }
 
-function removeInstalledEngineHeatSink(index) {
+function removeInstalledEngineHeatSink(index, { render = true } = {}) {
   const items = engineHeatSinkEntries();
   if (!items[index]) return false;
   items.splice(index, 1);
-  hideEquipmentTooltip();
-  renderVariant();
+  if (render) {
+    hideEquipmentTooltip();
+    renderVariant();
+  }
   return true;
 }
 
@@ -14832,6 +14905,7 @@ function startEquipmentPointerDrag(session) {
 }
 
 function beginEquipmentPointerDrag(event) {
+  if (globalThis.__MWOLAB_MOBILE__) return;
   if (equipmentPointerDrag || !event.isPrimary || event.button !== 0) return;
   if (event.target.closest("input, select, textarea, [data-engine-rating-delta], [data-armor-delta]")) return;
   const dragSource = equipmentPointerDragPayload(event.target);
@@ -15144,24 +15218,26 @@ function removeDraggedItem() {
 function bindEvents() {
   window.addEventListener("popstate", applyMechNavigationFromLocation);
   const tooltipSelector = "[data-item], [data-tooltip-item], [data-loadout-item], [data-engine-heat-sink-item], [data-omnipod], [data-tooltip-omnipod], [data-ghost-heat-warning]";
-  document.addEventListener("pointerover", (event) => {
-    const target = event.target.closest(tooltipSelector);
-    if (!target || target === activeEquipmentTooltipTarget) return;
-    showEquipmentTooltip(target);
-  });
-  document.addEventListener("pointerout", (event) => {
-    if (!activeEquipmentTooltipTarget || activeEquipmentTooltipTarget.contains(event.relatedTarget)) return;
-    const nextTarget = event.relatedTarget?.closest?.(tooltipSelector);
-    if (nextTarget) showEquipmentTooltip(nextTarget);
-    else hideEquipmentTooltip();
-  });
-  document.addEventListener("focusin", (event) => {
-    const target = event.target.closest(tooltipSelector);
-    if (target) showEquipmentTooltip(target);
-  });
-  document.addEventListener("focusout", (event) => {
-    if (activeEquipmentTooltipTarget && !activeEquipmentTooltipTarget.contains(event.relatedTarget)) hideEquipmentTooltip();
-  });
+  if (!globalThis.__MWOLAB_MOBILE__) {
+    document.addEventListener("pointerover", (event) => {
+      const target = event.target.closest(tooltipSelector);
+      if (!target || target === activeEquipmentTooltipTarget) return;
+      showEquipmentTooltip(target);
+    });
+    document.addEventListener("pointerout", (event) => {
+      if (!activeEquipmentTooltipTarget || activeEquipmentTooltipTarget.contains(event.relatedTarget)) return;
+      const nextTarget = event.relatedTarget?.closest?.(tooltipSelector);
+      if (nextTarget) showEquipmentTooltip(nextTarget);
+      else hideEquipmentTooltip();
+    });
+    document.addEventListener("focusin", (event) => {
+      const target = event.target.closest(tooltipSelector);
+      if (target) showEquipmentTooltip(target);
+    });
+    document.addEventListener("focusout", (event) => {
+      if (activeEquipmentTooltipTarget && !activeEquipmentTooltipTarget.contains(event.relatedTarget)) hideEquipmentTooltip();
+    });
+  }
   document.addEventListener("scroll", () => {
     if (activeEquipmentTooltipTarget) positionEquipmentTooltip();
   }, { capture: true, passive: true });
@@ -15179,6 +15255,7 @@ function bindEvents() {
     if (event.target === $("help-overlay")) closeHelpDialog();
   });
   $("close-loadout-code").addEventListener("click", closeLoadoutCodeDialog);
+  $("close-loadout-code-mobile").addEventListener("click", closeLoadoutCodeDialog);
   $("apply-loadout-code").addEventListener("click", applyImportedMwoCode);
   $("copy-loadout-code").addEventListener("click", copyExportedMwoCode);
   $("copy-loadout-url").addEventListener("click", copyExportedMwoUrl);
@@ -16060,6 +16137,10 @@ function bindEvents() {
     selectUpgrade(button.dataset.upgradeCategory, button.dataset.upgradeValue);
   });
   $("components").addEventListener("click", (event) => {
+    if (globalThis.__MWOLAB_MOBILE__ && event.target.closest("[data-mobile-engine-heat-sink-delta], .engine-heat-sink-box")) {
+      event.preventDefault();
+      return;
+    }
     const mechlabAction = event.target.closest("[data-mechlab-action]");
     if (mechlabAction) {
       const action = mechlabAction.dataset.mechlabAction;
@@ -16106,6 +16187,9 @@ function bindEvents() {
   });
   $("components").addEventListener("contextmenu", (event) => {
     event.preventDefault();
+    if (globalThis.__MWOLAB_MOBILE__ && event.target.closest(
+      "[data-mobile-engine-heat-sink-delta], .engine-heat-sink-box, .engine-main-slot, .engine-fixed-slot",
+    )) return;
     const engineSinkRow = event.target.closest("[data-engine-heat-sink-item]");
     if (engineSinkRow) {
       removeInstalledEngineHeatSink(Number(engineSinkRow.dataset.engineHeatSinkItem));
@@ -16220,7 +16304,7 @@ async function init() {
       state.index.files.shake_damping_mechs
         ? loadJson(state.index.files.shake_damping_mechs)
         : Promise.resolve({ mechs: [] }),
-      state.index.files.skills
+      state.index.files.skills && !globalThis.__MWOLAB_MOBILE__
         ? loadJson(state.index.files.skills)
         : Promise.resolve({ categories: [], node_count: 0 }),
     ]);
@@ -16242,7 +16326,7 @@ async function init() {
     );
     state.mechSpecialFeatureCache.clear();
     state.improvedJumpJetChassis = null;
-    scheduleStatsSummaryWarmup();
+    if (!globalThis.__MWOLAB_MOBILE__) scheduleStatsSummaryWarmup();
     $("data-status").textContent = t("status.loadedData", { count: state.index.counts.mechs });
     initializeMechNavigation();
     resolveCommunityBridgeReady(true);
@@ -16252,6 +16336,206 @@ async function init() {
     resolveCommunityBridgeReady(false);
   }
 }
+
+function mobileMechListData() {
+  return (state.mechs || []).map((mech) => {
+    const counts = hardpointCountsFromDefinition(currentDefinition(mech));
+    return {
+      id: String(mech.id),
+      name: mech.display_name || variantCode(mech),
+      chassis: String(mech.chassis || ""),
+      chassisName: gameLocalizedText(mech.chassis) || formatChassisName(mech.chassis),
+      faction: factionLabel(mech.faction),
+      factionKey: String(mech.faction || ""),
+      weightClass: WEIGHT_CLASS_LABELS[mech.weight_class] || mech.weight_class || "",
+      weightClassKey: String(mech.weight_class || ""),
+      tons: number(mech.definition?.stats?.MaxTons),
+      hardpoints: Object.fromEntries(HARDPOINT_ORDER.map((type) => [type, number(counts[type])])),
+      omnimech: hasFixedOmnipods(mech),
+    };
+  });
+}
+
+function mobilePickerData(component, category = "weapons") {
+  if (!state.selectedMech || !state.currentBuild?.components?.[component]) {
+    return { component, category, hardpointCapacity: {}, remainingHardpoints: {}, items: [], omnipods: [], fixedEngine: false };
+  }
+
+  const calc = calculateBuild();
+  const componentDefinition = effectiveComponentDefinition(state.selectedMech, state.currentBuild, component);
+  const capacity = hardpointCountsFromHardpoints(componentDefinition.hardpoints || []);
+  const used = calc.componentUsage?.[component]?.hardpoints || {};
+  const hardpointCapacity = Object.fromEntries(HARDPOINT_ORDER
+    .filter((type) => number(capacity[type]) > 0)
+    .map((type) => [type, number(capacity[type])]));
+  const remainingHardpoints = Object.fromEntries(Object.keys(hardpointCapacity).map((type) => [
+    type,
+    Math.max(0, number(capacity[type]) - number(used[type])),
+  ]));
+
+  if (category === "omnipods") {
+    const chassis = String(state.selectedMech.chassis || "").toLowerCase();
+    const omnipods = Object.values(state.omnipods || {})
+      .filter((pod) => String(pod.chassis || "").toLowerCase() === chassis)
+      .filter((pod) => String(pod.component || "") === String(component))
+      .sort((a, b) => String(a.set).localeCompare(String(b.set), undefined, { numeric: true }))
+      .map((pod) => ({
+        id: String(pod.id),
+        name: `${String(pod.set || "OMNIPOD").toUpperCase()} ${String(component).replaceAll("_", " ").toUpperCase()}`,
+        active: String(state.currentBuild.components[component].omnipod || "") === String(pod.id),
+        hardpoints: hardpointCountsFromHardpoints(omnipodDefinition(pod).hardpoints || []),
+      }));
+    return { component, category, hardpointCapacity, remainingHardpoints, items: [], omnipods, fixedEngine: component === "centre_torso" };
+  }
+
+  const isOmniMech = hasFixedOmnipods(state.selectedMech);
+  const families = category === "weapons"
+    ? ["weapons"]
+    : category === "ammo"
+      ? ["ammo"]
+      : category === "engines"
+        ? ["engines"]
+        : category === "engine-heatsinks"
+          ? ["equipment"]
+          : ["equipment", "jumpjets", "masc"];
+  const ids = [...new Set(families.flatMap((family) => state.equipment?.families?.[family] || []))];
+  const ammoTypes = category === "ammo" ? installedWeaponAmmoTypes() : null;
+  const items = ids
+    .map((id) => itemById(id))
+    .filter(Boolean)
+    .filter((item) => itemMatchesMechFaction(item))
+    .filter((item) => heatSinkMatchesUpgrade(item))
+    .filter((item) => !guidanceMismatch(item))
+    .filter((item) => equipmentMatchesSelectedMechCapabilities(item))
+    .filter((item) => !ammoTypes || ammoMatchesInstalledWeapons(item, ammoTypes))
+    .filter((item) => category !== "engine-heatsinks" || isHeatSink(item))
+    .filter((item) => category !== "engines" || engineCanBeInstalledOnSelectedMech(item, isOmniMech))
+    .filter((item) => category !== "engines" || component === "centre_torso")
+    .filter((item) => category === "engines" || itemAllowedInComponent(item, component))
+    .filter((item) => {
+      if (category !== "weapons") return true;
+      const type = equipmentHardpointType(item);
+      return HARDPOINT_ORDER.includes(type) && number(hardpointCapacity[type]) > 0;
+    })
+    .map((item) => {
+      const warning = category === "engine-heatsinks"
+        ? engineHeatSinkDropValidation(item, { source: "warehouse", itemId: item.id }) || ""
+        : dropValidation(item, component) || "";
+      const type = item.item_type === "ammo" ? ammoHardpointType(item) : equipmentHardpointType(item);
+      return {
+        id: String(item.id),
+        name: item.display_name || item.name || String(item.id),
+        type: type || item.item_type || "equipment",
+        slots: effectiveItemSlots(item),
+        tons: itemTons(item),
+        warning,
+        slotShortage: /(?:^|:\s*)Slots\s+\d+\/\d+/i.test(warning),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  return {
+    component,
+    category,
+    hardpointCapacity,
+    remainingHardpoints,
+    items,
+    omnipods: [],
+    fixedEngine: Boolean(fixedOmniEngine()),
+  };
+}
+
+function mobileSlotSummary() {
+  if (!state.selectedMech || !state.currentBuild) return null;
+  const calc = calculateBuild();
+  return {
+    tons: number(calc.totalTons),
+    maxTons: number(calc.maxTons),
+    tonsOver: number(calc.totalTons) > number(calc.maxTons) + 0.0001,
+    current: number(calc.currentSlotUsage),
+    total: number(calc.totalSlotCapacity),
+    remaining: number(calc.freeSlots),
+    slotsOver: number(calc.currentSlotUsage) > number(calc.totalSlotCapacity),
+    warnings: [...(calc.warnings || [])],
+  };
+}
+
+function mobileRemoveItem(component, index, { render = true } = {}) {
+  const entry = state.currentBuild?.components?.[component]?.items?.[Number(index)];
+  if (!entry || itemById(entry.item_id)?.item_type === "engine") return false;
+  return removeInstalledItem(component, Number(index), { render });
+}
+
+function mobileInstallEngineHeatSink(itemId, { render = true } = {}) {
+  const item = itemById(itemId);
+  if (
+    !item
+    || !heatSinkMatchesUpgrade(item)
+    || engineHeatSinkDropValidation(item, { source: "warehouse", itemId: item.id })
+  ) return false;
+  engineHeatSinkEntries().push(buildEntryForItem(item));
+  if (render) renderVariant();
+  return true;
+}
+
+function mobileAdjustEngineHeatSink(delta, { render = true } = {}) {
+  const direction = Math.sign(number(delta));
+  if (direction < 0) {
+    const entries = engineHeatSinkEntries();
+    return removeInstalledEngineHeatSink(entries.length - 1, { render });
+  }
+  if (direction > 0) {
+    const item = compatibleHeatSinkForUpgrade();
+    return Boolean(item && mobileInstallEngineHeatSink(item.id, { render }));
+  }
+  return false;
+}
+
+globalThis.MwoLabMobileBridge = Object.freeze({
+  ready: () => Boolean(state.index && state.equipment && state.mechs?.length),
+  language: () => activeLanguage,
+  selectedMech: () => state.selectedMech ? {
+    id: String(state.selectedMech.id),
+    name: state.selectedMech.display_name || variantCode(state.selectedMech),
+  } : null,
+  mechs: mobileMechListData,
+  slotSummary: mobileSlotSummary,
+  picker: mobilePickerData,
+  prepareMechList() {
+    state.largeMechList = false;
+  },
+  openFitting(mechId) {
+    if (!mechById(mechId)) return false;
+    selectMech(mechId, { historyMode: "push", mechlabMode: "replace" });
+    return true;
+  },
+  install(itemId, component) {
+    const item = itemById(itemId);
+    return Boolean(item && installWarehouseItemInComponent(item, component));
+  },
+  installEngineHeatSink(itemId) {
+    return mobileInstallEngineHeatSink(itemId);
+  },
+  adjustEngineHeatSink(delta) {
+    return mobileAdjustEngineHeatSink(delta);
+  },
+  remove(component, index) {
+    return mobileRemoveItem(component, index);
+  },
+  removeEngineHeatSink(index) {
+    return removeInstalledEngineHeatSink(Number(index));
+  },
+  replaceOmnipod(component, podId) {
+    const changed = replaceOmnipod(component, podId);
+    if (changed) {
+      renderVariant();
+      renderEquipmentList();
+    }
+    return changed;
+  },
+  openTools: openBuildActionsDialog,
+  openLoadout: openLoadoutCodeDialog,
+});
 
 if (globalThis.__MWOLAB_TEST__) {
   globalThis.__MWOLAB_TEST_API__ = Object.freeze({
@@ -16320,6 +16604,7 @@ if (globalThis.__MWOLAB_TEST__) {
     componentArmorCapacity,
     componentDurabilityQuirkValues,
     finalArmorAllocation,
+    renderArmorStepper,
     quirkMultiplier,
     quirkReduction,
     quirkIncrease,
@@ -16402,6 +16687,14 @@ if (globalThis.__MWOLAB_TEST__) {
     mechMatchesQuirkFilters,
     normalizeMechHardpointFilterMinimum,
     calculateBuild,
+    mobilePickerData,
+    mobileSlotSummary,
+    mobileRemoveItem,
+    mobileInstallEngineHeatSink,
+    mobileAdjustEngineHeatSink,
+    installWarehouseItemInComponent,
+    removeInstalledEngineHeatSink,
+    replaceOmnipod,
     sharedLoadoutUrl,
     publicFittingUrl,
     restoreMechlabHistorySnapshot,
