@@ -501,6 +501,29 @@ html.mobile-app body {
   gap: 0.35rem;
 }
 
+.mobile-mech-faction-group {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.mobile-mech-faction-title {
+  margin: 0.25rem 0 0;
+  padding: 0.4rem 0.55rem;
+  border-left: 3px solid currentColor;
+  background: #0b191d;
+  color: #91a7ac;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+}
+
+.mobile-mech-faction-title[data-faction="Clan"] {
+  color: #69c8dc;
+}
+
+.mobile-mech-faction-title[data-faction="InnerSphere"] {
+  color: #e2a35e;
+}
+
 .mobile-mech-category {
   display: grid;
   gap: 0.28rem;
@@ -597,12 +620,24 @@ html.mobile-app body {
 .mobile-hardpoint-tag.missile { color: var(--missile); }
 .mobile-hardpoint-tag.ballistic { color: var(--purple); }
 .mobile-hardpoint-tag.ams { color: var(--ams); }
+.mobile-hardpoint-tag.ecm { color: #ff9b42; }
+
+.mobile-picker-controls {
+  position: sticky;
+  z-index: 3;
+  top: -0.75rem;
+  display: grid;
+  margin: -0.75rem -0.75rem 0.65rem;
+  padding: 0.75rem 0.75rem 0.65rem;
+  background: #081215;
+  gap: 0.65rem;
+}
 
 .mobile-picker-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.35rem;
-  margin-bottom: 0.65rem;
+  margin: 0;
 }
 
 .mobile-picker-tabs button {
@@ -635,6 +670,15 @@ html.mobile-app body {
   font-size: 0.72rem;
   justify-content: space-between;
   gap: 0.5rem;
+}
+
+.mobile-picker-controls .mobile-picker-hardpoints,
+.mobile-picker-controls .mobile-picker-status {
+  margin: 0;
+}
+
+.mobile-picker-controls .mobile-picker-status:empty {
+  display: none;
 }
 
 .mobile-picker-hardpoints {

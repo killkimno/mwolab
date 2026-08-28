@@ -16339,7 +16339,8 @@ async function init() {
 
 function mobileMechListData() {
   return (state.mechs || []).map((mech) => {
-    const counts = hardpointCountsFromDefinition(currentDefinition(mech));
+    const stockBuild = buildFromLoadout(mech);
+    const counts = hardpointCountsFromDefinition(effectiveDefinition(mech, stockBuild));
     return {
       id: String(mech.id),
       name: mech.display_name || variantCode(mech),
@@ -16347,6 +16348,7 @@ function mobileMechListData() {
       chassisName: gameLocalizedText(mech.chassis) || formatChassisName(mech.chassis),
       faction: factionLabel(mech.faction),
       factionKey: String(mech.faction || ""),
+      factionOrder: factionRank(mech.faction),
       weightClass: WEIGHT_CLASS_LABELS[mech.weight_class] || mech.weight_class || "",
       weightClassKey: String(mech.weight_class || ""),
       tons: number(mech.definition?.stats?.MaxTons),
@@ -16411,6 +16413,7 @@ function mobilePickerData(component, category = "weapons") {
     .filter((item) => category !== "engine-heatsinks" || isHeatSink(item))
     .filter((item) => category !== "engines" || engineCanBeInstalledOnSelectedMech(item, isOmniMech))
     .filter((item) => category !== "engines" || component === "centre_torso")
+    .filter((item) => category !== "equipment" || Boolean(warehouseItemSection(item, category, isOmniMech)))
     .filter((item) => category === "engines" || itemAllowedInComponent(item, component))
     .filter((item) => {
       if (category !== "weapons") return true;

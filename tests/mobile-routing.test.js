@@ -124,6 +124,10 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(mobileIndex, /firebase-community\\\.js/);
   assert.match(mobileApp, /data-mobile-action/);
   assert.match(mobileApp, /mobile-mech-list-controls/);
+  assert.match(mobileApp, /ecm: "ECM"/);
+  assert.match(mobileApp, /mobile-mech-faction-group/);
+  assert.match(mobileApp, /data-faction=/);
+  assert.match(mobileApp, /\.sort\(\(a, b\) => a\.order - b\.order \|\| a\.label\.localeCompare\(b\.label\)\)/);
   assert.match(mobileApp, /data-mobile-mech-category/);
   assert.match(mobileApp, /expandedMechCategory === category/);
   assert.match(mobileApp, /\$\{query \? "disabled" : ""\}/);
@@ -139,6 +143,9 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(mobileApp, /if \(open\) desktopViewLink\.setAttribute\("href", desktopViewHref\(\)\)/);
   assert.match(mobileApp, /data-mobile-desktop-view/);
   assert.match(mobileApp, /data-mobile-picker-item/);
+  assert.match(mobileApp, /mobile-picker-controls/);
+  assert.match(mobileApp, /pickerControls\.append\(pickerTabs, pickerHardpoints, pickerStatus\)/);
+  assert.match(mobileApp, /pickerBody\.append\(pickerControls, pickerList\)/);
   assert.match(mobileApp, /data-mobile-engine-heat-sink-delta/);
   assert.match(mobileApp, /bridge\.adjustEngineHeatSink/);
   assert.match(mobileApp, /event\.target\.closest\("\.engine-heat-sink-box"\)/);
@@ -184,7 +191,10 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(mobileCss, /\.mobile-fitting-status/);
   assert.match(mobileCss, /\.mobile-save-options/);
   assert.match(mobileCss, /\.mobile-mech-list-controls \{[\s\S]*?position: sticky;[\s\S]*?z-index: 3;[\s\S]*?top: -0\.75rem;/);
+  assert.match(mobileCss, /\.mobile-picker-controls \{[\s\S]*?position: sticky;[\s\S]*?z-index: 3;[\s\S]*?top: -0\.75rem;[\s\S]*?background: #081215;/);
   assert.match(mobileCss, /\.mobile-mech-category-button/);
+  assert.match(mobileCss, /\.mobile-mech-faction-title\[data-faction="Clan"\]/);
+  assert.match(mobileCss, /\.mobile-mech-faction-title\[data-faction="InnerSphere"\]/);
   assert.match(mobileCss, /#build-actions-overlay \.build-actions-close \{[\s\S]*?display: none !important;/);
   assert.match(mobileCss, /#close-build-actions\.mobile-overlay-close/);
   assert.match(mobileCss, /\.loadout-code-dialog\.mobile-export/);
@@ -206,6 +216,7 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(mobileCss, /\.mobile-hardpoint-tag\.missile \{ color: var\(--missile\); \}/);
   assert.match(mobileCss, /\.mobile-hardpoint-tag\.ballistic \{ color: var\(--purple\); \}/);
   assert.match(mobileCss, /\.mobile-hardpoint-tag\.ams \{ color: var\(--ams\); \}/);
+  assert.match(mobileCss, /\.mobile-hardpoint-tag\.ecm \{ color: #ff9b42; \}/);
   assert.ok(mobileCss.lastIndexOf(".mobile-picker-item.invalid") > mobileCss.indexOf(".mobile-picker-item.ams"));
   assert.match(styles, /:root \{[\s\S]*?--mechlab-slot-row-height: 1\.694rem;[\s\S]*?--mechlab-slot-fill-height: 1\.65rem;/);
   assert.match(styles, /grid-auto-rows: minmax\(var\(--mechlab-slot-row-height\), auto\)/);
@@ -214,11 +225,14 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(app, /data-empty-slot-component/);
   assert.match(app, /chassisName: gameLocalizedText\(mech\.chassis\) \|\| formatChassisName\(mech\.chassis\)/);
   assert.match(app, /weightClassKey: String\(mech\.weight_class \|\| ""\)/);
+  assert.match(app, /factionOrder: factionRank\(mech\.faction\)/);
+  assert.match(app, /function mobileMechListData\(\)[\s\S]*?const stockBuild = buildFromLoadout\(mech\);[\s\S]*?hardpointCountsFromDefinition\(effectiveDefinition\(mech, stockBuild\)\)/);
   assert.match(app, /globalThis\.__MWOLAB_MOBILE__[\s\S]*?querySelector\('\[data-mobile-action="tools"\]'\)[\s\S]*?returnTarget\?\.focus\(\)/);
   assert.match(app, /frontArmor \+ rearArmor/);
   assert.match(app, /globalThis\.__MWOLAB_MOBILE__ \? ` <span class="mobile-component-armor-summary">/);
   assert.match(app, /url\.pathname = url\.pathname\.replace/);
   assert.match(app, /hardpointCapacity\[type\]/);
+  assert.match(app, /category !== "equipment" \|\| Boolean\(warehouseItemSection\(item, category, isOmniMech\)\)/);
   assert.match(app, /function mobileAdjustEngineHeatSink\(delta/);
   assert.match(app, /stats\?\.compatibleHeatSink/);
   assert.match(app, /data-mobile-engine-heat-sink-delta="-1"/);

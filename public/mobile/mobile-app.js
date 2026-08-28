@@ -12,7 +12,7 @@
     right_leg: "RIGHT LEG",
     left_leg: "LEFT LEG",
   };
-  const HARDPOINT_LABELS = { energy: "E", missile: "M", ballistic: "B", ams: "AMS" };
+  const HARDPOINT_LABELS = { energy: "E", missile: "M", ballistic: "B", ams: "AMS", ecm: "ECM" };
   const HARDPOINT_NAMES = {
     kr: { energy: "에너지", missile: "미사일", ballistic: "발리스틱", ams: "AMS" },
     en: { energy: "Energy", missile: "Missile", ballistic: "Ballistic", ams: "AMS" },
@@ -207,11 +207,13 @@
 
   const pickerOverlay = createOverlay("mobile-picker-overlay", t("weapons"));
   const pickerBody = pickerOverlay.querySelector(".mobile-overlay-body");
+  const pickerControls = element("div", "mobile-picker-controls");
   const pickerTabs = element("div", "mobile-picker-tabs");
   const pickerHardpoints = element("div", "mobile-picker-hardpoints");
   const pickerStatus = element("p", "mobile-picker-status", { role: "status" });
   const pickerList = element("div", "mobile-picker-list");
-  pickerBody.append(pickerTabs, pickerHardpoints, pickerStatus, pickerList);
+  pickerControls.append(pickerTabs, pickerHardpoints, pickerStatus);
+  pickerBody.append(pickerControls, pickerList);
 
   const overviewOverlay = createOverlay("mobile-overview-overlay", t("overview"));
   const upgradeOverlay = createOverlay("mobile-upgrade-overlay", t("upgrades"));
@@ -295,31 +297,48 @@
     mechs.forEach((mech) => {
       const weight = mech.weightClass || "-";
       if (!weightGroups.has(weight)) weightGroups.set(weight, new Map());
-      const categories = weightGroups.get(weight);
+      const factions = weightGroups.get(weight);
+      const factionKey = mech.factionKey || mech.faction || "-";
+      if (!factions.has(factionKey)) {
+        factions.set(factionKey, {
+          key: factionKey,
+          label: mech.faction || factionKey,
+          order: Number(mech.factionOrder),
+          categories: new Map(),
+        });
+      }
+      const categories = factions.get(factionKey).categories;
       if (!categories.has(mech.chassis)) categories.set(mech.chassis, []);
       categories.get(mech.chassis).push(mech);
     });
-    mechList.innerHTML = [...weightGroups.entries()].map(([weight, categories]) => `
+    mechList.innerHTML = [...weightGroups.entries()].map(([weight, factions]) => `
       <section class="mobile-mech-weight-group">
         <h3 class="mobile-mech-group-title">${escapeHtml(weight)}</h3>
-        ${[...categories.entries()].map(([chassis, entries]) => {
-          const expanded = Boolean(query) || expandedMechCategory === chassis;
-          const representative = entries[0];
-          return `
-            <div class="mobile-mech-category${expanded ? " expanded" : ""}">
-              <button class="mobile-mech-category-button" type="button" data-mobile-mech-category="${escapeHtml(chassis)}" aria-expanded="${expanded}" ${query ? "disabled" : ""}>
-                <span><span class="mobile-mech-category-indicator">${expanded ? "−" : "+"}</span><strong>${escapeHtml(representative.chassisName || chassis)}</strong></span>
-                <span>${escapeHtml(representative.tons)}T · ${entries.length}</span>
-              </button>
-              ${expanded ? `<div class="mobile-mech-category-items">${entries.map((mech) => `
-                <button class="mobile-mech-row" type="button" data-mobile-mech="${escapeHtml(mech.id)}">
-                  <span><strong>${escapeHtml(mech.name)}</strong><small>${escapeHtml(mech.faction)}${mech.omnimech ? " · OMNI" : ""}</small></span>
-                  <span class="mobile-hardpoints">${hardpointTags(mech.hardpoints)}</span>
-                </button>
-              `).join("")}</div>` : ""}
-            </div>
-          `;
-        }).join("")}
+        ${[...factions.values()]
+          .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+          .map((faction) => `
+            <section class="mobile-mech-faction-group">
+              <h4 class="mobile-mech-faction-title" data-faction="${escapeHtml(faction.key)}">${escapeHtml(faction.label)}</h4>
+              ${[...faction.categories.entries()].map(([chassis, entries]) => {
+                const expanded = Boolean(query) || expandedMechCategory === chassis;
+                const representative = entries[0];
+                return `
+                  <div class="mobile-mech-category${expanded ? " expanded" : ""}">
+                    <button class="mobile-mech-category-button" type="button" data-mobile-mech-category="${escapeHtml(chassis)}" aria-expanded="${expanded}" ${query ? "disabled" : ""}>
+                      <span><span class="mobile-mech-category-indicator">${expanded ? "−" : "+"}</span><strong>${escapeHtml(representative.chassisName || chassis)}</strong></span>
+                      <span>${escapeHtml(representative.tons)}T · ${entries.length}</span>
+                    </button>
+                    ${expanded ? `<div class="mobile-mech-category-items">${entries.map((mech) => `
+                      <button class="mobile-mech-row" type="button" data-mobile-mech="${escapeHtml(mech.id)}">
+                        <span><strong>${escapeHtml(mech.name)}</strong><small>${escapeHtml(mech.faction)}${mech.omnimech ? " · OMNI" : ""}</small></span>
+                        <span class="mobile-hardpoints">${hardpointTags(mech.hardpoints)}</span>
+                      </button>
+                    `).join("")}</div>` : ""}
+                  </div>
+                `;
+              }).join("")}
+            </section>
+          `).join("")}
       </section>
     `).join("");
   }

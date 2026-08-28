@@ -3097,6 +3097,16 @@ test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호�
     name: "SingleHeatSink",
     display_name: "SINGLE HEAT SINK",
   };
+  const fixedWeaponModule = {
+    id: 507,
+    item_type: "module",
+    ctype: "CTargetingComputerStats",
+    name: "FixedWeaponModule",
+    display_name: "FIXED WEAPON MODULE",
+    faction: "InnerSphere",
+    stats: { slots: 5, tons: 0, amountAllowed: 2 },
+    weapon_stat_filters: [{ compatible_weapons: ["TestWeapon"], weapon_stats: [{ operation: "+", damage: 8 }] }],
+  };
   const components = Object.fromEntries(componentNames.map((name) => [name, {
     hp: name === "head" ? 15 : 20,
     slots: name === "left_arm" ? 2 : 12,
@@ -3120,8 +3130,8 @@ test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호�
     },
   };
   api.state.equipment = {
-    items: { 500: engine, 501: smallLaser, 502: largeLaser, 503: missile, 504: heatSink, 505: heatSinkUpgrade, 506: incompatibleHeatSink },
-    families: { weapons: [501, 502, 503], ammo: [], equipment: [504, 506], jumpjets: [], masc: [], engines: [500], upgrades: [505] },
+    items: { 500: engine, 501: smallLaser, 502: largeLaser, 503: missile, 504: heatSink, 505: heatSinkUpgrade, 506: incompatibleHeatSink, 507: fixedWeaponModule },
+    families: { weapons: [501, 502, 503], ammo: [], equipment: [504, 506, 507], jumpjets: [], masc: [], engines: [500], upgrades: [505] },
   };
   api.state.loadouts = {};
   api.state.omnipods = {};
@@ -3144,6 +3154,9 @@ test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호�
   assert.equal(picker.remainingHardpoints.missile, 1);
   assert.deepEqual(new Set(picker.items.map((item) => item.type)), new Set(["energy", "missile"]));
   assert.equal(picker.items.find((item) => item.id === "502").slotShortage, true);
+  const equipmentPicker = api.mobilePickerData("left_arm", "equipment");
+  assert.equal(equipmentPicker.items.some((item) => item.id === "504"), true);
+  assert.equal(equipmentPicker.items.some((item) => item.id === "507"), false);
   const slotSummary = api.mobileSlotSummary();
   const calculated = api.calculateBuild();
   assert.equal(slotSummary.tons, calculated.totalTons);
