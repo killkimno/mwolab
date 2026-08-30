@@ -57,7 +57,7 @@ async function fetchSharedFittingCode(fittingId) {
   const documentRecord = await response.json();
   const schemaVersion = Number(documentRecord?.fields?.schemaVersion?.integerValue);
   const loadoutCode = documentRecord?.fields?.loadoutCode?.stringValue;
-  if (![1, 2].includes(schemaVersion) || typeof loadoutCode !== "string" || !loadoutCode) {
+  if (![1, 2, 3].includes(schemaVersion) || typeof loadoutCode !== "string" || !loadoutCode) {
     throw new Error("invalid");
   }
   return loadoutCode;

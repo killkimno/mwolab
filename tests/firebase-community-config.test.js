@@ -120,15 +120,15 @@ test("선택형 고유 닉네임은 UID 소유권과 분리해 예약하고 공�
   assert.match(styles, /\.community-account-menu[\s\S]*\.nickname-overlay[\s\S]*\.nickname-dialog/);
 });
 
-test("통합 브라우저는 공개·로컬·내 업로드 탭과 설명 없는 v2 저장 스키마를 사용한다", () => {
+test("통합 브라우저는 공개·로컬·내 업로드 탭과 chassisKey가 있는 v3 저장 스키마를 사용한다", () => {
   const client = read("public/firebase-community.js");
   assert.match(client, /data-community-tab="public"/);
   assert.match(client, /data-community-tab="local"/);
   assert.match(client, /data-community-tab="mine"/);
   assert.match(client, /collection\(db, "fittings"\)/);
   assert.match(client, /ownerUid: user\.uid/);
-  assert.match(client, /name, loadoutCode: fitting\.loadoutCode/);
-  assert.match(client, /schemaVersion: 2/);
+  assert.match(client, /mechId: fitting\.mechId, chassisKey: fitting\.chassisKey, name, loadoutCode: fitting\.loadoutCode/);
+  assert.match(client, /schemaVersion: 3/);
   assert.doesNotMatch(client, /name, description, loadoutCode/);
   assert.doesNotMatch(client, /name="description"/);
   assert.doesNotMatch(client, /userMechUsage/);
@@ -284,6 +284,7 @@ test("공개 핏팅 클라이언트는 100개를 미리 읽고 페이지당 25�
   const client = read("public/firebase-community.js");
   assert.match(client, /const PAGE_SIZE = 25;[\s\S]*const FETCH_LIMIT = 100;[\s\S]*const PAGE_GROUP_SIZE = 5;/);
   assert.match(client, /if \(requestedMechFilterId\) constraints\.push\(firebaseApi\.where\("mechId", "==", requestedMechFilterId\)\)/);
+  assert.match(client, /else if \(requestedChassisFilterKey\) constraints\.push\(firebaseApi\.where\("chassisKey", "==", requestedChassisFilterKey\)\)/);
   assert.match(client, /let requestLastDocument = reset \? null : lastDocument/);
   assert.match(client, /constraints\.push\(firebaseApi\.limit\(FETCH_LIMIT \+ 1\)\)/);
   assert.match(client, /const batchDocuments = snapshot\.docs\.slice\(0, FETCH_LIMIT\)[\s\S]*requestHasMore = snapshot\.size > FETCH_LIMIT/);
@@ -302,6 +303,9 @@ test("핏팅 브라우저 검색은 제목만 사용하고 제목 옆 멕 선택
   assert.match(client, /return !query \|\| String\(record\.name \|\| ""\)\.toLocaleLowerCase\(\)\.includes\(query\)/);
   assert.doesNotMatch(client, /record\.analysis\?\.mechName, record\.analysis\?\.chassisName/);
   assert.match(client, /data-community-mech-filter-option/);
+  assert.match(client, /data-community-mech-filter-expand/);
+  assert.match(client, /data-community-mech-filter-chassis/);
+  assert.match(client, /async function selectChassisFilter\(chassisKey\)/);
   assert.match(client, /community-mech-filter-list mech-list compact-mech-list/);
   assert.match(app, /listFittingMechFilters: communityFittingMechFilterOptions/);
   assert.match(client, /if \(elements\.mechFilterMenu && !elements\.mechFilterMenu\.hidden\) \{[\s\S]*closeMechFilterMenu\(\);[\s\S]*elements\.mechFilterTrigger\.focus\(\);[\s\S]*return;/);
@@ -311,6 +315,8 @@ test("핏팅 브라우저 검색은 제목만 사용하고 제목 옆 멕 선택
   assert.doesNotMatch(client, /class="badge">\$\{\(chassis\.variants \|\| \[\]\)\.length\}/);
   assert.match(client, /const previousScrollTop = preserveScroll[\s\S]*scrollTop = previousScrollTop/);
   assert.match(client, /renderMechFilterMenu\(\{ preserveScroll: true \}\)/);
+  assert.match(client, /selectedMechFilterId = "";[\s\S]*selectedChassisFilterKey = String\(chassisKey \|\| ""\)/);
+  assert.match(client, /selectedMechFilterId = String\(mechId \|\| ""\);[\s\S]*selectedChassisFilterKey = ""/);
 });
 
 test("핏팅 관련 드롭다운은 같은 아래 삼각형 화살표를 사용한다", () => {
@@ -362,11 +368,12 @@ test("핏팅 브라우저는 확장 크기·25개 페이지·5개 번호 그룹�
   assert.match(client, /statRowsHtml\(analysis\)/);
 });
 
-test("설명 없는 v2 Firestore 생성 규칙과 기존 v1 읽기 호환을 유지한다", () => {
+test("설명 없는 v3 Firestore 생성 규칙과 기존 v1·v2 읽기 호환을 유지한다", () => {
   const client = read("public/firebase-community.js");
   const rules = read("admin/firestore.rules");
-  assert.match(client, /\[1, 2\]\.includes\(record\.schemaVersion\)/);
-  assert.match(rules, /request\.resource\.data\.schemaVersion == 2/);
+  assert.match(client, /\[1, 2, 3\]\.includes\(record\.schemaVersion\)/);
+  assert.match(rules, /request\.resource\.data\.schemaVersion == 3/);
+  assert.match(rules, /request\.resource\.data\.chassisKey\.matches\('\^\[a-z0-9_-\]\+\$'\)/);
   assert.match(rules, /request\.query\.limit <= 101/);
   assert.match(client, /const TITLE_LIMIT = 20;/);
   assert.match(rules, /request\.resource\.data\.name\.size\(\) <= 20/);
@@ -454,6 +461,10 @@ test("내 업로드 삭제는 비공개 좋아요 정리 요청과 필요한 복
   const signatures = indexes.indexes.map(({ fields }) => fields.map(({ fieldPath, order }) => `${fieldPath}:${order}`).join(","));
   assert.ok(signatures.includes("ownerUid:ASCENDING,mechId:ASCENDING,createdAt:DESCENDING"));
   assert.ok(signatures.includes("ownerUid:ASCENDING,mechId:ASCENDING,likeCount:DESCENDING"));
+  assert.ok(signatures.includes("chassisKey:ASCENDING,createdAt:DESCENDING"));
+  assert.ok(signatures.includes("chassisKey:ASCENDING,likeCount:DESCENDING"));
+  assert.ok(signatures.includes("ownerUid:ASCENDING,chassisKey:ASCENDING,createdAt:DESCENDING"));
+  assert.ok(signatures.includes("ownerUid:ASCENDING,chassisKey:ASCENDING,likeCount:DESCENDING"));
 });
 
 test("Firestore의 로드아웃 문자열 형태는 MWO 코덱 출력과 일치한다", () => {

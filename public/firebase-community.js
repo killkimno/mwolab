@@ -18,7 +18,7 @@ const COPY = {
     nicknameTitle: "닉네임 설정", nicknameChangeTitle: "닉네임 변경", nicknameDescription: "공개 핏팅에서 사용할 고유 닉네임을 설정할 수 있습니다.", nicknameLaterNotice: "지금 설정하지 않아도 나중에 프로필 메뉴에서 다시 설정할 수 있습니다.", nicknameLabel: "닉네임",
     nicknameRules: "2~20자의 영문과 숫자만 사용할 수 있습니다. Pilot은 사용할 수 없습니다.", nicknameLater: "나중에 설정", nicknameSubmit: "설정하기", nicknameChangeSubmit: "변경하기",
     nicknameInvalid: "사용할 수 없는 닉네임입니다.", nicknameReserved: "이 닉네임은 사용할 수 없습니다.", nicknameUnchanged: "현재 닉네임과 같습니다.", nicknameChecking: "중복을 확인하는 중입니다...", nicknameAvailable: "사용할 수 있는 닉네임입니다.", nicknameTaken: "이미 사용 중인 닉네임입니다.", nicknameCheckFailed: "닉네임을 확인할 수 없습니다. 잠시 후 다시 시도하세요.", nicknameRace: "방금 다른 사용자가 이 닉네임을 사용했습니다. 다른 닉네임을 선택해주세요.", nicknameSaved: "닉네임이 설정되었습니다.", nicknameChanged: "닉네임이 변경되었습니다.", nicknameSkipFailed: "닉네임 안내 상태를 저장하지 못했습니다. 로그인 상태는 유지됩니다.",
-    publicTab: "공개", localTab: "로컬", mineTab: "내가 올린 핏팅", search: "제목 검색", allMechs: "전체", selectMech: "멕 선택",
+    publicTab: "공개", localTab: "로컬", mineTab: "내가 올린 핏팅", search: "제목 검색", allMechs: "전체", selectMech: "멕 선택", expandChassis: "기종 펼치기", collapseChassis: "기종 접기",
     newest: "최신순", likesSort: "좋아요순", loading: "핏팅을 불러오는 중입니다...",
     publicEmpty: "등록된 공개 핏팅이 없습니다.", localEmpty: "이 PC에 저장된 핏팅이 없습니다.",
     mineEmpty: "내가 올린 핏팅이 없습니다.", searchEmpty: "검색 조건에 맞는 핏팅이 없습니다.",
@@ -55,7 +55,7 @@ const COPY = {
     nicknameTitle: "Set nickname", nicknameChangeTitle: "Change nickname", nicknameDescription: "Choose a unique nickname to show with public fittings.", nicknameLaterNotice: "You can skip this now and set it later from the Profile menu.", nicknameLabel: "Nickname",
     nicknameRules: "Use 2–20 English letters or numbers. Pilot is reserved.", nicknameLater: "Set later", nicknameSubmit: "Set nickname", nicknameChangeSubmit: "Change nickname",
     nicknameInvalid: "This nickname cannot be used.", nicknameReserved: "This nickname is reserved.", nicknameUnchanged: "This is your current nickname.", nicknameChecking: "Checking availability...", nicknameAvailable: "This nickname is available.", nicknameTaken: "This nickname is already in use.", nicknameCheckFailed: "Could not check the nickname. Try again shortly.", nicknameRace: "Someone just claimed this nickname. Choose another one.", nicknameSaved: "Nickname set.", nicknameChanged: "Nickname changed.", nicknameSkipFailed: "Could not save the nickname prompt state. You remain signed in.",
-    publicTab: "Public", localTab: "Local", mineTab: "My Uploads", search: "Search titles", allMechs: "All", selectMech: "Select mech",
+    publicTab: "Public", localTab: "Local", mineTab: "My Uploads", search: "Search titles", allMechs: "All", selectMech: "Select mech", expandChassis: "Expand chassis", collapseChassis: "Collapse chassis",
     newest: "Newest", likesSort: "Most liked", loading: "Loading fittings...", publicEmpty: "No public fittings yet.",
     localEmpty: "No fittings are saved on this PC.", mineEmpty: "You have not uploaded a fitting.", searchEmpty: "No fitting matches the search.",
     publicLoadUnavailable: "Public fittings are currently unavailable. Local fittings remain available.",
@@ -116,6 +116,7 @@ let records = [];
 let selectedId = null;
 let currentPage = 1;
 let selectedMechFilterId = "";
+let selectedChassisFilterKey = "";
 let lastDocument = null;
 let remoteHasMore = true;
 let hasMore = false;
@@ -544,6 +545,7 @@ async function openCommunity(mode, trigger) {
     selectedMechFilterId = trigger?.dataset.communityMechFilter === "all"
       ? ""
       : String(bridge.currentMechId?.() || "");
+    selectedChassisFilterKey = "";
     expandSelectedMechFilterChassis();
     renderMechFilterControl();
   }
@@ -566,7 +568,7 @@ function fittingDate(value) {
 }
 function analyzeRecord(record) {
   try {
-    if (![1, 2].includes(record.schemaVersion) || typeof record.loadoutCode !== "string") throw new Error("Invalid record");
+    if (![1, 2, 3].includes(record.schemaVersion) || typeof record.loadoutCode !== "string") throw new Error("Invalid record");
     return { ...record, analysis: bridge.describeFitting(record.loadoutCode), valid: true };
   } catch { return { ...record, analysis: null, valid: false }; }
 }
@@ -574,7 +576,7 @@ function normalizeSnapshot(snapshot, source) {
   const data = snapshot.data();
   const likeKey = currentUser ? `${currentUser.uid}:${snapshot.id}` : "";
   return analyzeRecord({
-    id: snapshot.id, ownerUid: data.ownerUid, mechId: String(data.mechId ?? ""), name: data.name,
+    id: snapshot.id, ownerUid: data.ownerUid, mechId: String(data.mechId ?? ""), chassisKey: String(data.chassisKey ?? ""), name: data.name,
     loadoutCode: data.loadoutCode, likeCount: Number.isInteger(data.likeCount) ? data.likeCount : 0,
     createdAt: data.createdAt, schemaVersion: data.schemaVersion, source, liked: likedFittingKeys.has(likeKey),
   });
@@ -728,6 +730,14 @@ function selectedMechFilterOption() {
   }
   return null;
 }
+function selectedChassisFilterOption() {
+  if (!selectedChassisFilterKey) return null;
+  for (const section of mechFilterSections()) {
+    const chassis = (section.chassis || []).find((entry) => String(entry.id) === selectedChassisFilterKey);
+    if (chassis) return chassis;
+  }
+  return null;
+}
 function expandSelectedMechFilterChassis() {
   const selected = selectedMechFilterOption();
   if (selected?.chassisId) expandedMechFilterChassis.add(String(selected.chassisId));
@@ -744,11 +754,14 @@ function renderMechFilterMenu({ preserveScroll = false } = {}) {
     : 0;
   const chassisGroups = mechFilterSections().flatMap((section) => section.chassis || []);
   const chassisHtml = chassisGroups.map((chassis) => {
+    const chassisKey = String(chassis.id);
     const expanded = expandedMechFilterChassis.has(String(chassis.id));
-    return `<div class="chassis-group${expanded ? " expanded" : ""}">
-      <button class="chassis-row" type="button" data-community-mech-filter-chassis="${escapeHtml(chassis.id)}" aria-expanded="${expanded}">
-        <span class="row-title"><span class="chassis-title small-chassis-title"><span class="expand-indicator" aria-hidden="true">${expanded ? "-" : "+"}</span><strong>${escapeHtml(chassis.label)}</strong><span class="chassis-ton">${escapeHtml(chassis.tons)}t</span></span></span>
-      </button>
+    const active = chassisKey === selectedChassisFilterKey;
+    return `<div class="chassis-group${expanded ? " expanded" : ""}${active ? " active" : ""}">
+      <div class="chassis-row${active ? " active" : ""}">
+        <button class="chassis-expand-button" type="button" data-community-mech-filter-expand="${escapeHtml(chassisKey)}" aria-expanded="${expanded}" aria-label="${escapeHtml(`${expanded ? copy.collapseChassis : copy.expandChassis}: ${chassis.label}`)}"><span class="expand-indicator" aria-hidden="true">${expanded ? "-" : "+"}</span></button>
+        <button class="chassis-filter-button" type="button" data-community-mech-filter-chassis="${escapeHtml(chassisKey)}"><strong>${escapeHtml(chassis.label)}</strong><span class="chassis-ton">${escapeHtml(chassis.tons)}t</span></button>
+      </div>
       ${expanded ? `<div class="variant-list">${(chassis.variants || []).map((variant) => `
         <button class="mech-row variant-row${String(variant.id) === selectedMechFilterId ? " active" : ""}" type="button" data-community-mech-filter-option="${escapeHtml(variant.id)}">
           <span class="row-title"><span class="mech-title-main"><strong>${escapeHtml(variant.name)}</strong></span></span>
@@ -756,19 +769,34 @@ function renderMechFilterMenu({ preserveScroll = false } = {}) {
         </button>`).join("")}</div>` : ""}
     </div>`;
   }).join("");
-  elements.mechFilterMenu.innerHTML = `<div class="community-mech-filter-list mech-list compact-mech-list"><button class="mech-row variant-row community-mech-filter-all${selectedMechFilterId ? "" : " active"}" type="button" data-community-mech-filter-option=""><span class="row-title"><span class="mech-title-main"><strong>${escapeHtml(copy.allMechs)}</strong></span></span></button>${chassisHtml}</div>`;
+  elements.mechFilterMenu.innerHTML = `<div class="community-mech-filter-list mech-list compact-mech-list"><button class="mech-row variant-row community-mech-filter-all${selectedMechFilterId || selectedChassisFilterKey ? "" : " active"}" type="button" data-community-mech-filter-option=""><span class="row-title"><span class="mech-title-main"><strong>${escapeHtml(copy.allMechs)}</strong></span></span></button>${chassisHtml}</div>`;
   if (preserveScroll) elements.mechFilterMenu.querySelector(".community-mech-filter-list").scrollTop = previousScrollTop;
 }
 function renderMechFilterControl() {
   if (!elements.mechFilterTrigger) return;
   const selected = selectedMechFilterOption();
-  elements.mechFilterTrigger.textContent = `${selected?.name || copy.allMechs} ▾`;
+  const selectedChassis = selectedChassisFilterOption();
+  elements.mechFilterTrigger.textContent = `${selected?.name || selectedChassis?.label || copy.allMechs} ▾`;
   elements.mechFilterTrigger.title = copy.selectMech;
   renderMechFilterMenu();
 }
 async function selectMechFilter(mechId) {
   selectedMechFilterId = String(mechId || "");
+  selectedChassisFilterKey = "";
   expandSelectedMechFilterChassis();
+  selectedId = null;
+  currentPage = 1;
+  closeMechFilterMenu();
+  renderMechFilterControl();
+  if (activeBrowserTab === "local") {
+    renderBrowser({ resetListScroll: true, resetDetailScroll: true });
+    return;
+  }
+  await loadRemoteFittings(true);
+}
+async function selectChassisFilter(chassisKey) {
+  selectedMechFilterId = "";
+  selectedChassisFilterKey = String(chassisKey || "");
   selectedId = null;
   currentPage = 1;
   closeMechFilterMenu();
@@ -783,6 +811,8 @@ function filteredRecords() {
   const query = searchText.trim().toLocaleLowerCase();
   return records.filter((record) => {
     if (selectedMechFilterId && String(record.mechId) !== selectedMechFilterId) return false;
+    const recordChassisKey = String(record.chassisKey || record.analysis?.chassisKey || "");
+    if (selectedChassisFilterKey && recordChassisKey !== selectedChassisFilterKey) return false;
     return !query || String(record.name || "").toLocaleLowerCase().includes(query);
   });
 }
@@ -913,6 +943,7 @@ async function loadRemoteFittings(reset = true, { focusSort = false } = {}) {
   const requestedTab = activeBrowserTab;
   const requestedSort = sortMode;
   const requestedMechFilterId = selectedMechFilterId;
+  const requestedChassisFilterKey = selectedChassisFilterKey;
   let requestLastDocument = reset ? null : lastDocument;
   let requestHasMore = reset ? true : remoteHasMore;
   if (reset) {
@@ -942,17 +973,18 @@ async function loadRemoteFittings(reset = true, { focusSort = false } = {}) {
     const constraints = [];
     if (requestedTab === "mine") constraints.push(firebaseApi.where("ownerUid", "==", currentUser.uid));
     if (requestedMechFilterId) constraints.push(firebaseApi.where("mechId", "==", requestedMechFilterId));
+    else if (requestedChassisFilterKey) constraints.push(firebaseApi.where("chassisKey", "==", requestedChassisFilterKey));
     constraints.push(firebaseApi.orderBy(requestedSort === "likes" ? "likeCount" : "createdAt", "desc"));
     if (requestLastDocument) constraints.push(firebaseApi.startAfter(requestLastDocument));
     constraints.push(firebaseApi.limit(FETCH_LIMIT + 1));
     const snapshot = await firebaseApi.getDocs(firebaseApi.query(firebaseApi.collection(db, "fittings"), ...constraints));
-    if (generation !== loadRequestGeneration || requestedTab !== activeBrowserTab || requestedMechFilterId !== selectedMechFilterId) return;
+    if (generation !== loadRequestGeneration || requestedTab !== activeBrowserTab || requestedMechFilterId !== selectedMechFilterId || requestedChassisFilterKey !== selectedChassisFilterKey) return;
     const batchDocuments = snapshot.docs.slice(0, FETCH_LIMIT);
     requestLastDocument = batchDocuments.at(-1) || requestLastDocument;
     requestHasMore = snapshot.size > FETCH_LIMIT;
     const nextRecords = batchDocuments.map((documentSnapshot) => normalizeSnapshot(documentSnapshot, requestedTab));
     await hydrateRecordAuthors(nextRecords);
-    if (generation !== loadRequestGeneration || requestedTab !== activeBrowserTab || requestedMechFilterId !== selectedMechFilterId) return;
+    if (generation !== loadRequestGeneration || requestedTab !== activeBrowserTab || requestedMechFilterId !== selectedMechFilterId || requestedChassisFilterKey !== selectedChassisFilterKey) return;
     const merged = reset ? nextRecords : [...records, ...nextRecords];
     records = Array.from(new Map(merged.map((record) => [record.id, record])).values());
     lastDocument = requestLastDocument;
@@ -1042,7 +1074,7 @@ async function savePublicFitting(name) {
       throw error;
     }
     const nextCount = count + 1;
-    transaction.set(fittingRef, { ownerUid: user.uid, mechId: fitting.mechId, name, loadoutCode: fitting.loadoutCode, likeCount: 0, createdAt: firebaseApi.serverTimestamp(), schemaVersion: 2 });
+    transaction.set(fittingRef, { ownerUid: user.uid, mechId: fitting.mechId, chassisKey: fitting.chassisKey, name, loadoutCode: fitting.loadoutCode, likeCount: 0, createdAt: firebaseApi.serverTimestamp(), schemaVersion: 3 });
     transaction.set(usageRef, { count: nextCount, lastFittingId: fittingRef.id, operation: "create", updatedAt: firebaseApi.serverTimestamp() });
   });
 }
@@ -1225,14 +1257,19 @@ document.addEventListener("click", (event) => {
     selectMechFilter(mechFilterOption.dataset.communityMechFilterOption);
     return;
   }
-  const mechFilterChassis = event.target.closest("[data-community-mech-filter-chassis]");
-  if (mechFilterChassis) {
-    const chassisId = String(mechFilterChassis.dataset.communityMechFilterChassis);
+  const mechFilterExpand = event.target.closest("[data-community-mech-filter-expand]");
+  if (mechFilterExpand) {
+    const chassisId = String(mechFilterExpand.dataset.communityMechFilterExpand);
     if (expandedMechFilterChassis.has(chassisId)) expandedMechFilterChassis.delete(chassisId);
     else expandedMechFilterChassis.add(chassisId);
     renderMechFilterMenu({ preserveScroll: true });
     elements.mechFilterMenu.hidden = false;
     elements.mechFilterTrigger.setAttribute("aria-expanded", "true");
+    return;
+  }
+  const mechFilterChassis = event.target.closest("[data-community-mech-filter-chassis]");
+  if (mechFilterChassis) {
+    selectChassisFilter(mechFilterChassis.dataset.communityMechFilterChassis);
     return;
   }
   if (!event.target.closest(".community-dialog-heading")) closeMechFilterMenu();

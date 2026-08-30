@@ -17,6 +17,7 @@
 - 기본 로드아웃 `display_name`은 로드아웃 파일명으로 추정하지 않고 원본 `MechID`로 `Mechs.xml`의 정식 멕 배리언트 키를 찾아 같은 현지화 값을 사용한다. 로드아웃 XML의 원래 `Name`은 `source_name`에 별도로 보존한다.
 - 전체 추출 명령은 `python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data`이다.
 - 전체 추출은 현재 설치된 게임에서 모든 생성 데이터를 갱신하므로 무관한 밸런스 데이터나 숫자 형식 변경을 포함할 수 있다. 기존 장비와 로드아웃 데이터를 유지하면서 하드포인트만 갱신하려면 `python tools/extract_mwo_data.py --game-dir "F:\Game\Steam\steamapps\common\MechWarrior Online" --out public\data --hardpoints-only`를 사용한다.
+- `mechs.json`의 멕 ID 또는 원본 `chassis` 매핑이 달라진 생성 데이터를 운영 웹에 배포할 때는 추출·로컬 검증과 분리된 Firebase 배포 단계에서 `admin/backfill-fitting-chassis.mjs`의 읽기 전용 검사를 먼저 수행한다. 새 복합 인덱스와 정적 클라이언트 배포를 조율한 뒤 관리자 적용 모드로 기존 핏팅의 `chassisKey`와 쓰기 금지 `mechCatalog/{mechId}` 권위 집합을 동기화한다. 카탈로그는 현재 `mechs.json`과 정확히 같은 ID 집합이어야 하며 제거된 멕의 오래된 문서를 유지하지 않는다. 전체 JSON 갱신 자체에는 운영 Firebase 쓰기나 배포를 포함하지 않는다.
 
 ## 누락 옴니포드 해결
 

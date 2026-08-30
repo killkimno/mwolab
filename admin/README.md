@@ -10,7 +10,8 @@
 
 ## 최초 준비
 
-1. Google Cloud CLI에서 프로젝트 소유자 계정으로 로그인한다.
+1. Google Cloud CLI에서 프로젝트 소유자 계정으로 로그인한다. Firebase CLI에 같은 권한의 계정으로
+   로그인되어 있으면 일회성 기종 백필은 해당 로그인을 대체 인증으로 사용할 수 있다.
 
    ```powershell
    gcloud auth application-default login
@@ -70,6 +71,38 @@ npm test
 현재 핏팅 수와 모든 카운터가 정확히 일치하는지 다시 읽어 검증한다. 실패하면 임시 Rules를 유지하고
 원인을 확인한 뒤 `sync-usage`를 다시 실행한다. 운영 Rules를 백필보다 먼저 배포하면 기존 게시물을
 카운트하지 않은 `0 → 1` 카운터가 만들어질 수 있으므로 100개 제한을 우회할 수 있다.
+
+## 공개 핏팅 기종 카테고리 백필
+
+`fittings.mechId`를 추출 데이터 `public/data/mechs.json`의 명시적 `chassis`와 정확히 매핑해
+`chassisKey`를 추가하고, Rules가 신규 게시의 기종 ID·카테고리·로드아웃 코드 접두부를 함께
+검증할 수 있도록 같은 매핑과 MWO 코드 3자리 기종 접두부를 쓰기 금지 `mechCatalog/{mechId}`
+문서에 동기화한다. 숫자형 또는 비정규 문자열 ID, 알 수 없는 멕,
+로드아웃 코드와 ID 불일치, 기존 카테고리 불일치, 지원하지 않는 스키마 버전이 하나라도 있으면
+쓰기 전에 전체 작업을 중단한다. 기존 핏팅의 스키마 버전은 변경하지 않는다.
+
+먼저 관리자 인증 환경에서 읽기 전용 검사를 실행한다.
+
+```powershell
+pnpm run backfill-fitting-chassis
+```
+
+검사가 성공하면 새 복합 인덱스를 먼저 배포하고 Firebase Console에서 모두 준비 완료 상태인지 확인한다.
+그 다음 다른 Admin SDK 작업을 종료하고 유지보수 Rules로 클라이언트 쓰기를 잠근다. 백필을 적용한 뒤
+스키마 v3 정적 클라이언트를 배포하고 실제 배포 파일이 전파됐는지 확인한 다음 운영 Rules를 복원한다.
+
+```powershell
+pnpm run deploy-indexes
+pnpm run deploy-maintenance-rules
+pnpm run backfill-fitting-chassis -- --apply
+# GitHub Pages에 스키마 v3 정적 클라이언트를 배포하고 전파 확인
+pnpm run deploy-rules
+```
+
+적용 모드는 400개 단위로 갱신하고 전체 문서를 다시 읽어 `chassisKey`, 지원 스키마 버전,
+권위 카탈로그의 `chassisKey`·`loadoutPrefix`와 문서 집합을 검증하며 현재 생성 데이터에서
+제거된 카탈로그 문서는 삭제한다.
+실패하면 유지보수 Rules를 유지한 채 원인을 해결하고 다시 실행한다.
 
 ## 사용자 닉네임
 

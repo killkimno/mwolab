@@ -12,10 +12,15 @@ test("Firestore 규칙은 Google 게시와 원자적 소유권·좋아요·게�
   assert.match(rules, /sign_in_provider == 'google\.com'/);
   assert.match(rules, /match \/fittings\/\{fittingId\}/);
   assert.match(rules, /request\.resource\.data\.mechId is string/);
+  assert.match(rules, /request\.resource\.data\.chassisKey is string/);
+  assert.match(rules, /request\.resource\.data\.chassisKey\.matches\('\^\[a-z0-9_-\]\+\$'\)/);
+  assert.match(rules, /request\.resource\.data\.schemaVersion == 3/);
+  assert.match(rules, /function mechCatalogPath\(mechId\)/);
+  assert.match(rules, /function validMechMetadata\(mechId, chassisKey, loadoutCode\)[\s\S]*exists\(catalogPath\)[\s\S]*get\(catalogPath\)\.data\.chassisKey == chassisKey[\s\S]*loadoutCode\[0:3\] == get\(catalogPath\)\.data\.loadoutPrefix/);
+  assert.match(rules, /validMechMetadata\([\s\S]*request\.resource\.data\.mechId,[\s\S]*request\.resource\.data\.chassisKey,[\s\S]*request\.resource\.data\.loadoutCode/);
   assert.match(rules, /request\.resource\.data\.name == request\.resource\.data\.name\.trim\(\)/);
   assert.match(rules, /request\.resource\.data\.name\.matches\('\^\[ -~\]\{1,20\}\$'\)/);
   assert.match(rules, /!request\.resource\.data\.name\.matches\('\.\*\[hH\]\[tT\]\[tT\]\[pP\]\[sS\]\.\*'\)/);
-  assert.doesNotMatch(rules, /validMechs|function validMech/);
   assert.doesNotMatch(rules, /userMechUsage/);
   assert.match(rules, /function usagePath\(uid\)/);
   assert.match(rules, /function validUsageCreateAdvance\(fittingId\)/);

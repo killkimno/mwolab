@@ -12718,6 +12718,7 @@ function describeMwoCode(code) {
   buildFromMwoCode(decoded, mech);
   return {
     mechId: String(mech.id),
+    chassisKey: String(mech.chassis || ""),
     mechName: mech.display_name || mech.name || String(mech.id),
   };
 }
@@ -12866,6 +12867,7 @@ function analyzeMwoCode(code) {
       : 0;
     const analysis = {
       mechId: String(mech.id),
+      chassisKey: String(mech.chassis || ""),
       mechName: mech.display_name || mech.name || String(mech.id),
       chassisName: formatChassisName(mech.chassis || ""),
       variantCode: variantCode(mech),

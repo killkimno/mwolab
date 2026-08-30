@@ -393,7 +393,7 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(mobileSharedFitting, /firestore\.googleapis\.com\/v1\/projects/);
   assert.match(mobileSharedFitting, /documents\/fittings\/\$\{encodeURIComponent\(fittingId\)\}/);
   assert.match(mobileSharedFitting, /response\.status === 404/);
-  assert.match(mobileSharedFitting, /\[1, 2\]\.includes\(schemaVersion\)/);
+  assert.match(mobileSharedFitting, /\[1, 2, 3\]\.includes\(schemaVersion\)/);
   assert.match(mobileSharedFitting, /currentFittingId !== fittingId/);
   assert.match(mobileSharedFitting, /generation !== loadGeneration/);
   assert.match(mobileSharedFitting, /addEventListener\("popstate", loadSharedFittingForMobile\)/);

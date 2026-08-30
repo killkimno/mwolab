@@ -23,6 +23,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/deletionRequests/$(fittingId);
     }
 
+    function mechCatalogPath(mechId) {
+      return /databases/$(database)/documents/mechCatalog/$(mechId);
+    }
+
     function userPath(uid) {
       return /databases/$(database)/documents/users/$(uid);
     }
@@ -213,15 +217,34 @@ service cloud.firestore {
         );
     }
 
+    function validMechMetadata(mechId, chassisKey, loadoutCode) {
+      let catalogPath = mechCatalogPath(mechId);
+      return exists(catalogPath)
+        && get(catalogPath).data.keys().hasOnly(['chassisKey', 'loadoutPrefix'])
+        && get(catalogPath).data.chassisKey == chassisKey
+        && get(catalogPath).data.loadoutPrefix is string
+        && get(catalogPath).data.loadoutPrefix.size() == 3
+        && loadoutCode[0:3] == get(catalogPath).data.loadoutPrefix;
+    }
+
     function validNewFitting(fittingId) {
       return request.resource.data.keys().hasOnly([
-          'ownerUid', 'mechId', 'name', 'loadoutCode',
+          'ownerUid', 'mechId', 'chassisKey', 'name', 'loadoutCode',
           'likeCount', 'createdAt', 'schemaVersion'
         ])
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.mechId is string
         && request.resource.data.mechId.size() >= 1
         && request.resource.data.mechId.size() <= 32
+        && request.resource.data.chassisKey is string
+        && request.resource.data.chassisKey.size() >= 1
+        && request.resource.data.chassisKey.size() <= 64
+        && request.resource.data.chassisKey.matches('^[a-z0-9_-]+$')
+        && validMechMetadata(
+          request.resource.data.mechId,
+          request.resource.data.chassisKey,
+          request.resource.data.loadoutCode
+        )
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 20
@@ -231,7 +254,7 @@ service cloud.firestore {
         && validLoadoutCode(request.resource.data.loadoutCode)
         && request.resource.data.likeCount == 0
         && request.resource.data.createdAt == request.time
-        && request.resource.data.schemaVersion == 2
+        && request.resource.data.schemaVersion == 3
         && !exists(deletionRequestPath(fittingId))
         && validUsageCreateAdvance(fittingId);
     }
