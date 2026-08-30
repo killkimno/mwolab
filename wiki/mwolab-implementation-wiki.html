@@ -545,9 +545,10 @@
 
         <h3 id="tab-equipment-guide">무기정보 탭</h3>
         <div class="intent"><strong>제작 의도:</strong> 장비 선택에 필요한 원본 속성과 파생 지표를 한곳에서 해석한다. 외부 표나 표시 이름에 의존하지 않고 게임 데이터에서 계산하여 밸런스 갱신 뒤에도 같은 규칙으로 다시 생성할 수 있어야 한다.</div>
-        <p><strong>세부 카테고리:</strong> 무기, 모듈, 고스트 힛.</p>
+        <p><strong>세부 카테고리:</strong> 무기, 탄약, 모듈, 고스트 힛.</p>
         <ul>
-          <li><strong>무기:</strong> 장비 JSON의 원본 수치에서 피해, 사거리, 속도, 발열, 쿨다운, DPS·DPH, 탄약, 산포, 잼 등의 파생 통계를 계산한다.</li>
+          <li><strong>무기:</strong> 장비 JSON의 원본 수치에서 피해, 사거리, 속도, 발열, 쿨다운, DPS·DPH, 탄약, 산포, 잼 등의 파생 통계를 계산한다. 원본 <code>stats.spreadLOS</code> 보유 장비는 데이터 기반 <code>LOS 무기</code> 표에 모아 일반·다이렉트 퍼짐과 탄속을 비교하고, LRM에만 계산되는 다이렉트 탄속은 해당 열에 표시하며 ATM·썬더볼트는 <code>-</code>를 유지한다.</li>
+          <li><strong>탄약:</strong> Artemis와 0.5톤을 제외한 1톤 원본 레코드를 이름·총 데미지·탄약 수·HP·피폭 데미지 순으로 보여 주며, 피폭 데미지는 <code>internalDamage x numShots</code> 형식으로 표시하고 원본값이 0이면 <code>-</code>를 사용한다. 총 데미지에 스플래쉬가 있으면 무기 DAMAGE처럼 직격 총합과 노란색 스플래쉬 총합을 <code>직격 + 스플래쉬</code>로 나눈다. 톤수·진영 열은 생략하고 모든 탄약·미사일 탄약·발리스틱 탄약 표로 구분한다. 일반 표는 열의 실제 자연 폭만 사용해 오른쪽 빈 공간 없이 왼쪽에 배치한다. 미사일·발리스틱 표 제목과 왼쪽 강조선은 무기 계열색을 재사용한다. 공유 탄약은 모두 같은 고정 폭의 왼쪽 정렬 탄종별 표에서 연결 무기, 완전 발사 가능 횟수와 해당 무기 기준 총 데미지를 같은 스플래쉬 규칙으로 표시한다.</li>
           <li><strong>모듈:</strong> 엔진·히트싱크·점프젯·MASC·전자장비 등 무기가 아닌 장비를 종류별로 보여 주며 없는 속성을 억지로 0으로 만들지 않는다.</li>
           <li><strong>고스트 힛:</strong> <code>heatPenaltyID</code> 그룹과 개별 그룹을 분리하고 동시 발사 수별 추가 발열을 보여 준다. 외부 위키 표를 수치 원본으로 쓰지 않는다.</li>
           <li>하위 탭과 표 정렬 상태는 <code>state</code>에 보존한다. 데이터와 정렬 조건이 같으면 렌더 HTML 캐시를 재사용한다.</li>
@@ -721,7 +722,7 @@
 
         <h3>사거리와 특수 통계</h3>
         <ul>
-          <li>툴팁 사거리 순서는 MIN RANGE, OPTIMAL RANGE, MAX RANGE, VELOCITY다.</li>
+          <li>툴팁 사거리 순서는 MIN RANGE, OPTIMAL RANGE, MAX RANGE, VELOCITY다. 특수 통계 그룹은 원본 <code>stats.spread</code>를 <code>SPREAD</code>로 표시한다. <code>stats.spreadLOS</code>가 있으면 일반 퍼짐 그룹과 분리된 다음 특수 그룹에 같은 퍼짐 효과를 적용한 <code>SPREAD DIRECT</code>를 표시한다. 이 LOS 무기 중 <code>stats.artemisAmmoType</code>이 있는 LRM은 <code>stats.speed × 1.4</code>에 기존 탄속 효과를 적용한 <code>VELOCITY DIRECT</code>를 같은 그룹의 다음 행에 표시한다.</li>
           <li>사거리 쿼크는 MIN RANGE를 늘리지 않는다.</li>
           <li>ATM은 60~349m, 350~649m, 650~1100m의 피해 구간을 사용하며 사거리 쿼크는 구간 상한과 최대 사거리에 반영한다.</li>
           <li>산포, 크리티컬 확률·피해, 대상 발열, 차지 시간은 데이터가 있을 때 별도 통계로 표시한다.</li>
@@ -738,6 +739,11 @@
         <h3>탄약</h3>
         <ul>
           <li>탄약량은 장착 탄약 레코드의 <code>stats.numShots</code>를 사용하며 반톤과 1톤을 따로 존중한다.</li>
+          <li>무장 정보 탄약 표는 일반 1톤 탄약만 사용하고 Artemis와 0.5톤은 제외한다. 톤수 열 없이 <code>stats.health</code>를 HP로, <code>stats.internalDamage</code>를 계산하지 않은 피폭 데미지로 표시한다.</li>
+          <li>모든 탄약 표와 함께 정확히 연결된 무기 계열로 미사일·발리스틱 표를 나눈다. AMS 등 두 계열 밖의 탄약은 모든 탄약에만 남긴다.</li>
+          <li>무장 정보의 정적 탄약 매칭은 추출 지침의 정확한 내부 이름 쌍에서 일반 무기 레코드의 <code>ammoType</code>과 <code>_Artemis</code> 레코드의 <code>artemisAmmoType</code>을 탄약 <code>stats.type</code>과 정규화해 연결한다. <code>alwaysHasArtemis</code> 무기는 원본 <code>ammoType</code>을 유지한다.</li>
+          <li>정적 총 데미지는 같은 탄종의 최경량 무기를 기준으로 <code>(numShots / 1회 소모량) × 스플래쉬 포함 기본 총데미지</code>를 사용해 남은 탄의 피해까지 포함하며 거리 배율과 피팅 효과는 적용하지 않는다.</li>
+          <li>정적 공유 탄약은 일반 1톤 탄종에 연결 무기가 둘 이상일 때 탄종별 독립 표를 만들고, 각 무기마다 <code>floor(numShots / 1회 소모량)</code>을 표시한다.</li>
           <li>활성 탄약 타입은 선택형 아르테미스 적용 시 <code>artemisAmmoType</code>, 그 외에는 <code>ammoType</code>이다.</li>
           <li>동일한 정규화 탄약 타입을 쓰는 무기들은 탄약 풀을 공유한다.</li>
           <li>동시 발사 가능 횟수는 매칭되는 탄약통의 합계를 묶인 무기들의 총 <code>ammoPerShot</code>으로 나눈다.</li>

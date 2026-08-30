@@ -397,6 +397,7 @@ const TEXT = {
     "equipment.section.engineStd": "STD ENGINES",
     "equipmentInfo.category": "무장 정보 카테고리",
     "equipmentInfo.weapons": "무기",
+    "equipmentInfo.ammo": "탄약",
     "equipmentInfo.modules": "모듈",
     "equipmentInfo.ghostHeat": "고스트 힛",
     "equipmentInfo.ghostHeatRules": "고스트 힛 규칙",
@@ -418,9 +419,11 @@ const TEXT = {
     "equipmentInfo.expectedCooldown": "예상 쿨다운",
     "equipmentInfo.duration": "듀레이션",
     "equipmentInfo.spread": "탄 퍼짐",
+    "equipmentInfo.spreadDirect": "탄 퍼짐 다이렉트",
     "equipmentInfo.dph": "DPH",
     "equipmentInfo.weaponType": "계열",
     "equipmentInfo.spreadWeapons": "탄 퍼짐 무기",
+    "equipmentInfo.losWeapons": "LOS 무기",
     "equipmentInfo.criticalWeapons": "크리티컬 무기",
     "equipmentInfo.jamWeapons": "잼 무기",
     "equipmentInfo.criticalChance": "크리티컬 찬스 배율",
@@ -428,9 +431,19 @@ const TEXT = {
     "equipmentInfo.optimalRange": "적정 사거리",
     "equipmentInfo.maxRange": "최대 사거리",
     "equipmentInfo.velocity": "탄속",
+    "equipmentInfo.velocityDirect": "탄속 다이렉트",
     "equipmentInfo.dps": "DPS",
     "equipmentInfo.hps": "HPS",
     "equipmentInfo.health": "내구도",
+    "equipmentInfo.allAmmo": "모든 탄약",
+    "equipmentInfo.missileAmmo": "미사일 탄약",
+    "equipmentInfo.ballisticAmmo": "발리스틱 탄약",
+    "equipmentInfo.sharedAmmoTitle": "{ammo} 공유 탄약",
+    "equipmentInfo.ammoCount": "탄약 수",
+    "equipmentInfo.totalDamage": "총 데미지",
+    "equipmentInfo.internalDamage": "피폭 데미지",
+    "equipmentInfo.sharedWeapon": "공유 무기",
+    "equipmentInfo.fireCount": "발사 가능 횟수",
     "equipmentInfo.faction": "진영",
     "equipmentInfo.sensorRange": "센서 거리",
     "equipmentInfo.targetingTime": "타겟팅 시간",
@@ -958,6 +971,7 @@ const TEXT = {
     "equipment.section.engineStd": "STD ENGINES",
     "equipmentInfo.category": "Equipment information category",
     "equipmentInfo.weapons": "Weapons",
+    "equipmentInfo.ammo": "Ammo",
     "equipmentInfo.modules": "Modules",
     "equipmentInfo.ghostHeat": "Ghost Heat",
     "equipmentInfo.ghostHeatRules": "Ghost Heat Rules",
@@ -979,9 +993,11 @@ const TEXT = {
     "equipmentInfo.expectedCooldown": "Expected Cooldown",
     "equipmentInfo.duration": "Duration",
     "equipmentInfo.spread": "Spread",
+    "equipmentInfo.spreadDirect": "Spread Direct",
     "equipmentInfo.dph": "DPH",
     "equipmentInfo.weaponType": "Type",
     "equipmentInfo.spreadWeapons": "Spread Weapons",
+    "equipmentInfo.losWeapons": "LOS Weapons",
     "equipmentInfo.criticalWeapons": "Critical Weapons",
     "equipmentInfo.jamWeapons": "Jam Weapons",
     "equipmentInfo.criticalChance": "Critical Chance Multiplier",
@@ -989,9 +1005,19 @@ const TEXT = {
     "equipmentInfo.optimalRange": "Optimal Range",
     "equipmentInfo.maxRange": "Max Range",
     "equipmentInfo.velocity": "Velocity",
+    "equipmentInfo.velocityDirect": "Velocity Direct",
     "equipmentInfo.dps": "DPS",
     "equipmentInfo.hps": "HPS",
     "equipmentInfo.health": "Health",
+    "equipmentInfo.allAmmo": "All Ammo",
+    "equipmentInfo.missileAmmo": "Missile Ammo",
+    "equipmentInfo.ballisticAmmo": "Ballistic Ammo",
+    "equipmentInfo.sharedAmmoTitle": "{ammo} Shared Ammo",
+    "equipmentInfo.ammoCount": "Ammo Count",
+    "equipmentInfo.totalDamage": "Total Damage",
+    "equipmentInfo.internalDamage": "Internal Damage",
+    "equipmentInfo.sharedWeapon": "Shared Weapon",
+    "equipmentInfo.fireCount": "Possible Firings",
     "equipmentInfo.faction": "Faction",
     "equipmentInfo.sensorRange": "Sensor Range",
     "equipmentInfo.targetingTime": "Targeting Time",
@@ -2282,8 +2308,30 @@ function artemisSpreadMultiplier() {
   return 1;
 }
 
-function weaponSpreadValues(item, quirks = [], modules = installedMechItems("module")) {
-  const base = effectiveWeaponStats(item, modules).spread;
+const LRM_DIRECT_VELOCITY_MULTIPLIER = 1.4;
+
+function isLosWeapon(item) {
+  return item?.item_type === "weapon" && number(item.stats?.spreadLOS) > 0;
+}
+
+function hasLrmDirectVelocity(item) {
+  return isLosWeapon(item) && Boolean(item.stats?.artemisAmmoType);
+}
+
+function weaponDirectVelocity(item) {
+  if (!hasLrmDirectVelocity(item) || !(number(item.stats?.speed) > 0)) return null;
+  return number(item.stats.speed) * LRM_DIRECT_VELOCITY_MULTIPLIER;
+}
+
+function weaponSpreadValues(
+  item,
+  quirks = [],
+  modules = installedMechItems("module"),
+  statField = "spread",
+) {
+  const base = statField === "spread"
+    ? effectiveWeaponStats(item, modules).spread
+    : number(item?.stats?.[statField]);
   if (!(base > 0)) return null;
   const modifier = collectWeaponQuirkEffects(item, quirks).totals.spreadModifier;
   const artemisMultiplier = isArtemisWeapon(item) ? artemisSpreadMultiplier() : 1;
@@ -10527,7 +10575,7 @@ function equipmentInfoTable(title, columns, rows, tone = "", tableKey = tone) {
             const ariaSort = active ? (direction === "asc" ? "ascending" : "descending") : "none";
             return `<th scope="col" aria-sort="${ariaSort}"><button class="equipment-info-sort-button${active ? " active" : ""}" type="button" data-equipment-info-table="${escapeHtml(tableKey)}" data-equipment-info-sort="${column.key}"><span>${escapeHtml(column.label)}</span><span class="equipment-info-sort-indicator" aria-hidden="true">${indicator}</span></button></th>`;
           }).join("")}</tr></thead>
-          <tbody>${sortedRows.map((row) => `<tr>${columns.map((column, index) => `<${index === 1 ? "th scope=\"row\"" : "td"}>${escapeHtml(row.cells[column.key])}</${index === 1 ? "th" : "td"}>`).join("")}</tr>`).join("")}</tbody>
+          <tbody>${sortedRows.map((row) => `<tr>${columns.map((column, index) => `<${index === 1 ? "th scope=\"row\"" : "td"}>${row.htmlCells?.[column.key] ?? escapeHtml(row.cells[column.key])}</${index === 1 ? "th" : "td"}>`).join("")}</tr>`).join("")}</tbody>
         </table>
       </div>
     </section>
@@ -10578,6 +10626,8 @@ function equipmentInfoWeaponRow(item, index) {
     ? (isContinuousPerSecondWeapon(item) ? totalDamage : triggerTotalDamage) / heat
     : Number.NaN;
   const spread = weaponSpreadValues(item, [], [])?.final ?? Number.NaN;
+  const spreadDirect = weaponSpreadValues(item, [], [], "spreadLOS")?.final ?? Number.NaN;
+  const velocityDirect = weaponDirectVelocity(item) ?? Number.NaN;
   const criticalChanceValues = weaponCriticalChanceValues(item);
   const criticalChance = criticalChanceValues.find((value) => Math.abs(value) > 0.000001) ?? Number.NaN;
   const criticalDamage = Number(stats.critDamMult);
@@ -10602,9 +10652,11 @@ function equipmentInfoWeaponRow(item, index) {
       expectedCooldown,
       duration: number(stats.duration) > 0 ? timing.duration : Number.POSITIVE_INFINITY,
       spread,
+      spreadDirect,
       optimalRange: Number(ranges.optimalRange),
       maxRange: Number(ranges.maxRange),
       velocity: number(stats.speed) > 0 ? number(stats.speed) : Number.POSITIVE_INFINITY,
+      velocityDirect,
       dps,
       hps,
       dph,
@@ -10629,9 +10681,13 @@ function equipmentInfoWeaponRow(item, index) {
       expectedCooldown: equipmentInfoValue(expectedCooldown, 2, "s"),
       duration: number(stats.duration) > 0 ? equipmentInfoValue(timing.duration, 2, "s") : "-",
       spread: Number.isFinite(spread) ? equipmentInfoValue(spread, 2) : "-",
+      spreadDirect: Number.isFinite(spreadDirect) ? equipmentInfoValue(spreadDirect, 2) : "-",
       optimalRange: equipmentInfoValue(ranges.optimalRange, 0, "m"),
       maxRange: equipmentInfoValue(ranges.maxRange, 0, "m"),
       velocity: number(stats.speed) > 0 ? equipmentInfoValue(stats.speed, 0, "m/s") : "-",
+      velocityDirect: Number.isFinite(velocityDirect)
+        ? equipmentInfoValue(velocityDirect, 1, "m/s")
+        : "-",
       dps: equipmentInfoValue(dps, 2),
       hps: equipmentInfoValue(hps, 2),
       dph: equipmentInfoValue(dph, 2),
@@ -10700,6 +10756,199 @@ function sortEquipmentInfoItems(left, right) {
   const factionDifference = equipmentInfoFactionOrder(left) - equipmentInfoFactionOrder(right);
   if (factionDifference) return factionDifference;
   return String(left.display_name).localeCompare(String(right.display_name), undefined, { numeric: true });
+}
+
+function equipmentInfoWeaponAmmoType(item) {
+  if (item?.item_type !== "weapon") return "";
+  const ammoType = String(item.stats?.ammoType || "");
+  const artemisAmmoType = String(item.stats?.artemisAmmoType || "");
+  if (number(item.stats?.alwaysHasArtemis) > 0) return ammoType || artemisAmmoType;
+  if (artemisAmmoType && /_artemis$/i.test(String(item.name || ""))) {
+    return artemisAmmoType;
+  }
+  return ammoType || artemisAmmoType;
+}
+
+function equipmentInfoAmmoWeapons(ammo, weapons = []) {
+  const ammoType = normalizeLookupKey(ammo?.stats?.type);
+  if (ammo?.item_type !== "ammo" || !ammoType) return [];
+  return weapons
+    .filter((weapon) => normalizeLookupKey(equipmentInfoWeaponAmmoType(weapon)) === ammoType)
+    .sort((left, right) => (
+      itemTons(left) - itemTons(right)
+      || sortEquipmentInfoItems(left, right)
+      || number(left.id) - number(right.id)
+    ));
+}
+
+function equipmentInfoAmmoFireCount(ammo, weapon) {
+  const perTrigger = weaponAmmoPerTrigger(weapon, []);
+  if (!(perTrigger > 0)) return Number.NaN;
+  return Math.floor(Math.max(0, number(ammo?.stats?.numShots)) / perTrigger);
+}
+
+function equipmentInfoAmmoWeaponTotalDamage(ammo, weapon) {
+  return equipmentInfoAmmoWeaponDamageParts(ammo, weapon).total;
+}
+
+function equipmentInfoAmmoWeaponDamageParts(ammo, weapon) {
+  const perTrigger = weaponAmmoPerTrigger(weapon, []);
+  if (!(perTrigger > 0)) {
+    return { direct: Number.NaN, splash: Number.NaN, total: Number.NaN };
+  }
+  const firingRatio = Math.max(0, number(ammo?.stats?.numShots)) / perTrigger;
+  const direct = firingRatio * weaponDirectDamage(weapon, []);
+  const splash = firingRatio * weaponSplashDamage(weapon, []) * 2;
+  return { direct, splash, total: direct + splash };
+}
+
+function equipmentInfoAmmoDamageHtml(ammo, weapon) {
+  const damage = equipmentInfoAmmoWeaponDamageParts(ammo, weapon);
+  if (!Number.isFinite(damage.total)) return "-";
+  const direct = escapeHtml(equipmentInfoValue(damage.direct, 2));
+  if (!(damage.splash > 0)) return direct;
+  return `${direct} <span class="equipment-info-splash">+ ${escapeHtml(equipmentInfoValue(damage.splash, 2))}</span>`;
+}
+
+function equipmentInfoAmmoTotalDamage(ammo, weapons = []) {
+  const lightestWeapon = equipmentInfoAmmoWeapons(ammo, weapons)[0];
+  if (!lightestWeapon) return Number.NaN;
+  return equipmentInfoAmmoWeaponTotalDamage(ammo, lightestWeapon);
+}
+
+function equipmentInfoAmmoInternalDamageText(item) {
+  if (!(number(item?.stats?.internalDamage) > 0)) return "-";
+  return `${equipmentInfoValue(item?.stats?.internalDamage, 2)} x ${equipmentInfoValue(item?.stats?.numShots, 0)}`;
+}
+
+function equipmentInfoAmmoRow(item, index, weapons = []) {
+  const stats = item.stats || {};
+  const name = item.display_name || item.name || "-";
+  const lightestWeapon = equipmentInfoAmmoWeapons(item, weapons)[0];
+  const totalDamage = lightestWeapon
+    ? equipmentInfoAmmoWeaponTotalDamage(item, lightestWeapon)
+    : Number.NaN;
+  return {
+    values: {
+      index,
+      name,
+      ammoCount: Number(stats.numShots),
+      health: Number(stats.health),
+      totalDamage,
+      internalDamage: Number(stats.internalDamage),
+    },
+    cells: {
+      index: equipmentInfoValue(index, 0),
+      name,
+      ammoCount: equipmentInfoValue(stats.numShots, 0),
+      health: equipmentInfoValue(stats.health, 1),
+      totalDamage: equipmentInfoValue(totalDamage, 2),
+      internalDamage: equipmentInfoAmmoInternalDamageText(item),
+    },
+    htmlCells: {
+      totalDamage: lightestWeapon ? equipmentInfoAmmoDamageHtml(item, lightestWeapon) : "-",
+    },
+  };
+}
+
+function isEquipmentInfoArtemisAmmo(ammo) {
+  return ammo?.item_type === "ammo" && /artemis$/i.test(String(ammo.stats?.type || ""));
+}
+
+function equipmentInfoAmmoCategory(ammo, weapons = []) {
+  return equipmentHardpointType(equipmentInfoAmmoWeapons(ammo, weapons)[0]);
+}
+
+function equipmentInfoSharedAmmoLabel(ammo) {
+  return String(ammo?.display_name || ammo?.name || "-")
+    .replace(/\s*ammo$/i, "")
+    .trim();
+}
+
+function equipmentInfoSharedAmmoGroups(ammoItems, weapons = []) {
+  return [...ammoItems]
+    .filter((ammo) => (
+      Math.abs(itemTons(ammo) - 1) < 0.000001
+      && !isEquipmentInfoArtemisAmmo(ammo)
+    ))
+    .sort(sortEquipmentInfoItems)
+    .map((ammo) => {
+      const matchingWeapons = equipmentInfoAmmoWeapons(ammo, weapons);
+      if (matchingWeapons.length < 2) return null;
+      const rows = matchingWeapons.map((weapon, weaponIndex) => {
+        const index = weaponIndex + 1;
+        const weaponName = weapon.display_name || weapon.name || "-";
+        const fireCount = equipmentInfoAmmoFireCount(ammo, weapon);
+        const totalDamage = equipmentInfoAmmoWeaponTotalDamage(ammo, weapon);
+        return {
+          values: { index, weaponName, fireCount, totalDamage },
+          cells: {
+            index: equipmentInfoValue(index, 0),
+            weaponName,
+            fireCount: equipmentInfoValue(fireCount, 0),
+            totalDamage: equipmentInfoValue(totalDamage, 2),
+          },
+          htmlCells: {
+            totalDamage: equipmentInfoAmmoDamageHtml(ammo, weapon),
+          },
+        };
+      });
+      return { ammo, rows };
+    })
+    .filter(Boolean);
+}
+
+function equipmentInfoSharedAmmoRows(ammoItems, weapons = []) {
+  return equipmentInfoSharedAmmoGroups(ammoItems, weapons).flatMap((group) => group.rows);
+}
+
+function renderEquipmentInfoAmmo(items) {
+  const ammoItems = items
+    .filter((item) => (
+      item?.item_type === "ammo"
+      && Math.abs(itemTons(item) - 1) < 0.000001
+      && !isEquipmentInfoArtemisAmmo(item)
+    ))
+    .sort(sortEquipmentInfoItems);
+  const weapons = items.filter((item) => item?.item_type === "weapon");
+  const ammoColumns = [
+      { key: "index", label: "#" },
+      { key: "name", label: t("equipmentInfo.name") },
+      { key: "totalDamage", label: t("equipmentInfo.totalDamage") },
+      { key: "ammoCount", label: t("equipmentInfo.ammoCount") },
+      { key: "health", label: "HP" },
+      { key: "internalDamage", label: t("equipmentInfo.internalDamage") },
+  ];
+  const ammoTables = [
+    { key: "all", title: t("equipmentInfo.allAmmo"), items: ammoItems },
+    {
+      key: "missile",
+      title: t("equipmentInfo.missileAmmo"),
+      items: ammoItems.filter((ammo) => equipmentInfoAmmoCategory(ammo, weapons) === "missile"),
+    },
+    {
+      key: "ballistic",
+      title: t("equipmentInfo.ballisticAmmo"),
+      items: ammoItems.filter((ammo) => equipmentInfoAmmoCategory(ammo, weapons) === "ballistic"),
+    },
+  ].map(({ key, title, items: tableItems }) => equipmentInfoTable(
+    title,
+    ammoColumns,
+    tableItems.map((item, index) => equipmentInfoAmmoRow(item, index + 1, weapons)),
+    `equipment-info-ammo equipment-info-ammo-${key}${["missile", "ballistic"].includes(key) ? ` equipment-info-${key}` : ""}`,
+    `ammo-${key}`,
+  ));
+  const sharedTables = equipmentInfoSharedAmmoGroups(ammoItems, weapons).map(({ ammo, rows }) => (
+    equipmentInfoTable(t("equipmentInfo.sharedAmmoTitle", {
+      ammo: equipmentInfoSharedAmmoLabel(ammo),
+    }), [
+      { key: "index", label: "#" },
+      { key: "weaponName", label: t("equipmentInfo.sharedWeapon") },
+      { key: "fireCount", label: t("equipmentInfo.fireCount") },
+      { key: "totalDamage", label: t("equipmentInfo.totalDamage") },
+    ], rows, "equipment-info-shared-ammo", `shared-ammo-${ammo.id}`)
+  ));
+  return ammoTables.concat(sharedTables).join("");
 }
 
 function equipmentInfoModuleRow(item, index) {
@@ -10926,6 +11175,7 @@ function renderEquipmentInfoWeapons(items) {
   const spreadRows = equipmentInfoSpecialRows(items, (item) => (
     ["ballistic", "missile"].includes(equipmentHardpointType(item)) && number(item.stats?.spread) > 0
   ));
+  const losRows = equipmentInfoSpecialRows(items, isLosWeapon);
   const criticalRows = equipmentInfoSpecialRows(items, (item) => {
     const chance = weaponCriticalChanceValues(item).some((value) => Math.abs(value) > 0.000001);
     const damage = Number(item.stats?.critDamMult);
@@ -10935,6 +11185,14 @@ function renderEquipmentInfoWeapons(items) {
     number(item.stats?.JammingChance) > 0 || number(item.stats?.JammedTime) > 0
   ));
   const specialTables = [
+    equipmentInfoTable(t("equipmentInfo.losWeapons"), [
+      { key: "index", label: "#" },
+      { key: "name", label: t("equipmentInfo.name") },
+      { key: "spread", label: t("equipmentInfo.spread") },
+      { key: "spreadDirect", label: t("equipmentInfo.spreadDirect") },
+      { key: "velocity", label: t("equipmentInfo.velocity") },
+      { key: "velocityDirect", label: t("equipmentInfo.velocityDirect") },
+    ], losRows, "equipment-info-special equipment-info-los-weapons", "special-los"),
     equipmentInfoTable(t("equipmentInfo.spreadWeapons"), equipmentInfoBaseWeaponColumns({
       weaponType: true,
       special: [{ key: "spread", label: t("equipmentInfo.spread") }],
@@ -10953,7 +11211,7 @@ function renderEquipmentInfoWeapons(items) {
         { key: "jamDuration", label: t("stats.jamDuration") },
       ],
     }), jamRows, "equipment-info-special equipment-info-jam-weapons", "special-jam"),
-  ].filter((table, index) => [spreadRows, criticalRows, jamRows][index].length).join("");
+  ].filter((table, index) => [losRows, spreadRows, criticalRows, jamRows][index].length).join("");
   return standardTables + specialTables;
 }
 
@@ -11197,7 +11455,9 @@ function renderEquipmentInfo() {
   } else {
     html = state.activeEquipmentInfoView === "modules"
       ? renderEquipmentInfoModules(items)
-      : renderEquipmentInfoWeapons(items.filter((item) => item.item_type === "weapon"));
+      : state.activeEquipmentInfoView === "ammo"
+        ? renderEquipmentInfoAmmo(items)
+        : renderEquipmentInfoWeapons(items.filter((item) => item.item_type === "weapon"));
     html ||= `<div class="empty equipment-info-empty">${t("equipmentInfo.noResults")}</div>`;
   }
   state.equipmentInfoHtmlCache.set(cacheKey, html);
@@ -13790,8 +14050,13 @@ function weaponTooltipRanges(item) {
   return { maxRange, optimalRange, minRange: hasMinimumRange ? minRange : undefined };
 }
 
-function weaponTooltipSpread(item, quirks, modules = installedMechItems("module")) {
-  const spread = weaponSpreadValues(item, quirks, modules);
+function weaponTooltipSpread(
+  item,
+  quirks,
+  modules = installedMechItems("module"),
+  statField = "spread",
+) {
+  const spread = weaponSpreadValues(item, quirks, modules, statField);
   if (!spread) return null;
   return tooltipQuirkValue(spread.base, spread.final, 2, "", {
     harmful: spread.modifier > 0,
@@ -14087,19 +14352,7 @@ function equipmentTooltipGroups(
     ]);
     if (number(stats.speed) > 0 && !isHitscanWeapon(item)) rangeRows.push([
       "VELOCITY",
-      targetComputer.speedBonus !== 0
-        ? tooltipFinalQuirkValue(
-          stats.speed,
-          number(stats.speed) * (1 + velocityBonus + targetComputer.speedBonus),
-          1,
-          " m/s",
-        )
-        : tooltipQuirkValue(
-          stats.speed,
-          number(stats.speed) * (1 + velocityBonus),
-          1,
-          " m/s",
-        ),
+      weaponTooltipVelocityValue(number(stats.speed), velocityBonus, targetComputer),
     ]);
     groups.push(rangeRows);
     const firingProfile = effectiveWeaponFiringProfile(item, modules);
@@ -14134,6 +14387,7 @@ function equipmentTooltipGroups(
       ]);
     });
     const spread = weaponTooltipSpread(item, quirks, modules);
+    const directSpread = weaponTooltipSpread(item, quirks, modules, "spreadLOS");
     const criticalChance = weaponTooltipCriticalChance(item, targetComputer);
     const criticalDamage = weaponTooltipCriticalDamage(item);
     const targetHeat = weaponTooltipTargetHeat(item);
@@ -14156,6 +14410,14 @@ function equipmentTooltipGroups(
       ]);
     }
     groups.push(weaponDetailRows);
+    const directFireRows = [];
+    if (directSpread) directFireRows.push(["SPREAD DIRECT", directSpread]);
+    const directVelocity = weaponDirectVelocity(item);
+    if (directVelocity !== null) directFireRows.push([
+      "VELOCITY DIRECT",
+      weaponTooltipVelocityValue(directVelocity, velocityBonus, targetComputer),
+    ]);
+    groups.push(directFireRows);
     groups.push(weaponTooltipStatistics(item, quirks, modules));
   } else if (isHeatSink(item)) {
     const dissipationBonus = quirkIncrease(quirks, "heatdissipation_multiplier");
@@ -16358,6 +16620,23 @@ function mobileMechListData() {
   });
 }
 
+function weaponTooltipVelocityValue(baseSpeed, velocityBonus, targetComputer) {
+  if (!(baseSpeed > 0)) return null;
+  return targetComputer.speedBonus !== 0
+    ? tooltipFinalQuirkValue(
+      baseSpeed,
+      baseSpeed * (1 + velocityBonus + targetComputer.speedBonus),
+      1,
+      " m/s",
+    )
+    : tooltipQuirkValue(
+      baseSpeed,
+      baseSpeed * (1 + velocityBonus),
+      1,
+      " m/s",
+    );
+}
+
 function mobilePickerData(component, category = "weapons") {
   if (!state.selectedMech || !state.currentBuild?.components?.[component]) {
     return { component, category, hardpointCapacity: {}, remainingHardpoints: {}, items: [], omnipods: [], fixedEngine: false };
@@ -16598,6 +16877,21 @@ if (globalThis.__MWOLAB_TEST__) {
     ammoCapacityQuirkKey,
     ammoCapacityQuirkBonus,
     effectiveAmmoShots,
+    equipmentInfoWeaponAmmoType,
+    equipmentInfoAmmoWeapons,
+    equipmentInfoAmmoFireCount,
+    equipmentInfoAmmoWeaponDamageParts,
+    equipmentInfoAmmoWeaponTotalDamage,
+    equipmentInfoAmmoDamageHtml,
+    equipmentInfoAmmoTotalDamage,
+    equipmentInfoAmmoInternalDamageText,
+    equipmentInfoAmmoRow,
+    isEquipmentInfoArtemisAmmo,
+    equipmentInfoAmmoCategory,
+    equipmentInfoSharedAmmoLabel,
+    equipmentInfoSharedAmmoGroups,
+    equipmentInfoSharedAmmoRows,
+    renderEquipmentInfoAmmo,
     hardpointSlots,
     hardpointCountsFromDefinition,
     componentCanEquipEcm,
@@ -16620,6 +16914,9 @@ if (globalThis.__MWOLAB_TEST__) {
     movementInfo,
     targetEquipmentSensorRangeBonus,
     mechSensorRange,
+    isLosWeapon,
+    hasLrmDirectVelocity,
+    weaponDirectVelocity,
     weaponSpreadValues,
     simulationSpecificQuirkTotal,
     collectWeaponQuirkEffects,
@@ -16676,6 +16973,7 @@ if (globalThis.__MWOLAB_TEST__) {
     weaponTooltipStatistics,
     weaponDamageTooltipValue,
     weaponTooltipCriticalChance,
+    renderEquipmentInfoWeapons,
     equipmentTooltipGroups,
     equipmentTooltipHtml,
     equipmentTooltipAppliedEffectsHtml,

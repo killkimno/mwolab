@@ -2455,6 +2455,262 @@ test("무기 쿼크·연사·사거리 공식", async (t) => {
     assert.equal(result.final, 2.5);
   });
 
+  await t.test("LOS 퍼짐 원본이 있는 무기만 SPREAD DIRECT를 별도 표시한다", () => {
+    resetEquipment();
+    const quirks = [quirk("missile_spread_multiplier", -0.1)];
+    const lrm = weapon({
+      name: "LRM20",
+      display_name: "LRM 20",
+      hardpoint_type: "missile",
+      stats: {
+        spread: 5.7,
+        spreadLOS: 4.7,
+        speed: 175,
+        artemisAmmoType: "LRMAmmoArtemis",
+      },
+    });
+    const directSpread = api.weaponSpreadValues(lrm, quirks, [], "spreadLOS");
+    assert.equal(directSpread.base, 4.7);
+    closeTo(directSpread.final, 4.23);
+    assert.equal(api.isLosWeapon(lrm), true);
+    assert.equal(api.hasLrmDirectVelocity(lrm), true);
+    closeTo(api.weaponDirectVelocity(lrm), 245);
+
+    const lrmGroups = api.equipmentTooltipGroups(lrm, 0, quirks, []);
+    const lrmRows = lrmGroups.flat();
+    assert.deepEqual(
+      Array.from(lrmRows, ([label]) => label).filter((label) => label.startsWith("SPREAD")),
+      ["SPREAD", "SPREAD DIRECT"],
+    );
+    const spreadGroupIndex = lrmGroups.findIndex((group) => (
+      group.some(([label]) => label === "SPREAD")
+    ));
+    assert.ok(spreadGroupIndex >= 0);
+    assert.deepEqual(
+      Array.from(lrmGroups[spreadGroupIndex], ([label]) => label),
+      ["SPREAD"],
+    );
+    assert.deepEqual(
+      Array.from(lrmGroups[spreadGroupIndex + 1], ([label]) => label),
+      ["SPREAD DIRECT", "VELOCITY DIRECT"],
+    );
+
+    const atm = weapon({
+      name: "ClanATM12",
+      display_name: "C-ATM 12",
+      hardpoint_type: "missile",
+      stats: { spread: 6.05, spreadLOS: 4.8, speed: 242 },
+    });
+    assert.equal(api.isLosWeapon(atm), true);
+    assert.equal(api.hasLrmDirectVelocity(atm), false);
+    assert.equal(api.weaponDirectVelocity(atm), null);
+    const atmDirectLabels = api.equipmentTooltipGroups(atm, 0, quirks, [])
+      .find((group) => group.some(([label]) => label === "SPREAD DIRECT"))
+      .map(([label]) => label);
+    assert.deepEqual(Array.from(atmDirectLabels), ["SPREAD DIRECT"]);
+
+    const losTable = api.renderEquipmentInfoWeapons([lrm, atm]);
+    assert.match(losTable, /data-equipment-info-table="special-los"/);
+    assert.match(losTable, /Spread Direct/);
+    assert.match(losTable, /Velocity Direct/);
+    assert.match(losTable, />245m\/s</);
+
+    const ordinary = weapon({ name: "SRM6", hardpoint_type: "missile", stats: { spread: 3 } });
+    const ordinaryLabels = api.equipmentTooltipGroups(ordinary, 0, quirks, [])
+      .flat()
+      .map(([label]) => label);
+    assert.ok(ordinaryLabels.includes("SPREAD"));
+    assert.ok(!ordinaryLabels.includes("SPREAD DIRECT"));
+    assert.ok(!ordinaryLabels.includes("VELOCITY DIRECT"));
+  });
+
+  await t.test("무장 정보 탄약 표는 1톤 일반탄만 분류하고 최경량 무기 총 피해를 표시한다", () => {
+    const lrm5 = weapon({
+      id: 501,
+      name: "LRM5",
+      display_name: "LRM 5",
+      hardpoint_type: "missile",
+      stats: {
+        tons: 2,
+        damage: 1,
+        numFiring: 5,
+        ammoPerShot: 5,
+        ammoType: "LRMAmmo",
+        artemisAmmoType: "LRMAmmoArtemis",
+      },
+    });
+    const lrm10 = weapon({
+      id: 502,
+      name: "LRM10",
+      display_name: "LRM 10",
+      hardpoint_type: "missile",
+      stats: {
+        tons: 5,
+        damage: 1,
+        numFiring: 10,
+        ammoPerShot: 10,
+        ammoType: "LRMAmmo",
+        artemisAmmoType: "LRMAmmoArtemis",
+      },
+    });
+    const artemisLrm5 = weapon({
+      id: 503,
+      name: "LRM5_Artemis",
+      display_name: "LRM 5 + ARTEMIS",
+      hardpoint_type: "missile",
+      stats: {
+        tons: 2,
+        damage: 1,
+        numFiring: 5,
+        ammoPerShot: 5,
+        ammoType: "LRMAmmo",
+        artemisAmmoType: "LRMAmmoArtemis",
+      },
+    });
+    const full = {
+      id: 601,
+      item_type: "ammo",
+      name: "LRMAmmo",
+      display_name: "LRM AMMO",
+      faction: "InnerSphere",
+      stats: { type: "LRMAmmo", tons: 1, numShots: 240, health: 10, internalDamage: 1 },
+    };
+    const half = {
+      id: 602,
+      item_type: "ammo",
+      name: "LRMAmmoHalf",
+      display_name: "LRM AMMO (1/2)",
+      faction: "InnerSphere",
+      stats: { type: "LRMAmmo", tons: 0.5, numShots: 120, health: 10, internalDamage: 1 },
+    };
+    const artemis = {
+      id: 603,
+      item_type: "ammo",
+      name: "LRMAmmoArtemis",
+      display_name: "LRM AMMO + ARTEMIS IV",
+      faction: "InnerSphere",
+      stats: { type: "LRMAmmoArtemis", tons: 1, numShots: 240, health: 10, internalDamage: 1 },
+    };
+    const items = { 501: lrm5, 502: lrm10, 503: artemisLrm5, 601: full, 602: half, 603: artemis };
+    resetEquipment(items);
+
+    assert.equal(api.equipmentInfoWeaponAmmoType(lrm5), "LRMAmmo");
+    assert.equal(api.equipmentInfoWeaponAmmoType(artemisLrm5), "LRMAmmoArtemis");
+    assert.equal(api.isEquipmentInfoArtemisAmmo(artemis), true);
+    assert.equal(api.equipmentInfoAmmoCategory(full, [lrm10, artemisLrm5, lrm5]), "missile");
+    assert.equal(api.equipmentInfoWeaponAmmoType(weapon({
+      name: "ClanATM3",
+      stats: { ammoType: "ClanATMAmmo", artemisAmmoType: "UnusedArtemisAmmo", alwaysHasArtemis: 1 },
+    })), "ClanATMAmmo");
+    assert.deepEqual(Array.from(api.equipmentInfoAmmoWeapons(full, [lrm10, artemisLrm5, lrm5]), (item) => item.id), [501, 502]);
+    assert.deepEqual(Array.from(api.equipmentInfoAmmoWeapons(artemis, [lrm10, artemisLrm5, lrm5]), (item) => item.id), [503]);
+    assert.equal(api.equipmentInfoAmmoFireCount(full, lrm5), 48);
+    assert.equal(api.equipmentInfoAmmoFireCount(full, lrm10), 24);
+    assert.equal(api.equipmentInfoAmmoTotalDamage(full, [lrm10, lrm5]), 240);
+    assert.equal(api.equipmentInfoAmmoTotalDamage(half, [lrm10, lrm5]), 120);
+
+    const clanAc20Ammo = {
+      item_type: "ammo",
+      name: "ClanAC20Ammo",
+      stats: { type: "ClanAC20Ammo", tons: 1, numShots: 36, health: 10, internalDamage: 5 },
+    };
+    const clanAc20 = weapon({
+      id: 1241,
+      name: "ClanAutoCannon20",
+      display_name: "C-AC/20",
+      hardpoint_type: "ballistic",
+      stats: { tons: 12, damage: 6.6666, numFiring: 3, ammoPerShot: 1, ammoType: "ClanAC20Ammo" },
+    });
+    const nobleAc20 = weapon({
+      id: 1264,
+      name: "NobleAutoCannon20",
+      display_name: "AC/20",
+      hardpoint_type: "ballistic",
+      stats: { tons: 14, damage: 20, numFiring: 1, ammoPerShot: 1, ammoType: "ClanAC20Ammo" },
+    });
+    assert.equal(api.equipmentInfoAmmoWeapons(clanAc20Ammo, [nobleAc20, clanAc20])[0].id, 1241);
+    assert.equal(api.equipmentInfoAmmoCategory(clanAc20Ammo, [nobleAc20, clanAc20]), "ballistic");
+    closeTo(api.equipmentInfoAmmoWeaponTotalDamage(clanAc20Ammo, clanAc20), 239.9976);
+    assert.equal(api.equipmentInfoAmmoWeaponTotalDamage(clanAc20Ammo, nobleAc20), 720);
+    closeTo(api.equipmentInfoAmmoTotalDamage(clanAc20Ammo, [nobleAc20, clanAc20]), 239.9976);
+    const hagAmmo = {
+      item_type: "ammo",
+      name: "ClanHyperAssaultGauss40Ammo",
+      stats: { type: "ClanHyperAssaultGauss40Ammo", tons: 1, numShots: 48, health: 10, internalDamage: 0 },
+    };
+    const hag20 = weapon({
+      id: 1255,
+      name: "ClanHyperAssaultGaussRifle20",
+      display_name: "C-H.A. GAUSS 20",
+      hardpoint_type: "ballistic",
+      stats: {
+        tons: 10,
+        damage: 4,
+        numFiring: 4,
+        ammoPerShot: 1,
+        splashPercent: 0.125,
+        ammoType: "ClanHyperAssaultGauss40Ammo",
+      },
+    });
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(api.equipmentInfoAmmoWeaponDamageParts(hagAmmo, hag20))),
+      { direct: 192, splash: 48, total: 240 },
+    );
+    assert.equal(
+      api.equipmentInfoAmmoDamageHtml(hagAmmo, hag20),
+      '192 <span class="equipment-info-splash">+ 48</span>',
+    );
+    const halfClanAc10Ammo = {
+      item_type: "ammo",
+      name: "ClanAC10AmmoHalf",
+      stats: { type: "ClanAC10Ammo", tons: 0.5, numShots: 23, health: 10, internalDamage: 3.75 },
+    };
+    const clanAc10 = weapon({
+      id: 1239,
+      name: "ClanAutoCannon10",
+      display_name: "C-AC/10",
+      hardpoint_type: "ballistic",
+      stats: { tons: 10, damage: 5, numFiring: 2, ammoPerShot: 1, ammoType: "ClanAC10Ammo" },
+    });
+    assert.equal(api.equipmentInfoAmmoFireCount(halfClanAc10Ammo, clanAc10), 11);
+    assert.equal(api.equipmentInfoAmmoTotalDamage(halfClanAc10Ammo, [clanAc10]), 115);
+
+    const row = api.equipmentInfoAmmoRow(half, 1, [lrm10, lrm5]);
+    assert.equal(row.cells.ammoCount, "120");
+    assert.equal(row.cells.health, "10");
+    assert.equal(row.cells.totalDamage, "120");
+    assert.equal(row.cells.internalDamage, "1 x 120");
+    assert.equal(api.equipmentInfoAmmoInternalDamageText({
+      stats: { internalDamage: 2.15, numShots: 150 },
+    }), "2.15 x 150");
+    assert.equal(api.equipmentInfoAmmoInternalDamageText({
+      stats: { internalDamage: 0, numShots: 48 },
+    }), "-");
+
+    const sharedRows = api.equipmentInfoSharedAmmoRows([full, half, artemis], [lrm10, artemisLrm5, lrm5]);
+    assert.equal(sharedRows.length, 2);
+    assert.deepEqual(Array.from(sharedRows, (sharedRow) => sharedRow.cells.weaponName), ["LRM 5", "LRM 10"]);
+    assert.deepEqual(Array.from(sharedRows, (sharedRow) => sharedRow.cells.fireCount), ["48", "24"]);
+    assert.deepEqual(Array.from(sharedRows, (sharedRow) => sharedRow.cells.totalDamage), ["240", "240"]);
+    const sharedGroups = api.equipmentInfoSharedAmmoGroups([full, half, artemis], [lrm10, artemisLrm5, lrm5]);
+    assert.equal(sharedGroups.length, 1);
+    assert.equal(api.equipmentInfoSharedAmmoLabel(sharedGroups[0].ammo), "LRM");
+
+    const html = api.renderEquipmentInfoAmmo(Object.values(items));
+    assert.match(html, /All Ammo/);
+    assert.match(html, /Missile Ammo/);
+    assert.match(html, /Ballistic Ammo/);
+    assert.match(html, /equipment-info-ammo-missile equipment-info-missile/);
+    assert.match(html, /equipment-info-ammo-ballistic equipment-info-ballistic/);
+    assert.match(html, /LRM Shared Ammo/);
+    assert.doesNotMatch(html, /LRM AMMO \(1\/2\)/);
+    assert.doesNotMatch(html, /LRM AMMO \+ ARTEMIS IV/);
+    assert.doesNotMatch(html, />Tons</);
+    assert.doesNotMatch(html, />Faction</);
+    assert.match(html, /Internal Damage/);
+    assert.ok(html.indexOf("Total Damage") < html.indexOf("Ammo Count"));
+  });
+
   await t.test("사거리 프로필은 최소사거리를 고정하고 이후 구간만 늘린다", () => {
     const item = weapon({ ranges: [
       { start: 0, damageModifier: 0 },

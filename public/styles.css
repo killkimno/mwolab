@@ -817,6 +817,31 @@ body.privacy-page {
   min-width: 68rem;
 }
 
+.equipment-info-ammo {
+  min-width: 0;
+  justify-self: start;
+}
+
+.equipment-info-ammo .equipment-info-table {
+  min-width: 0;
+}
+
+.equipment-info-shared-ammo {
+  width: 44rem;
+  min-width: 44rem;
+  justify-self: start;
+}
+
+.equipment-info-shared-ammo .equipment-info-table {
+  width: 44rem;
+  min-width: 44rem;
+  table-layout: fixed;
+}
+
+.equipment-info-splash {
+  color: #ffe34f;
+}
+
 .equipment-info-table th,
 .equipment-info-table td {
   padding: 0.52rem 0.65rem;
