@@ -7619,7 +7619,7 @@ function renderMechSummary(calc = null) {
       ["DPH", weaponMetrics.dph === null ? "-" : fmt(weaponMetrics.dph, 2)],
       ["HPS", fmt(weaponMetrics.hps, 2)],
       ["ALPHA HEAT", `${fmt(weaponMetrics.alphaHeat, 2)} (${fmt(weaponMetrics.alphaHeatPercent, 1)}%)`],
-    ], "mech-summary-weapon-section", `
+    ], "mech-summary-weapon-section", globalThis.__MWOLAB_MOBILE__ ? "" : `
       <button id="open-weapon-detail" class="mech-summary-detail-button" type="button" aria-haspopup="dialog" aria-controls="weapon-detail-overlay">${t("weaponDetail.open")}</button>
     `)}
     ${renderMechSummaryAmmo(weapons)}

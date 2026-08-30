@@ -113,29 +113,34 @@ test("휴대폰과 태블릿은 쿼리·해시를 보존해 모바일 경로로 
   ]);
 });
 
-test("PC와 PC 보기 선호 사용자는 루트 페이지를 유지한다", () => {
+test("PC는 루트에 머물고 모바일은 이전 PC 보기 선호를 무시한다", () => {
   assert.equal(route().calls.replace.length, 0);
-  assert.equal(route({
+  const mobile = route({
     userAgent: "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)",
     preferredView: "desktop",
-  }).calls.replace.length, 0);
+  });
+  assert.deepEqual(mobile.calls.replace, [
+    "https://kmonkeyhead.github.io/mwolab/mobile/?lang=kr&loadout=A%2BB#build",
+  ]);
+  assert.equal(mobile.stored.has("mwolab:preferred-view:v1"), false);
 });
 
-test("명시적 보기 선택은 저장값보다 우선하고 제어 파라미터를 제거한다", () => {
-  const desktop = route({
+test("이전 보기 제어 파라미터를 제거하고 기기 종류로만 분기한다", () => {
+  const mobile = route({
     href: "https://kmonkeyhead.github.io/mwolab/?view=desktop&lang=en#x",
     userAgent: "Mozilla/5.0 (iPhone) Mobile",
   });
-  assert.equal(desktop.calls.replace.length, 0);
-  assert.equal(desktop.stored.get("mwolab:preferred-view:v1"), "desktop");
-  assert.deepEqual(desktop.calls.history, ["/mwolab/?lang=en#x"]);
+  assert.deepEqual(mobile.calls.replace, ["https://kmonkeyhead.github.io/mwolab/mobile/?lang=en#x"]);
+  assert.equal(mobile.stored.has("mwolab:preferred-view:v1"), false);
+  assert.deepEqual(mobile.calls.history, ["/mwolab/?lang=en#x"]);
 
-  const mobile = route({
+  const desktop = route({
     href: "https://kmonkeyhead.github.io/mwolab/?view=mobile&mech=42",
     preferredView: "desktop",
   });
-  assert.equal(mobile.stored.has("mwolab:preferred-view:v1"), false);
-  assert.deepEqual(mobile.calls.replace, ["https://kmonkeyhead.github.io/mwolab/mobile/?mech=42"]);
+  assert.equal(desktop.stored.has("mwolab:preferred-view:v1"), false);
+  assert.deepEqual(desktop.calls.replace, []);
+  assert.deepEqual(desktop.calls.history, ["/mwolab/?mech=42"]);
 });
 
 test("모바일 셸에서 다시 라우팅하지 않아 중첩 경로 루프를 막는다", () => {
@@ -277,12 +282,7 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(mobileApp, /toolsClose\.textContent = t\("close"\)/);
   assert.match(mobileApp, /toolsClose\.classList\.add\("mobile-overlay-close"\)/);
   assert.match(mobileApp, /if \(toolsCloseX\) toolsCloseX\.hidden = true/);
-  assert.match(mobileApp, /pcView: "PC판으로 보기"/);
-  assert.match(mobileApp, /pcView: "View PC version"/);
-  assert.match(mobileApp, /function desktopViewHref\(\) \{[\s\S]*?new URL\(window\.location\.href\)[\s\S]*?desktopUrl\.pathname = desktopUrl\.pathname\.replace/);
-  assert.match(mobileApp, /desktopUrl\.searchParams\.set\("view", "desktop"\)/);
-  assert.match(mobileApp, /if \(open\) desktopViewLink\.setAttribute\("href", desktopViewHref\(\)\)/);
-  assert.match(mobileApp, /data-mobile-desktop-view/);
+  assert.doesNotMatch(mobileApp, /PC판으로 보기|View PC version|desktopViewHref|data-mobile-desktop-view/);
   assert.match(mobileApp, /data-mobile-picker-item/);
   assert.match(mobileApp, /mobile-picker-controls/);
   assert.match(mobileApp, /pickerControls\.append\(pickerTabs, pickerHardpoints, pickerStatus\)/);
@@ -338,7 +338,7 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(mobileCss, /\.mobile-mech-faction-title\[data-faction="Clan"\]/);
   assert.match(mobileCss, /\.mobile-mech-faction-title\[data-faction="InnerSphere"\]/);
   assert.match(mobileCss, /#build-actions-overlay \.build-actions-close \{[\s\S]*?display: none !important;/);
-  assert.match(mobileCss, /#close-build-actions\.mobile-overlay-close/);
+  assert.match(mobileCss, /#close-build-actions\.mobile-overlay-close \{[\s\S]*?justify-self: stretch;[\s\S]*?width: 100%;[\s\S]*?margin: 0;/);
   assert.match(mobileCss, /\.loadout-code-dialog\.mobile-export/);
   assert.match(mobileCss, /\.component-armor-stepper \[data-armor-delta="-1"\]/);
   assert.match(mobileCss, /\.mobile-component-armor-summary/);
@@ -372,6 +372,7 @@ test("모바일 번들은 별도 진입점과 제한된 멕랩 UI 계약을 포�
   assert.match(app, /slotBadges: mechSlotBadges\(mech\)/);
   assert.match(app, /omnipodIcon: omnipodIcon\(mech\)/);
   assert.match(app, /globalThis\.__MWOLAB_MOBILE__[\s\S]*?querySelector\('\[data-mobile-action="tools"\]'\)[\s\S]*?returnTarget\?\.focus\(\)/);
+  assert.match(app, /"mech-summary-weapon-section", globalThis\.__MWOLAB_MOBILE__ \? "" : `[\s\S]*?id="open-weapon-detail"/);
   assert.match(app, /frontArmor \+ rearArmor/);
   assert.match(app, /globalThis\.__MWOLAB_MOBILE__ \? ` <span class="mobile-component-armor-summary">/);
   assert.match(app, /url\.pathname = url\.pathname\.replace/);

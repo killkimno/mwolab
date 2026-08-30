@@ -23,7 +23,6 @@
     kr: {
       menu: "메뉴",
       mechList: "멕 리스트 보기",
-      pcView: "PC판으로 보기",
       language: "언어",
       donate: "후원하기",
       overview: "오버뷰",
@@ -51,7 +50,6 @@
     en: {
       menu: "Menu",
       mechList: "Mech list",
-      pcView: "View PC version",
       language: "Language",
       donate: "Donate",
       overview: "Overview",
@@ -158,18 +156,6 @@
   drawer.querySelector("header").appendChild(drawerClose);
   const drawerBody = drawer.querySelector(".mobile-overlay-body");
   drawerBody.appendChild(element("button", "", { type: "button", text: t("mechList"), "data-mobile-open-list": "" }));
-  function desktopViewHref() {
-    const desktopUrl = new URL(window.location.href);
-    desktopUrl.pathname = desktopUrl.pathname.replace(/\/mobile(?:\/index\.html)?\/?$/i, "/");
-    desktopUrl.searchParams.set("view", "desktop");
-    return `${desktopUrl.pathname}${desktopUrl.search}${desktopUrl.hash}`;
-  }
-  const desktopViewLink = element("a", "", {
-    href: desktopViewHref(),
-    text: t("pcView"),
-    "data-mobile-desktop-view": "",
-  });
-  drawerBody.appendChild(desktopViewLink);
   const languageBox = element("div", "mobile-drawer-language");
   [
     ["kr", "한국어"],
@@ -276,7 +262,6 @@
   }
 
   function toggleDrawer(open = drawer.hidden) {
-    if (open) desktopViewLink.setAttribute("href", desktopViewHref());
     drawer.hidden = !open;
     menuButton.setAttribute("aria-expanded", String(open));
   }

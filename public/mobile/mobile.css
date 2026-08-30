@@ -904,8 +904,10 @@ html.mobile-app body {
 }
 
 .mobile-app #close-build-actions.mobile-overlay-close {
-  width: auto;
-  margin: 0.6rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  justify-self: stretch;
+  width: 100%;
+  min-height: 3.1rem;
+  margin: 0;
 }
 
 .mobile-app .build-actions-list {
