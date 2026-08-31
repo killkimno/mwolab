@@ -361,7 +361,7 @@ const TEXT = {
     "filters.shieldDescription": "더 많은 아머, 톤 증가",
     "filters.superchargerDescription": "톤·슬롯이 적은 MASC, 가속 없음",
     "filters.mascSuperchargerDescription": "기본 속도 증가, 더 높은 보너스, 톤 증가",
-    "filters.specialWeaponDescription": "진영 무시 AC/20·레일건·에로우 장착",
+    "filters.specialWeaponDescription": "진영 무시 NOBLE AC/20·레일건·에로우 장착",
     "filters.improvedJumpJetsDescription": "IMPROVED JUMPJET 옵니포드를 사용하는 점프젯",
     "filters.partialWingDescription": "글라이딩 효과가 있는 점프젯",
     "filters.specialTargetComputerDescription": "무기 작동 방식 변경",
@@ -935,7 +935,7 @@ const TEXT = {
     "filters.shieldDescription": "More armor at increased tonnage",
     "filters.superchargerDescription": "Lower-tonnage, fewer-slot MASC without acceleration",
     "filters.mascSuperchargerDescription": "Higher base speed and boost at increased tonnage",
-    "filters.specialWeaponDescription": "Faction-ignoring AC/20, Railgun, or Arrow",
+    "filters.specialWeaponDescription": "Faction-ignoring NOBLE AC/20, Railgun, or Arrow",
     "filters.improvedJumpJetsDescription": "Jump jets provided by an IMPROVED JUMPJET omnipod",
     "filters.partialWingDescription": "Jump jets with a gliding effect",
     "filters.specialTargetComputerDescription": "Changes weapon behavior",
@@ -1618,6 +1618,19 @@ const EXCLUDED_EQUIPMENT_NAMES = new Set([
   "dropshiplargepulselaser",
   "fakemachinegun",
 ]);
+const EQUIPMENT_DISPLAY_NAME_OVERRIDES = new Map([
+  ["nobleautocannon20", "NOBLE AC/20"],
+]);
+const HIDDEN_MECHLAB_EQUIPMENT_NAMES = new Set([
+  "nobleautocannon20",
+  "railgun",
+  "clanrailgun",
+  "arrowiv",
+  "clanarrowiv",
+  "wing_light",
+  "wing_medium",
+  "wing_heavy",
+]);
 const ARMOR_CONTAINER_SLOT_COUNTS = new Map([
   [2801, 14],
   [2802, 7],
@@ -2171,6 +2184,22 @@ function mechIconSrc(mech) {
 
 function itemById(id) {
   return state.equipment?.items?.[String(id)] || null;
+}
+
+function isHiddenMechlabEquipment(item) {
+  return HIDDEN_MECHLAB_EQUIPMENT_NAMES.has(String(item?.name || "").toLowerCase());
+}
+
+function applyEquipmentDisplayNameOverrides(equipment) {
+  if (!equipment?.items) return equipment;
+  Object.values(equipment.items).forEach((item) => {
+    if (!item) return;
+    const override = EQUIPMENT_DISPLAY_NAME_OVERRIDES.get(String(item.name || "").toLowerCase());
+    if (!override || item.display_name === override) return;
+    item.source_display_name = item.display_name;
+    item.display_name = override;
+  });
+  return equipment;
 }
 
 function excludeUnusedEquipment(equipment) {
@@ -4529,6 +4558,7 @@ function weaponQuirkTargets() {
     const keys = new Set([
       item.name,
       item.display_name,
+      item.source_display_name,
       ...(String(item.aliases || "").split(",")),
     ].map(normalizeLookupKey).filter(Boolean));
 
@@ -7654,6 +7684,7 @@ function simulationItemKeys(item) {
   return new Set([
     item?.name,
     item?.display_name,
+    item?.source_display_name,
     ...String(item?.aliases || "").split(","),
   ].map(normalizeLookupKey).filter(Boolean));
 }
@@ -11643,6 +11674,7 @@ function renderEquipmentList() {
     .map((id) => itemById(id))
     .filter(Boolean)
     .filter((item) => !ammoTypes || ammoMatchesInstalledWeapons(item, ammoTypes))
+    .filter((item) => !isHiddenMechlabEquipment(item))
     .filter((item) => itemMatchesMechFaction(item))
     .filter((item) => equipmentMatchesSelectedMechCapabilities(item, capabilities))
     .filter((item) => heatSinkMatchesUpgrade(item))
@@ -16574,7 +16606,7 @@ async function init() {
     ]);
     state.mechs = mechs.filter((mech) => mech.definition && mech.definition.components);
     initializeMechTypeFilters();
-    state.equipment = excludeUnusedEquipment(equipment);
+    state.equipment = applyEquipmentDisplayNameOverrides(excludeUnusedEquipment(equipment));
     state.gameLocalization = localization;
     state.gameLocalizationLookup = buildGameLocalizationLookup(localization);
     state.equipmentInfoHtmlCache.clear();
@@ -16684,6 +16716,7 @@ function mobilePickerData(component, category = "weapons") {
   const items = ids
     .map((id) => itemById(id))
     .filter(Boolean)
+    .filter((item) => !isHiddenMechlabEquipment(item))
     .filter((item) => itemMatchesMechFaction(item))
     .filter((item) => heatSinkMatchesUpgrade(item))
     .filter((item) => !guidanceMismatch(item))
@@ -16832,6 +16865,8 @@ if (globalThis.__MWOLAB_TEST__) {
     hasFocusedEmptyMechlabTabSlot,
     focusEmptyMechlabTabSlot,
     mechlabFittingTargetMode,
+    isHiddenMechlabEquipment,
+    applyEquipmentDisplayNameOverrides,
     restoreMechlabMainTabViewState,
     setMechlabFitting,
     addMechlabTabRecord,

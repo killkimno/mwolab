@@ -83,6 +83,22 @@ function loadMechLab({
 
 const api = loadMechLab();
 
+test("사용자 지정 장비 숨김 목록과 표시명 원본 보존을 적용한다", () => {
+  const nobleAc20 = {
+    id: 1264,
+    name: "NobleAutoCannon20",
+    display_name: "AC/20",
+    item_type: "weapon",
+  };
+  const equipment = { items: { 1264: nobleAc20 } };
+
+  assert.equal(api.isHiddenMechlabEquipment(nobleAc20), true);
+  assert.equal(api.isHiddenMechlabEquipment({ name: "ClanAutoCannon20" }), false);
+  assert.equal(api.applyEquipmentDisplayNameOverrides(equipment), equipment);
+  assert.equal(nobleAc20.display_name, "NOBLE AC/20");
+  assert.equal(nobleAc20.source_display_name, "AC/20");
+});
+
 test("모바일 아머 입력은 쿼크 최종값 대신 실제 할당 포인트를 표시한다", () => {
   const mobileApi = loadMechLab({ mobile: true });
   const desktopHtml = api.renderArmorStepper("left_arm", "front", 10, 20, 0, false, 3, 20, 0, 0, 0, true);
@@ -3330,6 +3346,14 @@ test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호�
   const smallLaser = weapon({ id: 501, name: "SmallLaser", stats: { slots: 1, tons: 1 } });
   const largeLaser = weapon({ id: 502, name: "LargeLaser", stats: { slots: 3, tons: 5 } });
   const missile = weapon({ id: 503, name: "TestMissile", hardpoint_type: "missile", stats: { slots: 1, tons: 1 } });
+  const hiddenWeapon = weapon({
+    id: 508,
+    name: "NobleAutoCannon20",
+    display_name: "NOBLE AC/20",
+    faction: "InnerSphere",
+    hardpoint_type: "energy",
+    stats: { slots: 1, tons: 1 },
+  });
   const heatSink = {
     id: 504,
     item_type: "module",
@@ -3386,8 +3410,8 @@ test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호�
     },
   };
   api.state.equipment = {
-    items: { 500: engine, 501: smallLaser, 502: largeLaser, 503: missile, 504: heatSink, 505: heatSinkUpgrade, 506: incompatibleHeatSink, 507: fixedWeaponModule },
-    families: { weapons: [501, 502, 503], ammo: [], equipment: [504, 506, 507], jumpjets: [], masc: [], engines: [500], upgrades: [505] },
+    items: { 500: engine, 501: smallLaser, 502: largeLaser, 503: missile, 504: heatSink, 505: heatSinkUpgrade, 506: incompatibleHeatSink, 507: fixedWeaponModule, 508: hiddenWeapon },
+    families: { weapons: [501, 502, 503, 508], ammo: [], equipment: [504, 506, 507], jumpjets: [], masc: [], engines: [500], upgrades: [505] },
   };
   api.state.loadouts = {};
   api.state.omnipods = {};
@@ -3409,6 +3433,7 @@ test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호�
   assert.equal(picker.remainingHardpoints.energy, 1);
   assert.equal(picker.remainingHardpoints.missile, 1);
   assert.deepEqual(new Set(picker.items.map((item) => item.type)), new Set(["energy", "missile"]));
+  assert.equal(picker.items.some((item) => item.id === "508"), false);
   assert.equal(picker.items.find((item) => item.id === "502").slotShortage, true);
   const equipmentPicker = api.mobilePickerData("left_arm", "equipment");
   assert.equal(equipmentPicker.items.some((item) => item.id === "504"), true);
@@ -3419,6 +3444,8 @@ test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호�
   assert.equal(slotSummary.maxTons, calculated.maxTons);
   assert.equal(slotSummary.current, calculated.currentSlotUsage);
   assert.equal(slotSummary.remaining, calculated.freeSlots);
+  assert.equal(api.installWarehouseItemInComponent(hiddenWeapon, "left_arm", { render: false }), true);
+  assert.equal(api.mobileRemoveItem("left_arm", 0, { render: false }), true);
   assert.equal(api.installWarehouseItemInComponent(largeLaser, "left_arm", { render: false }), false);
   assert.equal(api.installWarehouseItemInComponent(smallLaser, "left_arm", { render: false }), true);
   assert.equal(api.installWarehouseItemInComponent(missile, "left_arm", { render: false }), true);
