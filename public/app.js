@@ -33,6 +33,7 @@ let loadoutCodeTrigger = null;
 const LOCAL_BUILDS_STORAGE_KEY = "mwolab:local-builds:v1";
 const SHARED_LOADOUT_QUERY_PARAM = "loadout";
 const SHARED_PUBLIC_FITTING_QUERY_PARAM = "fitting";
+let sharedLoadoutNavigationSequence = 0;
 const MAIN_TAB_NAMES = new Set(["mechlab", "equipment-info", "info", "compare", "stats"]);
 const SINGLE_MECH_SELECTION_TABS = new Set(["mechlab", "info"]);
 let resolveCommunityBridgeReady;
@@ -201,6 +202,8 @@ const TEXT = {
     "loadout.invalidItem": "코드에 현재 데이터에 없는 장비 ID가 있습니다: {id}",
     "loadout.invalidOmnipod": "{component}의 옵니포드 ID가 올바르지 않습니다: {id}",
     "loadout.codecUnavailable": "MWO 코드 모듈을 불러오지 못했습니다.",
+    "loadout.urlCodecUnavailable": "이 브라우저에서는 압축 공유 URL을 처리할 수 없습니다.",
+    "loadout.invalidSharedUrl": "압축된 공유 URL이 올바르지 않습니다.",
     "mechlab.showList": "멕 리스트",
     "mechlab.returnFitting": "돌아가기",
     "mechlab.returnFittingAria": "마지막 피팅으로 돌아가기",
@@ -775,6 +778,8 @@ const TEXT = {
     "loadout.invalidItem": "The code contains an equipment ID not present in the current data: {id}",
     "loadout.invalidOmnipod": "Invalid omnipod ID for {component}: {id}",
     "loadout.codecUnavailable": "The MWO code module could not be loaded.",
+    "loadout.urlCodecUnavailable": "This browser cannot process compressed share URLs.",
+    "loadout.invalidSharedUrl": "The compressed share URL is invalid.",
     "mechlab.showList": "Mech List",
     "mechlab.returnFitting": "RETURN",
     "mechlab.returnFittingAria": "Return to the last fitting",
@@ -1298,7 +1303,7 @@ function mainTabNavigationUrl(tabName, mechId = null) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-function sharedLoadoutUrl(code) {
+function sharedLoadoutUrlForValue(sharedValue) {
   const url = new URL(window.location.href);
   if (globalThis.__MWOLAB_MOBILE__) {
     url.pathname = url.pathname.replace(/\/mobile(?:\/index\.html)?\/?$/i, "/");
@@ -1309,8 +1314,32 @@ function sharedLoadoutUrl(code) {
   url.search = "";
   if (language) url.searchParams.set("lang", language);
   remainingParams.forEach(([name, value]) => url.searchParams.append(name, value));
-  url.searchParams.set(SHARED_LOADOUT_QUERY_PARAM, String(code || ""));
+  url.searchParams.set(SHARED_LOADOUT_QUERY_PARAM, String(sharedValue || ""));
   return url.href;
+}
+
+async function encodeSharedLoadoutValue(code) {
+  if (!globalThis.LoadoutUrlCodec) throw new Error(t("loadout.urlCodecUnavailable"));
+  try {
+    return await LoadoutUrlCodec.encode(code);
+  } catch {
+    throw new Error(t("loadout.urlCodecUnavailable"));
+  }
+}
+
+async function decodeSharedLoadoutValue(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized.startsWith(globalThis.LoadoutUrlCodec?.PREFIX || "z")) return normalized;
+  if (!globalThis.LoadoutUrlCodec) throw new Error(t("loadout.urlCodecUnavailable"));
+  try {
+    return await LoadoutUrlCodec.decode(normalized);
+  } catch {
+    throw new Error(t("loadout.invalidSharedUrl"));
+  }
+}
+
+async function sharedLoadoutUrl(code) {
+  return sharedLoadoutUrlForValue(await encodeSharedLoadoutValue(code));
 }
 
 function publicFittingUrl(fittingId) {
@@ -1422,7 +1451,14 @@ function updateMechNavigation(view, mechId = "", mode = "push", fittingTabId = n
   else window.history.pushState(historyState, "", url);
 }
 
-function replaceSharedLoadoutNavigation(code) {
+async function replaceSharedLoadoutNavigation(code, sourceValue = null) {
+  const sourceHref = window.location.href;
+  const url = await sharedLoadoutUrl(code);
+  if (window.location.href !== sourceHref) return false;
+  if (
+    sourceValue !== null
+    && new URL(window.location.href).searchParams.get(SHARED_LOADOUT_QUERY_PARAM) !== sourceValue
+  ) return false;
   window.history.replaceState(
     {
       mwolab: true,
@@ -1431,8 +1467,9 @@ function replaceSharedLoadoutNavigation(code) {
       fittingTabId: state.activeMechlabTabId,
     },
     "",
-    sharedLoadoutUrl(code),
+    url,
   );
+  return true;
 }
 
 function applyStaticTranslations() {
@@ -12613,23 +12650,28 @@ function selectMech(id, { historyMode = "push", enterFitting = true, mechlabMode
   }
 }
 
-function applyMechNavigationFromLocation() {
+async function applyMechNavigationFromLocation() {
   if (!mechNavigationReady) return;
+  const navigationSequence = ++sharedLoadoutNavigationSequence;
   const params = new URL(window.location.href).searchParams;
   if (params.has(SHARED_PUBLIC_FITTING_QUERY_PARAM)) return;
   if (restoreMechlabHistorySnapshot(window.history.state?.mechlabSnapshot)) return;
   const sharedLoadoutCode = params.get(SHARED_LOADOUT_QUERY_PARAM);
   if (sharedLoadoutCode) {
     try {
+      const decodedLoadoutCode = await decodeSharedLoadoutValue(sharedLoadoutCode);
+      if (navigationSequence !== sharedLoadoutNavigationSequence) return;
       const historyTabId = window.history.state?.fittingTabId;
-      importMwoCode(sharedLoadoutCode, {
+      importMwoCode(decodedLoadoutCode, {
         closeDialog: false,
         updateNavigation: false,
         historyTabId,
       });
-      replaceSharedLoadoutNavigation(sharedLoadoutCode);
+      await replaceSharedLoadoutNavigation(decodedLoadoutCode, sharedLoadoutCode);
     } catch (error) {
-      $("data-status").textContent = error.message;
+      if (navigationSequence === sharedLoadoutNavigationSequence) {
+        $("data-status").textContent = error.message;
+      }
     }
     return;
   }
@@ -12670,8 +12712,9 @@ function applyMechNavigationFromLocation() {
   $("mech-search").focus();
 }
 
-function initializeMechNavigation() {
+async function initializeMechNavigation() {
   mechNavigationReady = true;
+  const navigationSequence = ++sharedLoadoutNavigationSequence;
   const params = new URL(window.location.href).searchParams;
   if (params.has(SHARED_PUBLIC_FITTING_QUERY_PARAM)) {
     renderAll();
@@ -12681,8 +12724,14 @@ function initializeMechNavigation() {
   let sharedLoadoutError = "";
   if (sharedLoadoutCode) {
     try {
-      importMwoCode(sharedLoadoutCode, { closeDialog: false, updateNavigation: false });
-      replaceSharedLoadoutNavigation(sharedLoadoutCode);
+      const decodedLoadoutCode = await decodeSharedLoadoutValue(sharedLoadoutCode);
+      if (navigationSequence !== sharedLoadoutNavigationSequence) return;
+      importMwoCode(decodedLoadoutCode, { closeDialog: false, updateNavigation: false });
+      try {
+        await replaceSharedLoadoutNavigation(decodedLoadoutCode, sharedLoadoutCode);
+      } catch (error) {
+        $("data-status").textContent = error.message;
+      }
       return;
     } catch (error) {
       sharedLoadoutError = error.message;
@@ -12699,7 +12748,7 @@ function initializeMechNavigation() {
   } else {
     updateMainTabNavigation(requestedTab, "replace");
   }
-  applyMechNavigationFromLocation();
+  await applyMechNavigationFromLocation();
   if (sharedLoadoutError) $("data-status").textContent = sharedLoadoutError;
 }
 
@@ -12721,7 +12770,7 @@ function setLoadoutCodeStatus(message = "", tone = "") {
   status.classList.toggle("success", tone === "success");
 }
 
-function openLoadoutCodeDialog(mode) {
+async function openLoadoutCodeDialog(mode) {
   if (!globalThis.MWOCodec) {
     $("data-status").textContent = t("loadout.codecUnavailable");
     return;
@@ -12754,11 +12803,18 @@ function openLoadoutCodeDialog(mode) {
   } else {
     try {
       textarea.value = MWOCodec.encode(currentBuildAsMwoLoadout());
-      urlText.value = sharedLoadoutUrl(textarea.value);
     } catch (error) {
       textarea.value = "";
       urlText.value = "";
       setLoadoutCodeStatus(error.message, "error");
+    }
+    if (textarea.value) {
+      try {
+        urlText.value = await sharedLoadoutUrl(textarea.value);
+      } catch (error) {
+        urlText.value = "";
+        setLoadoutCodeStatus(error.message, "error");
+      }
     }
   }
 
@@ -15512,7 +15568,7 @@ function removeDraggedItem() {
 }
 
 function bindEvents() {
-  window.addEventListener("popstate", applyMechNavigationFromLocation);
+  window.addEventListener("popstate", () => { void applyMechNavigationFromLocation(); });
   const tooltipSelector = "[data-item], [data-tooltip-item], [data-loadout-item], [data-engine-heat-sink-item], [data-omnipod], [data-tooltip-omnipod], [data-ghost-heat-warning]";
   if (!globalThis.__MWOLAB_MOBILE__) {
     document.addEventListener("pointerover", (event) => {
@@ -16624,7 +16680,7 @@ async function init() {
     state.improvedJumpJetChassis = null;
     if (!globalThis.__MWOLAB_MOBILE__) scheduleStatsSummaryWarmup();
     $("data-status").textContent = t("status.loadedData", { count: state.index.counts.mechs });
-    initializeMechNavigation();
+    await initializeMechNavigation();
     resolveCommunityBridgeReady(true);
   } catch (error) {
     $("data-status").textContent = error.message;
@@ -16852,7 +16908,9 @@ globalThis.MwoLabMobileBridge = Object.freeze({
   openLoadout: openLoadoutCodeDialog,
   openSharedFittingCode(code) {
     importMwoCode(code, { closeDialog: false, updateNavigation: false });
-    replaceSharedLoadoutNavigation(code);
+    void replaceSharedLoadoutNavigation(code).catch((error) => {
+      $("data-status").textContent = error.message;
+    });
     return true;
   },
 });
@@ -17037,6 +17095,8 @@ if (globalThis.__MWOLAB_TEST__) {
     removeInstalledEngineHeatSink,
     replaceOmnipod,
     sharedLoadoutUrl,
+    decodeSharedLoadoutValue,
+    replaceSharedLoadoutNavigation,
     publicFittingUrl,
     restoreMechlabHistorySnapshot,
     applyMechlabHistorySnapshotToTab,

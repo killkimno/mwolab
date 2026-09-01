@@ -891,6 +891,7 @@
         <h3>URL과 브라우저 히스토리</h3>
         <ul>
           <li>URL의 멕 식별자와 <code>tab</code> 쿼리를 선택 상태와 동기화한다. 뒤로·앞으로 이동 시 다섯 주 탭과 선택 멕을 함께 복원한다.</li>
+          <li>신규 로드아웃 공유 URL은 <code>loadout-url-codec.js</code>가 원본 MWO 코드를 DEFLATE로 가역 압축하고 Base64URL로 변환한 <code>z...</code> 값을 <code>loadout</code> 쿼리에 담는다. URL 진입 시 압축 문자열 길이를 먼저 제한하고 압축 해제 결과도 최대 4,096바이트로 제한한 뒤 기존 <code>importMwoCode</code> 검증 경로에 전달한다. 과거의 전체 MWO 코드 <code>loadout=A...</code>도 그대로 읽으며, 유효하게 불러온 URL은 신규 압축 형식으로 교체한다. 압축과 복원은 브라우저 안에서만 수행하고 서버나 Firebase에 공유 코드를 저장하지 않는다.</li>
           <li><code>fitting</code> 쿼리는 공개 Firestore 문서 ID를 나타내고 일반 <code>loadout</code>·<code>mech</code>·<code>tab</code> 진입보다 우선한다. 공유 링크의 최초 적용은 현재 History 항목을 교체하고 브라우저 상세에서 적용하면 기존 탭의 빌드·공개 출처 스냅샷을 현재 항목에 보존한 뒤 새 항목을 추가한다. Back으로 이전 항목에 돌아오면 같은 탭에 스냅샷을 복원하며, 공개 핏팅 원상복귀는 현재 <code>fitting</code> URL을 유지한다. 일반 멕·주 탭·로드아웃 탐색 URL은 이전 <code>fitting</code> 쿼리를 제거한다.</li>
           <li>탭 전환만으로 유효한 현재 빌드나 비교 목록을 불필요하게 초기화하지 않는다.</li>
         </ul>

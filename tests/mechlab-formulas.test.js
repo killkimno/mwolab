@@ -14,9 +14,15 @@ function loadMechLab({
   elements = {},
   mobile = false,
   windowHref = "http://localhost/?lang=en",
+  windowLocation = null,
+  historyReplacements = [],
 } = {}) {
   const quirkSource = fs.readFileSync(
     path.join(__dirname, "..", "public", "quirk-calculations.js"),
+    "utf8",
+  );
+  const loadoutUrlCodecSource = fs.readFileSync(
+    path.join(__dirname, "..", "public", "loadout-url-codec.js"),
     "utf8",
   );
   const source = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
@@ -41,6 +47,14 @@ function loadMechLab({
     Date,
     Intl,
     Promise,
+    Uint8Array,
+    TextEncoder,
+    TextDecoder,
+    CompressionStream,
+    DecompressionStream,
+    Blob,
+    btoa: (value) => Buffer.from(value, "binary").toString("base64"),
+    atob: (value) => Buffer.from(value, "base64").toString("binary"),
     performance: { now: () => 0 },
     navigator: { language: "en", languages: ["en"] },
     localStorage: {
@@ -65,9 +79,16 @@ function loadMechLab({
       body: { classList: { add: () => {}, remove: () => {}, toggle: () => {} } },
     },
   };
+  const resolvedWindowLocation = windowLocation || {
+    href: windowHref,
+    search: new URL(windowHref).search,
+  };
   sandbox.window = {
-    location: { href: windowHref, search: new URL(windowHref).search },
-    history: { pushState: () => {}, replaceState: () => {} },
+    location: resolvedWindowLocation,
+    history: {
+      pushState: () => {},
+      replaceState(state, title, value) { historyReplacements.push(value); },
+    },
     addEventListener: () => {},
     innerWidth: 1280,
     innerHeight: 720,
@@ -76,6 +97,7 @@ function loadMechLab({
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
+  vm.runInContext(loadoutUrlCodecSource, sandbox, { filename: "public/loadout-url-codec.js" });
   vm.runInContext(quirkSource, sandbox, { filename: "public/quirk-calculations.js" });
   vm.runInContext(source, sandbox, { filename: "public/app.js" });
   return sandbox.__MWOLAB_TEST_API__;
@@ -419,13 +441,16 @@ test("UM-AIV 계열의 고정 XL Gyro를 특수 장비로 판별한다", () => {
   }
 });
 
-test("shared loadout URL preserves the exact MWO code", () => {
+test("공유 URL은 MWO 코드를 압축하고 기존 코드를 정확히 복원한다", async () => {
   const code = "A12?@[\\]^_`abc|def";
-  const sharedUrl = new URL(api.sharedLoadoutUrl(code));
+  const sharedUrl = new URL(await api.sharedLoadoutUrl(code));
+  const compressedValue = sharedUrl.searchParams.get("loadout");
 
   assert.equal(sharedUrl.origin, "http://localhost");
   assert.equal(sharedUrl.searchParams.get("lang"), "en");
-  assert.equal(sharedUrl.searchParams.get("loadout"), code);
+  assert.match(compressedValue, /^z[A-Za-z0-9_-]+$/);
+  assert.equal(await api.decodeSharedLoadoutValue(compressedValue), code);
+  assert.equal(await api.decodeSharedLoadoutValue(code), code);
   assert.equal(sharedUrl.searchParams.has("tab"), false);
   assert.equal(sharedUrl.searchParams.has("mech"), false);
   assert.ok(sharedUrl.search.startsWith("?lang=en&loadout="));
@@ -434,10 +459,25 @@ test("shared loadout URL preserves the exact MWO code", () => {
     mobile: true,
     windowHref: "https://kmonkeyhead.github.io/mwolab/mobile/?lang=kr&mech=713",
   });
-  const mobileSharedUrl = new URL(mobileApi.sharedLoadoutUrl(code));
+  const mobileSharedUrl = new URL(await mobileApi.sharedLoadoutUrl(code));
   assert.equal(mobileSharedUrl.pathname, "/mwolab/");
   assert.equal(mobileSharedUrl.searchParams.get("lang"), "kr");
-  assert.equal(mobileSharedUrl.searchParams.get("loadout"), code);
+  assert.match(mobileSharedUrl.searchParams.get("loadout"), /^z[A-Za-z0-9_-]+$/);
+});
+
+test("늦게 끝난 공유 URL 압축은 사용자가 이동한 새 주소를 덮어쓰지 않는다", async () => {
+  const windowLocation = {
+    href: "http://localhost/?fitting=public-record",
+    search: "?fitting=public-record",
+  };
+  const historyReplacements = [];
+  const raceApi = loadMechLab({ windowLocation, historyReplacements });
+  const replacement = raceApi.replaceSharedLoadoutNavigation("A12?@[\\]^_`abc|def");
+
+  windowLocation.href = "http://localhost/?mech=713";
+
+  assert.equal(await replacement, false);
+  assert.deepEqual(historyReplacements, []);
 });
 
 test("공개 핏팅 공유 URL은 언어와 문서 ID만 유지한다", () => {

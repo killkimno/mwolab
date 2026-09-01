@@ -441,6 +441,7 @@ test("모바일 부트스트랩은 루트 골격에 공용 경로를 연결하�
   assert.match(output, /<base href="\.\.\/">/);
   assert.match(output, /globalThis\.__MWOLAB_MOBILE__ = true/);
   assert.match(output, /mobile\/mobile\.css/);
+  assert.match(output, /loadout-url-codec\.js/);
   assert.match(output, /mobile\/mobile-app\.js/);
   assert.match(output, /mobile\/mobile-shared-fitting\.js/);
   assert.match(output, /content="noindex,follow,max-image-preview:none"/);
