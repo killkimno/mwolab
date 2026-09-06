@@ -404,6 +404,8 @@ html.mobile-app body {
 .mobile-overlay-body {
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   padding: 0.75rem;
 }
 
@@ -913,6 +915,8 @@ html.mobile-app body {
 .mobile-app .build-actions-list {
   align-content: start;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .mobile-app .build-actions-cancel {

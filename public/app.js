@@ -216,6 +216,15 @@ const TEXT = {
     "mechlab.ghostHeatWarningTitle": "GHOST HEAT WARNING",
     "mechlab.ghostHeatWarningLine": "{weapons} : 발열 {percent} (최종: {totalHeat}, 고스트 힛: {ghostHeat})",
     "weaponDetail.open": "자세히",
+    "alphaHeat.shot": "{n}차 알파샷",
+    "alphaHeat.normal": "1차는 열 0%에서 발사한 직후, 2차부터는 이전 알파샷 후 모든 무기의 쿨다운이 끝나는 즉시 다시 발사한 직후의 발열입니다. 고스트 힛은 제외합니다.",
+    "alphaHeat.ghost": "1차는 열 0%에서 발사한 직후, 2차부터는 이전 알파샷 후 모든 무기의 쿨다운이 끝나는 즉시 다시 발사한 직후의 발열입니다. 고스트 힛을 포함합니다.",
+    "alphaHeat.normal.first": "열 0%에서 첫 알파샷을 발사한 직후의 발열입니다. 고스트 힛은 제외합니다.",
+    "alphaHeat.normal.next": "이전 알파샷 후 모든 무기의 쿨다운이 끝나는 즉시 다시 발사했을 때의 발열입니다. 대기 중 냉각을 반영하며 고스트 힛은 제외합니다.",
+    "alphaHeat.ghost.first": "열 0%에서 첫 알파샷을 발사한 직후의 발열입니다. 고스트 힛을 포함합니다.",
+    "alphaHeat.ghost.next": "이전 알파샷 후 모든 무기의 쿨다운이 끝나는 즉시 다시 발사했을 때의 발열입니다. 대기 중 냉각과 고스트 힛을 반영합니다.",
+    "alphaHeat.ato": "ATO: 냉각을 반영해 열용량 100%에 도달하는 예상 알파샷 횟수입니다. 소수는 부분 횟수, ∞는 열이 누적되지 않음을 뜻합니다.",
+    "alphaHeat.ghostAto": "고스트 힛을 포함한 ATO입니다. 소수는 부분 횟수, ∞는 열이 누적되지 않음을 뜻합니다.",
     "weaponDetail.title": "무장 상세 정보",
     "weaponDetail.close": "무장 상세 정보 닫기",
     "weaponDetail.distance": "적과의 거리",
@@ -792,6 +801,15 @@ const TEXT = {
     "mechlab.ghostHeatWarningTitle": "GHOST HEAT WARNING",
     "mechlab.ghostHeatWarningLine": "{weapons}: heat {percent} (final: {totalHeat}, ghost heat: {ghostHeat})",
     "weaponDetail.open": "Details",
+    "alphaHeat.shot": "Alpha strike {n}",
+    "alphaHeat.normal": "Heat after the first alpha strike from 0%, then after firing again as soon as all weapons finish cooling down from the previous strike. Excludes ghost heat.",
+    "alphaHeat.ghost": "Heat after the first alpha strike from 0%, then after firing again as soon as all weapons finish cooling down from the previous strike. Includes ghost heat.",
+    "alphaHeat.normal.first": "Heat immediately after the first alpha strike, starting at 0%. Excludes ghost heat.",
+    "alphaHeat.normal.next": "Heat after firing again as soon as all weapons finish cooling down from the previous alpha strike. Includes cooling while waiting; excludes ghost heat.",
+    "alphaHeat.ghost.first": "Heat immediately after the first alpha strike, starting at 0%. Includes ghost heat.",
+    "alphaHeat.ghost.next": "Heat after firing again as soon as all weapons finish cooling down from the previous alpha strike. Includes cooling while waiting and ghost heat.",
+    "alphaHeat.ato": "ATO: estimated alpha strikes to reach 100% heat, including cooling. Decimals represent partial strikes; ∞ means heat does not accumulate.",
+    "alphaHeat.ghostAto": "ATO including ghost heat. Decimals represent partial strikes; ∞ means heat does not accumulate.",
     "weaponDetail.title": "Weapon Details",
     "weaponDetail.close": "Close weapon details",
     "weaponDetail.distance": "Target distance",
@@ -7338,8 +7356,8 @@ function mechSummarySection(title, rows, className = "", headerAction = "") {
         ${headerAction}
       </div>
       <div class="mech-summary-metrics">
-        ${rows.map(([label, value, tone = ""]) => `
-          <div class="mech-summary-metric ${tone}">
+        ${rows.map(([label, value, tone = "", tooltip = ""]) => `
+          <div class="mech-summary-metric ${tone}"${tooltip ? ` title="${escapeHtml(tooltip)}"` : ""}>
             <span>${label}</span>
             <strong>${value}</strong>
           </div>
@@ -7610,8 +7628,23 @@ function mechSummaryWeaponMetrics(weapons, firepower, heatSystem) {
   );
   const coolingRate = Math.max(0, number(heatSystem?.coolingRate));
   const maxHeat = Math.max(0, number(heatSystem?.maxHeat));
+  const alphaCycle = weapons.reduce((longest, weapon) => Math.max(longest, number(weapon.cycle)), 0);
+  const coolingBetweenAlphas = coolingRate * alphaCycle;
+  const heatPercents = (shotHeat) => {
+    let accumulatedHeat = 0;
+    return Array.from({ length: 4 }, () => {
+      accumulatedHeat = Math.max(0, accumulatedHeat - coolingBetweenAlphas) + shotHeat;
+      return maxHeat > 0 ? accumulatedHeat / maxHeat * 100 : 0;
+    });
+  };
+  const alphaHeatPercents = heatPercents(alphaHeat);
+  const ghostHeat = ghostHeatForSimulationWeapons(weapons);
   return {
     alphaHeat,
+    alphaHeatPercents,
+    ghostAlphaHeatPercents: ghostHeat > 0 ? heatPercents(alphaHeat + ghostHeat) : null,
+    ato: alphasToOverheat(maxHeat, alphaHeat, coolingRate, alphaCycle),
+    ghostAto: ghostHeat > 0 ? alphasToOverheat(maxHeat, alphaHeat + ghostHeat, coolingRate, alphaCycle) : null,
     dps,
     hps,
     dph: alphaHeat > 0 ? number(firepower) / alphaHeat : null,
@@ -7621,6 +7654,32 @@ function mechSummaryWeaponMetrics(weapons, firepower, heatSystem) {
     alphaHeatRecovery: coolingRate > 0 ? alphaHeat / coolingRate : null,
     alphaHeatPercent: maxHeat > 0 ? alphaHeat / maxHeat * 100 : 0,
   };
+}
+
+function mechSummaryAlphaHeatRows(metrics) {
+  const row = (label, percents, tooltipKey) => [label, percents.map((percent, index) => {
+    const level = percent <= 25 ? 1 : percent <= 50 ? 2 : percent <= 75 ? 3 : percent <= 100 ? 4 : 5;
+    return `<span class="alpha-heat-level-${level}" title="${escapeHtml(`${t("alphaHeat.shot", { n: index + 1 })}: ${t(`${tooltipKey}.${index === 0 ? "first" : "next"}`)}`)}">${fmt(percent, 0)}%</span>`;
+  }).join(""), "mech-summary-alpha-heat", t(tooltipKey)];
+  return [
+    row("ALPHA HEAT", metrics.alphaHeatPercents, "alphaHeat.normal"),
+    ...(metrics.ghostAlphaHeatPercents ? [row("GHOST ALPHA HEAT", metrics.ghostAlphaHeatPercents, "alphaHeat.ghost")] : []),
+  ];
+}
+
+function renderMechSummaryAlphaHeat(metrics) {
+  const formatAto = (value) => value == null ? "-" : Number.isFinite(value) ? fmt(value, 2) : "∞";
+  const headings = ["1ST", "2ND", "3RD", "4TH"].map((label, index) => (
+    `<span title="${escapeHtml(t("alphaHeat.shot", { n: index + 1 }))}">${label}</span>`
+  )).join("");
+  return mechSummarySection("ALPHA HEAT", [
+    ["", headings, "mech-summary-alpha-heat mech-summary-alpha-header"],
+    ...mechSummaryAlphaHeatRows(metrics),
+    ["ATO", formatAto(metrics.ato), "mech-summary-alpha-heat mech-summary-ato", t("alphaHeat.ato")],
+    ...(metrics.ghostAlphaHeatPercents
+      ? [["GHOST ATO", formatAto(metrics.ghostAto), "mech-summary-alpha-heat mech-summary-ato", t("alphaHeat.ghostAto")]]
+      : []),
+  ], "mech-summary-alpha-section");
 }
 
 function renderMechSummary(calc = null) {
@@ -7685,10 +7744,10 @@ function renderMechSummary(calc = null) {
       ["DPS", fmt(weaponMetrics.dps, 2)],
       ["DPH", weaponMetrics.dph === null ? "-" : fmt(weaponMetrics.dph, 2)],
       ["HPS", fmt(weaponMetrics.hps, 2)],
-      ["ALPHA HEAT", `${fmt(weaponMetrics.alphaHeat, 2)} (${fmt(weaponMetrics.alphaHeatPercent, 1)}%)`],
     ], "mech-summary-weapon-section", globalThis.__MWOLAB_MOBILE__ ? "" : `
       <button id="open-weapon-detail" class="mech-summary-detail-button" type="button" aria-haspopup="dialog" aria-controls="weapon-detail-overlay">${t("weaponDetail.open")}</button>
     `)}
+    ${renderMechSummaryAlphaHeat(weaponMetrics)}
     ${renderMechSummaryAmmo(weapons)}
     ${renderMechSummarySkillQuirks(quirks)}
     ${renderMechSummaryQuirks(baseQuirks)}
@@ -16766,7 +16825,7 @@ function mobilePickerData(component, category = "weapons") {
         ? ["engines"]
         : category === "engine-heatsinks"
           ? ["equipment"]
-          : ["equipment", "jumpjets", "masc"];
+          : ["equipment", "jumpjets", "masc", ...(ENGINE_COMPONENTS.has(component) && !isOmniMech ? ["engines"] : [])];
   const ids = [...new Set(families.flatMap((family) => state.equipment?.families?.[family] || []))];
   const ammoTypes = category === "ammo" ? installedWeaponAmmoTypes() : null;
   const items = ids
@@ -17077,6 +17136,8 @@ if (globalThis.__MWOLAB_TEST__) {
     atmTooltipDamageBands,
     ultraAutoCannonJamStats,
     mechSummaryWeaponMetrics,
+    mechSummaryAlphaHeatRows,
+    renderMechSummaryAlphaHeat,
     communitySniperWeapon,
     communityFittingTagMetrics,
     communityFittingTags,

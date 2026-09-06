@@ -22,6 +22,45 @@
   box-sizing: border-box;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Reserve the gutter, but leave it visually empty when there is no scroll thumb. */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background: #50636b;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #7897a3;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-color: #50636b transparent;
+  }
+}
+
 html,
 body {
   margin: 0;
@@ -370,6 +409,8 @@ body.privacy-page {
   max-height: calc(100vh - 2rem);
   gap: 0.85rem;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   padding: 1.1rem;
   border: 1px solid #8f6b30;
   border-radius: 10px;
@@ -644,6 +685,7 @@ body.privacy-page {
   min-height: 0;
   padding: 0 1rem 2rem;
   overflow: auto;
+  overflow-y: scroll;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
@@ -967,6 +1009,8 @@ body.privacy-page {
 
 #tab-mechlab.mechlab-scale-limited {
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .pill {
@@ -1285,6 +1329,8 @@ body.privacy-page {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .sidebar {
@@ -1424,6 +1470,8 @@ body.privacy-page {
 .mech-list,
 .item-list {
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   min-height: 0;
 }
 
@@ -2260,6 +2308,8 @@ body.privacy-page {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .stats-content {
@@ -2281,6 +2331,8 @@ body.privacy-page {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .stats-detail .info-card {
@@ -2697,6 +2749,8 @@ body.privacy-page {
 
 .compare-table-wrap {
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -3191,6 +3245,8 @@ body.privacy-page {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   border-right: 1px solid var(--line);
   background: #070909;
 }
@@ -3232,6 +3288,8 @@ body.privacy-page {
 .compact-mech-list {
   max-height: none;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   background: #090e10;
 }
 
@@ -3564,6 +3622,48 @@ body.privacy-page {
   white-space: nowrap;
 }
 
+.mech-summary-alpha-heat {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 0;
+  padding: 0;
+}
+
+.mech-summary-alpha-heat > span {
+  padding: 0.25rem 0.4rem;
+}
+
+.mech-summary-alpha-heat > strong {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-self: stretch;
+  text-align: center;
+}
+
+.mech-summary-alpha-heat > strong > span {
+  display: grid;
+  align-items: center;
+  padding: 0.25rem 0.15rem;
+  border-left: 1px solid #26343a;
+}
+
+.alpha-heat-level-1 { color: #69c76b; }
+.alpha-heat-level-2 { color: #acd15e; }
+.alpha-heat-level-3 { color: #e5cc59; }
+.alpha-heat-level-4 { color: #e99a50; }
+.alpha-heat-level-5 { color: #e35f55; }
+
+.mech-summary-alpha-header > strong {
+  color: #7897a3;
+  font-size: 0.7rem;
+}
+
+.mech-summary-ato > strong {
+  display: block;
+  padding: 0.25rem 0.15rem;
+  border-left: 1px solid #26343a;
+}
+
 .mechlab-action-panel {
   display: grid;
   gap: 0.5rem;
@@ -3774,6 +3874,8 @@ body.privacy-page {
 .community-content {
   min-height: 12rem;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   padding: 0;
 }
 
@@ -3839,6 +3941,8 @@ body.privacy-page {
 .community-mech-filter-list {
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .community-mech-filter-list .chassis-row {
@@ -4044,6 +4148,8 @@ body.privacy-page {
 .community-list-scroll {
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .community-detail-pane { overflow: hidden; }
@@ -4356,6 +4462,8 @@ body.privacy-page {
   align-content: start;
   gap: 0.75rem;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .community-detail-title {
@@ -5058,7 +5166,8 @@ body.ui-settings-open {
 .skill-category-options {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   max-height: min(30rem, calc(100dvh - 14rem));
-  overflow-y: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   padding-right: 0.2rem;
 }
 
@@ -5148,7 +5257,7 @@ body.ui-settings-open {
   min-height: 0;
   padding-right: 0.35rem;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll;
   scrollbar-gutter: stable;
 }
 
@@ -5430,6 +5539,7 @@ body.ui-settings-open {
 
 .mech-hardpoint-filter-table {
   overflow-x: auto;
+  scrollbar-gutter: stable;
   border: 1px solid #29434c;
   border-radius: 4px;
   background: #0d181c;
@@ -5867,7 +5977,8 @@ body.ui-settings-open {
   display: grid;
   max-height: min(25rem, 48vh);
   gap: 0.3rem;
-  overflow-y: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   padding: 0.15rem;
 }
 
@@ -6485,6 +6596,8 @@ body.weapon-detail-open {
 .weapon-detail-table {
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .weapon-detail-list {
@@ -7557,6 +7670,8 @@ body.weapon-detail-open {
 .simulation-weapon-list {
   min-height: 0;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   padding-bottom: 0;
 }
 
@@ -8022,6 +8137,8 @@ body.weapon-detail-open {
 .components-panel {
   position: relative;
   overflow: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   padding-right: 0.15rem;
 }
 
@@ -8920,7 +9037,7 @@ body.pointer-drag-active * {
   padding: 0.55rem;
   border-top: 1px solid #456773;
   background: #080b0c;
-  overflow-y: auto;
+  overflow-y: scroll;
   scrollbar-gutter: stable;
 }
 
@@ -9113,7 +9230,8 @@ body.pointer-drag-active * {
   position: fixed;
   z-index: 120;
   width: min(20.9rem, calc(100vw - 1rem));
-  overflow-y: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   pointer-events: auto;
@@ -9129,6 +9247,7 @@ body.pointer-drag-active * {
   min-width: min(32rem, calc(100vw - 1rem));
   max-width: calc(100vw - 1rem);
   overflow-x: auto;
+  scrollbar-gutter: stable;
 }
 
 .equipment-tooltip-card {
@@ -9735,6 +9854,7 @@ body.pointer-drag-active * {
   .simulation-scenario-options {
     grid-template-columns: repeat(4, minmax(8.5rem, 1fr));
     overflow-x: auto;
+    scrollbar-gutter: stable;
     padding-bottom: 0.15rem;
   }
 
@@ -9749,6 +9869,8 @@ body.pointer-drag-active * {
 
   .simulation-weapon-list {
     overflow: auto;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
   }
 
   .simulation-weapon-row,
@@ -9792,6 +9914,8 @@ body.pointer-drag-active * {
 
   .mech-browser-layout.mechlab-focused-layout .tab-content {
     overflow: auto;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
   }
 
   .mechlab-grid {
@@ -9812,6 +9936,7 @@ body.pointer-drag-active * {
 
   .components-panel {
     overflow-x: auto;
+    scrollbar-gutter: stable;
   }
 
   .components {
@@ -9871,6 +9996,7 @@ body.pointer-drag-active * {
     gap: 0.45rem;
     padding: 0 0 0 0.45rem;
     overflow-x: auto;
+    scrollbar-gutter: stable;
   }
 
   .stats-detail-rank-grid {
@@ -9906,6 +10032,8 @@ body.pointer-drag-active * {
 
   #tab-mechlab.mechlab-scale-limited {
     overflow: auto;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
   }
 
   #tab-mechlab .mechlab-workspace {
@@ -9932,6 +10060,8 @@ body.pointer-drag-active * {
 
   #tab-mechlab .components-panel {
     overflow: auto;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
   }
 
   #tab-mechlab .component-column {

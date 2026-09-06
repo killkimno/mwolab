@@ -3195,6 +3195,58 @@ test("히트싱크·고스트 히트·요약 공식", async (t) => {
     closeTo(metrics.heatEfficiency, 2 / 5.5 * 100);
     assert.equal(metrics.alphaHeatRecovery, 4);
     assert.equal(metrics.alphaHeatPercent, 20);
+    assert.equal(metrics.ato, 9);
+    assert.deepEqual(Array.from(metrics.alphaHeatPercents), [20, 30, 40, 50]);
+  });
+
+  await t.test("연속 알파는 냉각 후 0 미만으로 내려가지 않고 100% 초과 발열도 유지한다", () => {
+    const weapons = [{ damage: 20, heat: 30, cycle: 2 }];
+    const cooled = api.mechSummaryWeaponMetrics(weapons, 20, { coolingRate: 20, maxHeat: 100 });
+    assert.deepEqual(Array.from(cooled.alphaHeatPercents), [30, 30, 30, 30]);
+    assert.equal(cooled.ato, Infinity);
+    assert.match(api.renderMechSummaryAlphaHeat(cooled), />∞<\/strong>/);
+    const uncooled = api.mechSummaryWeaponMetrics(weapons, 20, { coolingRate: 0, maxHeat: 100 });
+    assert.deepEqual(Array.from(uncooled.alphaHeatPercents), [30, 60, 90, 120]);
+    const empty = api.mechSummaryWeaponMetrics([], 0, { coolingRate: 2, maxHeat: 100 });
+    assert.deepEqual(Array.from(empty.alphaHeatPercents), [0, 0, 0, 0]);
+  });
+
+  await t.test("고스트 알파는 추가열을 포함하고 HSL로 억제되면 행을 숨긴다", () => {
+    const item = weapon({ stats: { heat: 5, heatPenaltyID: 9, minheatpenaltylevel: 2, heatpenalty: 24 } });
+    const weapons = [0, 1].map(() => ({ item, heat: 5, cycle: 2, ghostHeatBase: 5, ghostHeatHslBonus: 0 }));
+    const metrics = api.mechSummaryWeaponMetrics(weapons, 0, { coolingRate: 2, maxHeat: 100 });
+    [10, 16, 22, 28].forEach((expected, index) => closeTo(metrics.alphaHeatPercents[index], expected));
+    [19.6, 35.2, 50.8, 66.4].forEach((expected, index) => closeTo(metrics.ghostAlphaHeatPercents[index], expected));
+    closeTo(metrics.ato, 16);
+    closeTo(metrics.ghostAto, 1 + (100 - 19.6) / (19.6 - 4));
+    const html = api.renderMechSummaryAlphaHeat(metrics);
+    assert.match(html, /<h3>ALPHA HEAT<\/h3>/);
+    for (const label of ["1ST", "2ND", "3RD", "4TH", "ATO", "GHOST ATO"]) {
+      assert.ok(html.includes(`>${label}</span>`));
+    }
+    assert.match(html, /title="Alpha strike 1/);
+    assert.match(html, /title="ATO:/);
+    const rows = api.mechSummaryAlphaHeatRows(metrics);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[1][0], "GHOST ALPHA HEAT");
+    assert.equal(rows[0][2], rows[1][2]);
+    weapons.forEach((entry) => { entry.ghostHeatHslBonus = 1; });
+    const suppressed = api.mechSummaryWeaponMetrics(weapons, 0, { coolingRate: 2, maxHeat: 100 });
+    assert.equal(suppressed.ghostAlphaHeatPercents, null);
+    assert.equal(suppressed.ghostAto, null);
+    assert.doesNotMatch(api.renderMechSummaryAlphaHeat(suppressed), /GHOST ATO|GHOST ALPHA HEAT/);
+    assert.equal(api.mechSummaryAlphaHeatRows(suppressed).length, 1);
+  });
+
+  await t.test("알파 열 색상은 25·50·75·100 경계와 100 초과를 구분한다", () => {
+    const cases = [[0, 1], [25, 1], [25.1, 2], [50, 2], [50.1, 3], [75, 3], [75.1, 4], [100, 4], [100.1, 5]];
+    for (const [percent, level] of cases) {
+      const rows = api.mechSummaryAlphaHeatRows({ alphaHeatPercents: [percent], ghostAlphaHeatPercents: [percent] });
+      for (const row of rows) {
+        assert.match(row[1], new RegExp(`class="alpha-heat-level-${level}"`));
+        assert.match(row[1], />\d+%<\/span>/);
+      }
+    }
   });
 
   await t.test("발열이 없으면 DPH가 없고 냉각이 충분하면 열효율은 100이다", () => {
@@ -3207,6 +3259,8 @@ test("히트싱크·고스트 히트·요약 공식", async (t) => {
     assert.equal(metrics.heatEfficiency, 100);
     assert.equal(metrics.alphaHeatRecovery, 0);
     assert.equal(metrics.alphaHeatPercent, 0);
+    assert.equal(metrics.ato, null);
+    assert.deepEqual(Array.from(metrics.alphaHeatPercents), [0, 0, 0, 0]);
   });
 });
 
@@ -3478,6 +3532,19 @@ test("모바일 브리지는 부위별 하드포인트·슬롯 검증과 보호�
   const equipmentPicker = api.mobilePickerData("left_arm", "equipment");
   assert.equal(equipmentPicker.items.some((item) => item.id === "504"), true);
   assert.equal(equipmentPicker.items.some((item) => item.id === "507"), false);
+  assert.equal(equipmentPicker.items.some((item) => item.id === "500"), false);
+  const torsoEquipment = api.mobilePickerData("centre_torso", "equipment");
+  const torsoEngines = api.mobilePickerData("centre_torso", "engines");
+  assert.deepEqual(
+    Array.from(torsoEquipment.items.filter((item) => item.type === "engine")),
+    Array.from(torsoEngines.items),
+  );
+  assert.equal(torsoEquipment.items.some((item) => item.id === "500" && !item.warning), true);
+  assert.equal(api.mobilePickerData("left_torso", "equipment").items.some((item) => item.type === "engine"), false);
+  const originalMaxEngineRating = mech.definition.stats.MaxEngineRating;
+  mech.definition.stats.MaxEngineRating = engine.stats.rating - 1;
+  assert.equal(api.mobilePickerData("centre_torso", "equipment").items.some((item) => item.type === "engine"), false);
+  mech.definition.stats.MaxEngineRating = originalMaxEngineRating;
   const slotSummary = api.mobileSlotSummary();
   const calculated = api.calculateBuild();
   assert.equal(slotSummary.tons, calculated.totalTons);
