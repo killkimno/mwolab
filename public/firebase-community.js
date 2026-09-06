@@ -9,6 +9,9 @@ const NICKNAME_MIN = 2;
 const NICKNAME_MAX = 20;
 const PILOT_NAME = "Pilot";
 const PROFILE_CACHE_TTL_MS = 60_000;
+const RECOMMENDATION_LIMIT = 3;
+const RECOMMENDATION_CACHE_STORAGE_KEY = "mwolab:recommended-fittings:v1";
+const RECOMMENDATION_CACHE_VERSION = 1;
 const GOOGLE_IDENTITY_CLIENT_ID = "743748401179-u7uf1svvj8cbs64987om4969jq6eu0jo.apps.googleusercontent.com";
 const bridge = globalThis.MwoLabCommunityBridge;
 const language = bridge?.language === "en" ? "en" : "kr";
@@ -31,6 +34,7 @@ const COPY = {
     sharedLoaded: "공유 핏팅을 불러왔습니다.", sharedMissing: "이 공유 핏팅은 삭제되었거나 존재하지 않습니다.",
     sharedInvalid: "올바르지 않은 공유 핏팅 링크입니다.", sharedLoadFailed: "공유 핏팅을 불러오지 못했습니다.",
     previousPage: "이전", nextPage: "다음", weapons: "장착 무기", details: "상세 정보", updated: "업데이트",
+    recommendationTitle: "추천 핏팅", recommendationApply: "이 핏팅 적용",
     tags: {
       highPower: "고화력", cooler: "쿨러", ghostHeat: "고스트 힛", fullArmor: "풀아머", glassArmor: "유리장갑",
       shortRange: "근거리", mediumRange: "중거리", longRange: "장거리", sniper: "스나이퍼", brawler: "브롤러",
@@ -65,6 +69,7 @@ const COPY = {
     shareCopied: "Share URL copied.", shareFailed: "Could not copy the share URL.", sharedLoaded: "Shared fitting loaded.",
     sharedMissing: "This shared fitting no longer exists.", sharedInvalid: "This shared fitting link is invalid.", sharedLoadFailed: "Could not load the shared fitting.",
     deleteConfirm: "Delete this fitting?", previousPage: "Previous", nextPage: "Next", weapons: "Installed weapons", details: "Details", updated: "Updated",
+    recommendationTitle: "Recommended fitting", recommendationApply: "Apply this fitting",
     tags: {
       highPower: "High Power", cooler: "Cooler", ghostHeat: "Ghost Heat", fullArmor: "Full Armor", glassArmor: "Glass Armor",
       shortRange: "Short Range", mediumRange: "Medium Range", longRange: "Long Range", sniper: "Sniper", brawler: "Brawler",
@@ -99,6 +104,9 @@ const elements = {
   shareLabel: document.getElementById("community-share-url-label"), shareUrl: document.getElementById("community-share-url-text"),
   shareStatus: document.getElementById("community-share-url-status"), shareCopy: document.getElementById("copy-community-share-url"),
   closeShare: document.getElementById("close-community-share-url"),
+  recommendationOverlay: document.getElementById("recommended-fitting-overlay"), recommendationTitle: document.getElementById("recommended-fitting-title"),
+  recommendationContent: document.getElementById("recommended-fitting-content"), recommendationClose: document.getElementById("close-recommended-fitting"),
+  recommendationApply: document.getElementById("apply-recommended-fitting"),
 };
 
 let auth = null;
@@ -140,6 +148,12 @@ const likedFittingKeys = new Set();
 const pendingLikeStateRequests = new Set();
 const expandedMechFilterChassis = new Set();
 let authStatusTimer = null;
+let recommendationDialogRecord = null;
+let recommendationDialogTrigger = null;
+const recommendationCache = new Map();
+const recommendationRequests = new Map();
+const recommendationGenerations = new Map();
+let activeRecommendationCacheDay = recommendationCacheDay();
 
 function format(text, values = {}) { return text.replace(/\{(\w+)\}/g, (_, name) => values[name] ?? ""); }
 function escapeHtml(value) {
@@ -530,6 +544,38 @@ function closeCommunity() {
   returnFocus?.focus?.();
   returnFocus = null;
 }
+function recommendationRecord(id) {
+  for (const recordList of recommendationCache.values()) {
+    const record = recordList.find((entry) => entry.id === id);
+    if (record) return record;
+  }
+  return null;
+}
+function closeRecommendationDialog() {
+  if (!elements.recommendationOverlay || elements.recommendationOverlay.hidden) return;
+  elements.recommendationOverlay.hidden = true;
+  document.body.classList.remove("recommended-fitting-open");
+  recommendationDialogRecord = null;
+  recommendationDialogTrigger?.focus?.();
+  recommendationDialogTrigger = null;
+}
+function openRecommendationDialog(id, trigger) {
+  const record = recommendationRecord(id);
+  if (!record?.valid || !record.analysis || !elements.recommendationOverlay) return;
+  recommendationDialogRecord = record;
+  recommendationDialogTrigger = trigger || document.activeElement;
+  elements.recommendationTitle.textContent = `${copy.recommendationTitle} · ${record.name}`;
+  elements.recommendationContent.innerHTML = fittingDetailSectionsHtml(record.analysis);
+  elements.recommendationApply.textContent = copy.recommendationApply;
+  elements.recommendationOverlay.hidden = false;
+  document.body.classList.add("recommended-fitting-open");
+  elements.recommendationClose.focus();
+}
+function applyRecommendation() {
+  if (!recommendationDialogRecord?.valid) return;
+  bridge.openPublicFitting({ ...recommendationDialogRecord, canLike: Boolean(currentUser) });
+  closeRecommendationDialog();
+}
 async function openCommunity(mode, trigger) {
   loadRequestGeneration += 1;
   const requestedMode = mode === "save" ? "save" : "browse";
@@ -580,6 +626,199 @@ function normalizeSnapshot(snapshot, source) {
     loadoutCode: data.loadoutCode, likeCount: Number.isInteger(data.likeCount) ? data.likeCount : 0,
     createdAt: data.createdAt, schemaVersion: data.schemaVersion, source, liked: likedFittingKeys.has(likeKey),
   });
+}
+
+function activeRecommendationContext() {
+  return bridge?.recommendationContext?.() || { enabled: false, mechId: "", sharedFitting: false };
+}
+
+function recommendationRecordData(record) {
+  return {
+    id: record.id,
+    name: record.name,
+    likeCount: Math.max(0, Number(record.likeCount) || 0),
+    tags: (record.analysis?.tags || []).map((tag) => ({ key: tag, label: copy.tags[tag] || tag })),
+  };
+}
+
+function publishRecommendations(mechId, recordList) {
+  const context = activeRecommendationContext();
+  if (!context.enabled || context.sharedFitting || String(context.mechId) !== String(mechId)) return;
+  bridge.setRecommendedFittings?.(mechId, recordList.filter((record) => record.valid).map(recommendationRecordData));
+}
+
+function recommendationCacheDay(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function rollRecommendationCacheDay() {
+  const today = recommendationCacheDay();
+  if (today === activeRecommendationCacheDay) return today;
+  activeRecommendationCacheDay = today;
+  recommendationCache.clear();
+  recommendationRequests.clear();
+  recommendationGenerations.clear();
+  return today;
+}
+
+function readRecommendationStorage() {
+  const empty = { version: RECOMMENDATION_CACHE_VERSION, day: activeRecommendationCacheDay, entries: {} };
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECOMMENDATION_CACHE_STORAGE_KEY) || "null");
+    if (
+      parsed?.version !== RECOMMENDATION_CACHE_VERSION
+      || parsed.day !== activeRecommendationCacheDay
+      || !parsed.entries
+      || typeof parsed.entries !== "object"
+      || Array.isArray(parsed.entries)
+    ) return empty;
+    return parsed;
+  } catch {
+    return empty;
+  }
+}
+
+function storedRecommendations(mechId) {
+  const stored = readRecommendationStorage();
+  if (!Object.hasOwn(stored.entries, mechId) || !Array.isArray(stored.entries[mechId])) return null;
+  const rawRecords = stored.entries[mechId].slice(0, RECOMMENDATION_LIMIT);
+  const records = rawRecords.map((record) => analyzeRecord({
+    id: String(record?.id || ""),
+    ownerUid: String(record?.ownerUid || ""),
+    mechId: String(record?.mechId || ""),
+    chassisKey: String(record?.chassisKey || ""),
+    name: String(record?.name || ""),
+    loadoutCode: record?.loadoutCode,
+    likeCount: Math.max(0, Number(record?.likeCount) || 0),
+    schemaVersion: Number(record?.schemaVersion),
+    source: "recommendation",
+    liked: false,
+  }));
+  if (records.some((record) => (
+    !record.valid
+    || !record.id
+    || !record.name
+    || String(record.mechId) !== String(mechId)
+    || String(record.analysis?.mechId || "") !== String(mechId)
+  ))) {
+    removeStoredRecommendations(mechId);
+    return null;
+  }
+  return records;
+}
+
+function persistRecommendations(mechId, recordList) {
+  const stored = readRecommendationStorage();
+  stored.entries[mechId] = recordList.slice(0, RECOMMENDATION_LIMIT).map((record) => ({
+    id: record.id,
+    ownerUid: record.ownerUid,
+    mechId: record.mechId,
+    chassisKey: record.chassisKey,
+    name: record.name,
+    loadoutCode: record.loadoutCode,
+    likeCount: record.likeCount,
+    schemaVersion: record.schemaVersion,
+  }));
+  try {
+    localStorage.setItem(RECOMMENDATION_CACHE_STORAGE_KEY, JSON.stringify(stored));
+  } catch {
+    // The in-memory cache remains available when persistent storage is unavailable or full.
+  }
+}
+
+function removeStoredRecommendations(mechId) {
+  const stored = readRecommendationStorage();
+  if (!Object.hasOwn(stored.entries, mechId)) return;
+  delete stored.entries[mechId];
+  try {
+    localStorage.setItem(RECOMMENDATION_CACHE_STORAGE_KEY, JSON.stringify(stored));
+  } catch {
+    // The current session cache is still invalidated below.
+  }
+}
+
+function invalidateRecommendations(mechId) {
+  const normalizedMechId = String(mechId || "");
+  if (!normalizedMechId) return;
+  rollRecommendationCacheDay();
+  recommendationGenerations.set(normalizedMechId, (recommendationGenerations.get(normalizedMechId) || 0) + 1);
+  recommendationCache.delete(normalizedMechId);
+  recommendationRequests.delete(normalizedMechId);
+  removeStoredRecommendations(normalizedMechId);
+  const context = activeRecommendationContext();
+  if (!context.enabled || context.sharedFitting || String(context.mechId) !== normalizedMechId) return;
+  bridge.setRecommendedFittings?.(normalizedMechId, []);
+  void loadRecommendations(context);
+}
+
+async function loadRecommendations(context = activeRecommendationContext()) {
+  const mechId = String(context?.mechId || "");
+  const cacheDay = rollRecommendationCacheDay();
+  const generation = recommendationGenerations.get(mechId) || 0;
+  if (!context?.enabled || context.sharedFitting || !mechId) return;
+  if (recommendationCache.has(mechId)) {
+    publishRecommendations(mechId, recommendationCache.get(mechId));
+    return;
+  }
+  const [firebaseAvailable, appReady] = await Promise.all([
+    firebaseReady,
+    bridge?.ready || Promise.resolve(false),
+  ]);
+  const current = activeRecommendationContext();
+  if (!firebaseAvailable || !appReady || !firebaseApi || !db || !current.enabled || current.sharedFitting || String(current.mechId) !== mechId) return;
+  if (
+    rollRecommendationCacheDay() !== cacheDay
+    || (recommendationGenerations.get(mechId) || 0) !== generation
+  ) {
+    void loadRecommendations(current);
+    return;
+  }
+  const stored = storedRecommendations(mechId);
+  if (stored) {
+    recommendationCache.set(mechId, stored);
+    publishRecommendations(mechId, stored);
+    return;
+  }
+  let requestEntry = recommendationRequests.get(mechId);
+  if (!requestEntry || requestEntry.generation !== generation) {
+    const request = firebaseApi.getDocs(firebaseApi.query(
+      firebaseApi.collection(db, "fittings"),
+      firebaseApi.where("mechId", "==", mechId),
+      firebaseApi.orderBy("likeCount", "desc"),
+      firebaseApi.limit(RECOMMENDATION_LIMIT),
+    )).then((snapshot) => {
+      const next = snapshot.docs.map((entry) => normalizeSnapshot(entry, "recommendation"));
+      if (
+        activeRecommendationCacheDay === cacheDay
+        && (recommendationGenerations.get(mechId) || 0) === generation
+      ) {
+        recommendationCache.set(mechId, next);
+        persistRecommendations(mechId, next);
+      }
+      return next;
+    }).finally(() => {
+      if (recommendationRequests.get(mechId)?.request === request) recommendationRequests.delete(mechId);
+    });
+    requestEntry = { generation, request };
+    recommendationRequests.set(mechId, requestEntry);
+  }
+  try {
+    const next = await requestEntry.request;
+    if (
+      activeRecommendationCacheDay !== cacheDay
+      || (recommendationGenerations.get(mechId) || 0) !== requestEntry.generation
+    ) return;
+    publishRecommendations(mechId, next);
+  } catch {
+    if (
+      activeRecommendationCacheDay !== cacheDay
+      || (recommendationGenerations.get(mechId) || 0) !== requestEntry.generation
+    ) return;
+    publishRecommendations(mechId, []);
+  }
 }
 
 function sharedFittingParameter() {
@@ -655,6 +894,7 @@ async function copyShareUrl() {
 async function loadSharedFitting(fittingId) {
   const generation = ++sharedLoadGeneration;
   if (!validSharedFittingId(fittingId)) {
+    bridge.setSharedFittingRequestPending?.(false);
     setAuthStatus(copy.sharedInvalid);
     return false;
   }
@@ -664,6 +904,7 @@ async function loadSharedFitting(fittingId) {
   ]);
   if (generation !== sharedLoadGeneration) return false;
   if (!firebaseAvailable || !appReady || !firebaseApi || !db) {
+    bridge.setSharedFittingRequestPending?.(false);
     setAuthStatus(copy.sharedLoadFailed);
     return false;
   }
@@ -671,22 +912,26 @@ async function loadSharedFitting(fittingId) {
     const snapshot = await firebaseApi.getDoc(firebaseApi.doc(db, "fittings", fittingId));
     if (generation !== sharedLoadGeneration) return false;
     if (!snapshot.exists()) {
+      bridge.setSharedFittingRequestPending?.(false);
       setAuthStatus(copy.sharedMissing);
       return false;
     }
     const record = normalizeSnapshot(snapshot, "shared");
     if (!record.valid) {
+      bridge.setSharedFittingRequestPending?.(false);
       setAuthStatus(copy.sharedInvalid);
       return false;
     }
     await hydrateRecordAuthors([record]);
     if (generation !== sharedLoadGeneration) return false;
-    bridge.openPublicFitting({ ...record, canLike: Boolean(currentUser), navigationMode: "replace" });
+    bridge.openSharedFitting({ ...record, canLike: Boolean(currentUser), navigationMode: "replace" });
+    bridge.setSharedFittingRequestPending?.(false);
     if (currentUser) await syncActiveSourceLikeState();
     if (generation === sharedLoadGeneration) setAuthStatus(copy.sharedLoaded);
     return true;
   } catch (error) {
     if (generation === sharedLoadGeneration) {
+      bridge.setSharedFittingRequestPending?.(false);
       setAuthStatus(firebaseErrorMessage(error, copy.sharedLoadFailed));
     }
     return false;
@@ -697,9 +942,11 @@ function loadSharedFittingFromLocation() {
   const shared = sharedFittingParameter();
   if (!shared.present) {
     sharedLoadGeneration += 1;
+    bridge.setSharedFittingRequestPending?.(false);
     syncActiveSourceLikeState();
     return;
   }
+  bridge.setSharedFittingRequestPending?.(true);
   loadSharedFitting(shared.id);
 }
 function tagHtml(tags = []) {
@@ -848,6 +1095,17 @@ function statRowsHtml(analysis = {}) {
   ];
   return rows.map(([label, value, className = "", title = ""]) => `<div${className ? ` class="${className}"` : ""}${title ? ` title="${escapeHtml(title)}"` : ""}><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
 }
+function fittingDetailSectionsHtml(analysis = {}) {
+  const weapons = analysis.weapons?.length
+    ? analysis.weapons.map((weapon) => `<li class="${escapeHtml(weapon.type || "")}"><span>${escapeHtml(weapon.name)}</span><strong>×${weapon.count}</strong></li>`).join("")
+    : `<li><span>-</span></li>`;
+  return `
+    <div class="community-detail-scroll">
+      <section><h4>${copy.weapons}</h4><ul class="community-weapon-list">${weapons}</ul></section>
+      <section><h4>${copy.details}</h4><div class="community-stat-grid">${statRowsHtml(analysis)}</div></section>
+    </div>
+  `;
+}
 function fittingDetailHtml(record) {
   if (!record) return `<div class="community-detail-empty">${copy.select}</div>`;
   const analysis = record.analysis;
@@ -855,9 +1113,6 @@ function fittingDetailHtml(record) {
     const canDelete = activeBrowserTab === "local" || activeBrowserTab === "mine";
     return `<article class="community-fitting-detail community-invalid-detail"><div class="community-detail-empty">${copy.invalid}</div>${canDelete ? `<footer><button type="button" data-community-delete="${escapeHtml(record.id)}" class="community-delete-button">${copy.delete}</button></footer>` : ""}</article>`;
   }
-  const weapons = analysis.weapons?.length
-    ? analysis.weapons.map((weapon) => `<li class="${escapeHtml(weapon.type || "")}"><span>${escapeHtml(weapon.name)}</span><strong>×${weapon.count}</strong></li>`).join("")
-    : `<li><span>-</span></li>`;
   const canLike = activeBrowserTab === "public" && Boolean(currentUser);
   const canDelete = activeBrowserTab === "local" || activeBrowserTab === "mine";
   const canShare = activeBrowserTab !== "local";
@@ -875,10 +1130,7 @@ function fittingDetailHtml(record) {
         <div class="community-detail-meta">${activeBrowserTab === "local" ? "" : `<span class="community-detail-author"><span>${escapeHtml(copy.author)}</span><strong>${escapeHtml(record.authorName || PILOT_NAME)}</strong></span><span class="community-detail-meta-separator" aria-hidden="true">·</span>`}<span><span>${escapeHtml(copy.updated)}</span><time>${escapeHtml(fittingDate(record.createdAt ?? record.updatedAt))}</time></span></div></div>
         ${detailLike ? `<div class="community-detail-like-area">${detailLike}</div>` : ""}
       </header>
-      <div class="community-detail-scroll">
-        <section><h4>${copy.weapons}</h4><ul class="community-weapon-list">${weapons}</ul></section>
-        <section><h4>${copy.details}</h4><div class="community-stat-grid">${statRowsHtml(analysis)}</div></section>
-      </div>
+      ${fittingDetailSectionsHtml(analysis)}
       <footer>${canDelete ? `<button type="button" data-community-delete="${escapeHtml(record.id)}" class="community-delete-button">${copy.delete}</button>` : ""}
         ${canShare ? `<button type="button" data-community-share="${escapeHtml(record.id)}" class="community-share-button">${copy.share}</button>` : ""}
         <button type="button" data-community-apply="${escapeHtml(record.id)}" class="community-apply-button">${copy.apply}</button></footer>
@@ -1077,6 +1329,7 @@ async function savePublicFitting(name) {
     transaction.set(fittingRef, { ownerUid: user.uid, mechId: fitting.mechId, chassisKey: fitting.chassisKey, name, loadoutCode: fitting.loadoutCode, likeCount: 0, createdAt: firebaseApi.serverTimestamp(), schemaVersion: 3 });
     transaction.set(usageRef, { count: nextCount, lastFittingId: fittingRef.id, operation: "create", updatedAt: firebaseApi.serverTimestamp() });
   });
+  invalidateRecommendations(fitting.mechId);
 }
 async function submitSaveForm(form) {
   const button = form.querySelector("[data-community-save]");
@@ -1103,9 +1356,15 @@ async function submitSaveForm(form) {
     button.textContent = copy.save;
   }
 }
-function updateLikeViews(id, count, liked) {
+function updateLikeViews(id, count, liked, mechId = "") {
   records.filter((record) => record.id === id).forEach((record) => Object.assign(record, { likeCount: count, liked }));
+  const affectedMechIds = new Set(records.filter((record) => record.id === id).map((record) => record.mechId));
+  if (mechId) affectedMechIds.add(String(mechId));
+  recommendationCache.forEach((recordList) => {
+    recordList.filter((record) => record.id === id).forEach((record) => affectedMechIds.add(record.mechId));
+  });
   bridge.updatePublicFittingLike?.(id, count, liked, Boolean(currentUser));
+  affectedMechIds.forEach(invalidateRecommendations);
   if (!elements.overlay.hidden && activeMode === "browse") renderBrowser();
 }
 async function ensureLikeState(id) {
@@ -1161,22 +1420,23 @@ async function toggleLike(id) {
       const fittingSnapshot = await transaction.get(fittingRef);
       const likeSnapshot = await transaction.get(likeRef);
       if (!fittingSnapshot.exists()) throw new Error("Missing fitting");
-      const count = fittingSnapshot.data().likeCount;
+      const fittingData = fittingSnapshot.data();
+      const count = fittingData.likeCount;
       if (!Number.isInteger(count) || count < 0) throw new Error("Invalid like count");
       if (likeSnapshot.exists()) {
         const next = Math.max(0, count - 1);
         transaction.delete(likeRef);
         transaction.update(fittingRef, { likeCount: next });
-        return { count: next, liked: false };
+        return { count: next, liked: false, mechId: String(fittingData.mechId || "") };
       }
       transaction.set(likeRef, { createdAt: firebaseApi.serverTimestamp() });
       transaction.update(fittingRef, { likeCount: count + 1 });
-      return { count: count + 1, liked: true };
+      return { count: count + 1, liked: true, mechId: String(fittingData.mechId || "") };
     });
     const key = `${currentUser.uid}:${id}`;
     if (result.liked) likedFittingKeys.add(key);
     else likedFittingKeys.delete(key);
-    updateLikeViews(id, result.count, result.liked);
+    updateLikeViews(id, result.count, result.liked, result.mechId);
   } catch (error) { setStatus(firebaseErrorMessage(error, copy.likeFailed), "error"); }
 }
 function requestLike(id) {
@@ -1220,6 +1480,7 @@ async function deleteFitting(id) {
     } else {
       await deleteRemoteFitting(record);
       bridge.clearPublicFittingIfMatches?.(id);
+      invalidateRecommendations(record.mechId);
     }
     records = records.filter((entry) => entry.id !== id);
     selectedId = records[0]?.id || null;
@@ -1243,6 +1504,11 @@ function closeAllMenus(except = null) {
 }
 
 document.addEventListener("click", (event) => {
+  const recommendation = event.target.closest("[data-recommended-fitting-open]");
+  if (recommendation) {
+    openRecommendationDialog(recommendation.dataset.recommendedFittingOpen, recommendation);
+    return;
+  }
   if (!event.target.closest(".topbar-account-actions")) closeAccountMenu();
   const mechFilterTrigger = event.target.closest("#community-mech-filter-trigger");
   if (mechFilterTrigger) {
@@ -1397,8 +1663,32 @@ elements.nicknameOverlay.addEventListener("mousedown", (event) => {
 });
 elements.close.addEventListener("click", closeCommunity);
 elements.overlay.addEventListener("mousedown", (event) => { if (event.target === elements.overlay) closeCommunity(); });
+elements.recommendationClose.addEventListener("click", closeRecommendationDialog);
+elements.recommendationApply.addEventListener("click", applyRecommendation);
+elements.recommendationOverlay.addEventListener("mousedown", (event) => {
+  if (event.target === elements.recommendationOverlay) closeRecommendationDialog();
+});
 document.addEventListener("keydown", (event) => {
+  if (!elements.recommendationOverlay.hidden && event.key === "Tab") {
+    const focusable = [elements.recommendationClose, elements.recommendationApply]
+      .filter((element) => element && !element.disabled);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+    return;
+  }
   if (event.key !== "Escape") return;
+  if (!elements.recommendationOverlay.hidden) {
+    closeRecommendationDialog();
+    return;
+  }
   if (!elements.shareOverlay.hidden) {
     closeShareDialog();
     return;
@@ -1483,6 +1773,13 @@ async function initializeFirebase() {
 }
 
 elements.close.setAttribute("aria-label", language === "en" ? "Close" : "닫기");
+elements.recommendationClose.setAttribute("aria-label", language === "en" ? "Close" : "닫기");
 firebaseReady = initializeFirebase();
+window.addEventListener("mwolab:recommendation-context", (event) => loadRecommendations(event.detail));
+window.addEventListener("mwolab:shared-fitting-navigation-cleared", () => {
+  sharedLoadGeneration += 1;
+  bridge.setSharedFittingRequestPending?.(false);
+});
+firebaseReady.then(() => loadRecommendations());
 loadSharedFittingFromLocation();
 window.addEventListener("popstate", loadSharedFittingFromLocation);

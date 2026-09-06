@@ -309,6 +309,26 @@ test("장비 툴팁 적용 효과 설정은 기본 ON이며 저장값을 복원�
   assert.equal(loadMechLab({ storageReadError: true }).state.showWeaponTooltipQuirks, true);
 });
 
+test("추천 핏팅 표시 설정은 기본 ON이며 저장값과 fitting URL 판정을 사용한다", () => {
+  const key = "mwolab:show-recommended-fittings";
+  assert.equal(api.state.showRecommendedFittings, true);
+  assert.equal(loadMechLab({ storageValues: { [key]: "true" } }).state.showRecommendedFittings, true);
+  assert.equal(loadMechLab({ storageValues: { [key]: "false" } }).state.showRecommendedFittings, false);
+  assert.equal(loadMechLab({ storageReadError: true }).state.showRecommendedFittings, true);
+  assert.equal(loadMechLab({ windowHref: "http://localhost/?lang=en&fitting=document-id" }).recommendationContext().sharedFitting, true);
+  assert.equal(loadMechLab({ windowHref: "http://localhost/?lang=en&loadout=code" }).recommendationContext().sharedFitting, false);
+  const contextApi = loadMechLab();
+  contextApi.state.selectedMech = { id: 713 };
+  contextApi.state.currentBuild = { components: {} };
+  contextApi.state.activeMainTab = "info";
+  assert.equal(contextApi.recommendationContext().enabled, false);
+  contextApi.state.activeMainTab = "mechlab";
+  contextApi.state.mechlabBrowseMode = true;
+  assert.equal(contextApi.recommendationContext().enabled, false);
+  contextApi.state.mechlabBrowseMode = false;
+  assert.equal(contextApi.recommendationContext().enabled, true);
+});
+
 test("장비 툴팁 적용 효과 설정은 즉시 저장하고 열린 툴팁을 다시 렌더한다", () => {
   const storageWrites = [];
   const option = {
@@ -331,6 +351,8 @@ test("장비 툴팁 적용 효과 설정은 즉시 저장하고 열린 툴팁을
     "simplify-ammo-quirks-state": { textContent: "" },
     "show-weapon-tooltip-quirks": option,
     "show-weapon-tooltip-quirks-state": { textContent: "" },
+    "show-recommended-fittings": option,
+    "show-recommended-fittings-state": { textContent: "" },
     "equipment-tooltip": tooltip,
   };
   const settingsApi = loadMechLab({ storageWrites, elements });
@@ -351,10 +373,15 @@ test("장비 툴팁 적용 효과 설정은 즉시 저장하고 열린 툴팁을
   assert.equal(settingsApi.state.showWeaponTooltipQuirks, false);
   assert.deepEqual(storageWrites.at(-1), ["mwolab:show-weapon-tooltip-quirks", "false"]);
   assert.equal(tooltipRenderCount, initialRenderCount + 1);
+  settingsApi.setShowRecommendedFittings(false);
+  assert.equal(settingsApi.state.showRecommendedFittings, false);
+  assert.deepEqual(storageWrites.at(-1), ["mwolab:show-recommended-fittings", "false"]);
 
   const unavailableApi = loadMechLab({ storageWriteError: true, elements });
   assert.doesNotThrow(() => unavailableApi.setShowWeaponTooltipQuirks(false));
+  assert.doesNotThrow(() => unavailableApi.setShowRecommendedFittings(false));
   assert.equal(unavailableApi.state.showWeaponTooltipQuirks, false);
+  assert.equal(unavailableApi.state.showRecommendedFittings, false);
 });
 
 test("쿼크 필터는 빈 수치를 보유 여부로, 입력 수치를 효과 크기 하한으로 적용한다", () => {
@@ -490,9 +517,9 @@ test("공개 핏팅 공유 URL은 언어와 문서 ID만 유지한다", () => {
   assert.equal(sharedUrl.hash, "");
 });
 
-test("공개 핏팅 원상복귀와 이전 History 복원 경로는 공유 상태를 보존한다", () => {
+test("URL 공유 핏팅 원상복귀와 이전 History 복원 경로는 공유 상태를 보존한다", () => {
   const appSource = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
-  assert.match(appSource, /if \(isPublic && record\.navigationMode !== "replace"\) preserveCurrentFittingHistoryEntry\(\)/);
+  assert.match(appSource, /if \(isShared && record\.navigationMode !== "replace"\) preserveCurrentFittingHistoryEntry\(\)/);
   assert.match(appSource, /mechlabSnapshot: snapshot/);
   assert.match(appSource, /restoreMechlabHistorySnapshot\(window\.history\.state\?\.mechlabSnapshot\)/);
   assert.match(appSource, /importMwoCode\(source\.loadoutCode, \{ closeDialog: false, updateNavigation: false \}\)/);

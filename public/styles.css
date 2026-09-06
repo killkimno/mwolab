@@ -307,7 +307,8 @@ h3 {
 body.donate-open,
 body.help-open,
 body.community-open,
-body.nickname-open {
+body.nickname-open,
+body.recommended-fitting-open {
   overflow: hidden;
 }
 
@@ -4897,6 +4898,137 @@ body.privacy-page {
   border-color: #b96976;
   background: #512932;
   color: #ffd6dc;
+}
+
+.recommended-fittings-panel {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid #355968;
+  border-radius: 3px;
+  background: #101d22;
+}
+
+.recommended-fittings-panel > h3 {
+  margin: 0;
+  color: #8bdcff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.recommended-fitting-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.recommended-fitting-card {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.55rem;
+  border: 1px solid #2d4650;
+  border-radius: 3px;
+  background: #11191d;
+}
+
+.recommended-fitting-card-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.recommended-fitting-card-heading > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #e5f5fa;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recommended-fitting-card-heading > span {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.2rem;
+  color: #d897a2;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.recommended-fitting-card .community-card-tags {
+  gap: 0.25rem;
+}
+
+.recommended-fitting-card .community-tag {
+  padding: 0.12rem 0.3rem;
+  font-size: 0.62rem;
+}
+
+.recommended-fitting-card > button {
+  min-height: 1.9rem;
+  padding: 0.3rem 0.5rem;
+  border-color: #397a98;
+  background: #173b4b;
+  color: #d9f4ff;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.recommended-fitting-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(34rem, 100%);
+  max-height: min(44rem, calc(100vh - 2rem));
+  overflow: hidden;
+  border: 1px solid #456777;
+  border-radius: 6px;
+  background: #10181c;
+  box-shadow: 0 1rem 3rem #000d;
+}
+
+.recommended-fitting-dialog > header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #2e4650;
+  background: #132630;
+}
+
+.recommended-fitting-dialog > header h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #effbff;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recommended-fitting-content {
+  min-height: 0;
+  padding: 0.75rem;
+}
+
+.recommended-fitting-content .community-detail-scroll {
+  height: 100%;
+}
+
+.recommended-fitting-dialog > footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #2e4650;
+  background: #10181c;
+}
+
+.recommended-fitting-dialog > footer button {
+  min-width: 9rem;
 }
 
 .mechlab-action-panel .skill-apply-button {

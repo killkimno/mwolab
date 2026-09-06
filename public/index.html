@@ -9,7 +9,7 @@
     <meta name="description" content="MWO MechLab and build planner for MechWarrior Online. Compare mechs, equipment, quirks, hardpoints, loadouts, damage, heat and mobility stats.">
     <meta name="robots" content="max-image-preview:none">
     <link rel="canonical" href="https://kmonkeyhead.github.io/mwolab/">
-  <link rel="stylesheet" href="styles.css?v=20260828-1">
+  <link rel="stylesheet" href="styles.css?v=20260907-1">
   </head>
   <body>
     <div id="app">
@@ -572,6 +572,11 @@
           <span data-i18n="ui.showWeaponTooltipQuirks">장비 툴팁 적용 효과 표시</span>
           <strong id="show-weapon-tooltip-quirks-state" class="ui-toggle-state">ON</strong>
         </label>
+        <label class="ui-display-option ui-toggle-option">
+          <input id="show-recommended-fittings" type="checkbox">
+          <span data-i18n="ui.showRecommendedFittings">추천 핏팅 보이기</span>
+          <strong id="show-recommended-fittings-state" class="ui-toggle-state">ON</strong>
+        </label>
         <button id="close-ui-settings" class="build-actions-cancel" type="button" data-i18n="ui.close">닫기</button>
       </section>
     </div>
@@ -640,6 +645,19 @@
         </header>
         <div id="community-content" class="community-content"></div>
         <p id="community-status" class="community-status" aria-live="polite"></p>
+      </section>
+    </div>
+
+    <div id="recommended-fitting-overlay" class="community-overlay recommended-fitting-overlay" hidden>
+      <section class="recommended-fitting-dialog" role="dialog" aria-modal="true" aria-labelledby="recommended-fitting-title">
+        <header>
+          <h2 id="recommended-fitting-title">추천 핏팅</h2>
+          <button id="close-recommended-fitting" class="community-close" type="button" aria-label="닫기">×</button>
+        </header>
+        <div id="recommended-fitting-content" class="recommended-fitting-content"></div>
+        <footer>
+          <button id="apply-recommended-fitting" class="community-apply-button" type="button">이 핏팅 적용</button>
+        </footer>
       </section>
     </div>
 
@@ -872,8 +890,8 @@
     <script src="mwo-codec.js"></script>
     <script src="loadout-url-codec.js?v=20260901-1"></script>
     <script src="quirk-calculations.js?v=20260728-1"></script>
-    <script src="app.js?v=20260901-1"></script>
-    <script type="module" src="firebase-community.js?v=20260829-1"></script>
+    <script src="app.js?v=20260907-1"></script>
+    <script type="module" src="firebase-community.js?v=20260907-1"></script>
     <!-- Cloudflare Web Analytics -->
     <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"371a16733dad455d9764c3fb51683381"}'></script>
     <!-- End Cloudflare Web Analytics -->

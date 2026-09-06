@@ -176,6 +176,7 @@ const TEXT = {
     "ui.allValues": "모든 수치 표시",
     "ui.simplifyAmmoQuirks": "탄약 쿼크 표시 간소화",
     "ui.showWeaponTooltipQuirks": "장비 툴팁 적용 효과 표시",
+    "ui.showRecommendedFittings": "추천 핏팅 보이기",
     "ui.ammoQuirksActive": "탄약 쿼크 적용중",
     "equipmentTooltip.appliedEffects": "적용 효과",
     "ui.on": "ON",
@@ -216,6 +217,8 @@ const TEXT = {
     "mechlab.ghostHeatWarningTitle": "GHOST HEAT WARNING",
     "mechlab.ghostHeatWarningLine": "{weapons} : 발열 {percent} (최종: {totalHeat}, 고스트 힛: {ghostHeat})",
     "weaponDetail.open": "자세히",
+    "recommendations.title": "추천 핏팅",
+    "recommendations.apply": "적용",
     "alphaHeat.shot": "{n}차 알파샷",
     "alphaHeat.normal": "1차는 열 0%에서 발사한 직후, 2차부터는 이전 알파샷 후 모든 무기의 쿨다운이 끝나는 즉시 다시 발사한 직후의 발열입니다. 고스트 힛은 제외합니다.",
     "alphaHeat.ghost": "1차는 열 0%에서 발사한 직후, 2차부터는 이전 알파샷 후 모든 무기의 쿨다운이 끝나는 즉시 다시 발사한 직후의 발열입니다. 고스트 힛을 포함합니다.",
@@ -761,6 +764,7 @@ const TEXT = {
     "ui.allValues": "Show all values",
     "ui.simplifyAmmoQuirks": "Simplify ammo quirks",
     "ui.showWeaponTooltipQuirks": "Show applied effects in item tooltips",
+    "ui.showRecommendedFittings": "Show recommended fittings",
     "ui.ammoQuirksActive": "Ammo quirks active",
     "equipmentTooltip.appliedEffects": "APPLIED EFFECTS",
     "ui.on": "ON",
@@ -801,6 +805,8 @@ const TEXT = {
     "mechlab.ghostHeatWarningTitle": "GHOST HEAT WARNING",
     "mechlab.ghostHeatWarningLine": "{weapons}: heat {percent} (final: {totalHeat}, ghost heat: {ghostHeat})",
     "weaponDetail.open": "Details",
+    "recommendations.title": "Recommended fittings",
+    "recommendations.apply": "Apply",
     "alphaHeat.shot": "Alpha strike {n}",
     "alphaHeat.normal": "Heat after the first alpha strike from 0%, then after firing again as soon as all weapons finish cooling down from the previous strike. Excludes ghost heat.",
     "alphaHeat.ghost": "Heat after the first alpha strike from 0%, then after firing again as soon as all weapons finish cooling down from the previous strike. Includes ghost heat.",
@@ -1442,6 +1448,7 @@ function applyMechlabHistorySnapshotToTab(tab, snapshot, canLike = false) {
 }
 
 function updateMainTabNavigation(tabName, mode = "push", mechId = null) {
+  const hadSharedFittingRequest = new URL(window.location.href).searchParams.has(SHARED_PUBLIC_FITTING_QUERY_PARAM);
   const normalizedTab = MAIN_TAB_NAMES.has(tabName) ? tabName : "mechlab";
   const normalizedMechId = mechId === null
     ? new URL(window.location.href).searchParams.get("mech") || ""
@@ -1454,9 +1461,11 @@ function updateMainTabNavigation(tabName, mode = "push", mechId = null) {
   const url = mainTabNavigationUrl(normalizedTab, mechId);
   if (mode === "replace") window.history.replaceState(historyState, "", url);
   else window.history.pushState(historyState, "", url);
+  if (hadSharedFittingRequest) cancelSharedFittingRequest();
 }
 
 function updateMechNavigation(view, mechId = "", mode = "push", fittingTabId = null) {
+  const hadSharedFittingRequest = new URL(window.location.href).searchParams.has(SHARED_PUBLIC_FITTING_QUERY_PARAM);
   const normalizedMechId = view === "mech" ? String(mechId || "") : "";
   const historyState = {
     mwolab: true,
@@ -1467,6 +1476,15 @@ function updateMechNavigation(view, mechId = "", mode = "push", fittingTabId = n
   const url = mechNavigationUrl(normalizedMechId);
   if (mode === "replace") window.history.replaceState(historyState, "", url);
   else window.history.pushState(historyState, "", url);
+  if (hadSharedFittingRequest) cancelSharedFittingRequest();
+}
+
+function cancelSharedFittingRequest() {
+  state.sharedFittingRequestPending = false;
+  lastRecommendationContextSignature = "";
+  if (typeof CustomEvent === "function") {
+    window.dispatchEvent(new CustomEvent("mwolab:shared-fitting-navigation-cleared"));
+  }
 }
 
 async function replaceSharedLoadoutNavigation(code, sourceValue = null) {
@@ -1913,6 +1931,7 @@ const QUIRK_VALUE_DISPLAY_STORAGE_KEY = "mwolab:quirk-value-display";
 const QUIRK_VALUE_DISPLAY_MODES = new Set(["final", "quirk", "all"]);
 const SIMPLIFY_AMMO_QUIRKS_STORAGE_KEY = "mwolab:simplify-ammo-quirks";
 const SHOW_WEAPON_TOOLTIP_QUIRKS_STORAGE_KEY = "mwolab:show-weapon-tooltip-quirks";
+const SHOW_RECOMMENDED_FITTINGS_STORAGE_KEY = "mwolab:show-recommended-fittings";
 
 function savedQuirkValueDisplayMode() {
   try {
@@ -1968,6 +1987,10 @@ const state = {
   quirkValueDisplayMode: savedQuirkValueDisplayMode(),
   simplifyAmmoQuirks: savedSimplifyAmmoQuirks(),
   showWeaponTooltipQuirks: savedShowWeaponTooltipQuirks(),
+  showRecommendedFittings: savedShowRecommendedFittings(),
+  sharedFittingRequestPending: new URL(window.location.href).searchParams.has(SHARED_PUBLIC_FITTING_QUERY_PARAM),
+  recommendedFittingsMechId: "",
+  recommendedFittings: [],
   compareMode: false,
   compareMechIds: [],
   compareBaselineMechId: null,
@@ -2390,6 +2413,14 @@ function artemisSpreadMultiplier() {
     return multiplier;
   }
   return 1;
+}
+
+function savedShowRecommendedFittings() {
+  try {
+    return localStorage.getItem(SHOW_RECOMMENDED_FITTINGS_STORAGE_KEY) !== "false";
+  } catch {
+    return true;
+  }
 }
 
 const LRM_DIRECT_VELOCITY_MULTIPLIER = 1.4;
@@ -3806,6 +3837,7 @@ function setMainTab(tabName) {
     if (tabName === "compare") renderComparePanel();
   }
   updateCompareOverlay();
+  notifyRecommendationContext();
   if (tabName === "mechlab") requestAnimationFrame(updateMechlabScale);
   if (tabName === "mechlab" && state.mechlabBrowseMode) $("mech-search").focus();
 }
@@ -12336,6 +12368,63 @@ function renderCommunitySourcePanel() {
   `;
 }
 
+function recommendationContext() {
+  const source = activeMechlabTab()?.communitySource;
+  return {
+    enabled: Boolean(
+      state.showRecommendedFittings
+      && !globalThis.__MWOLAB_MOBILE__
+      && state.activeMainTab === "mechlab"
+      && !state.mechlabBrowseMode
+      && state.selectedMech
+      && state.currentBuild
+    ),
+    mechId: state.selectedMech ? String(state.selectedMech.id) : "",
+    sharedFitting: Boolean(source || state.sharedFittingRequestPending),
+  };
+}
+
+let lastRecommendationContextSignature = "";
+
+function notifyRecommendationContext() {
+  const context = recommendationContext();
+  const signature = `${context.enabled}:${context.mechId}:${context.sharedFitting}`;
+  if (signature === lastRecommendationContextSignature) return;
+  lastRecommendationContextSignature = signature;
+  if (typeof CustomEvent === "function") {
+    window.dispatchEvent(new CustomEvent("mwolab:recommendation-context", { detail: context }));
+  }
+}
+
+function renderRecommendedFittingsPanel() {
+  const context = recommendationContext();
+  if (!context.enabled || context.sharedFitting || !context.mechId) return "";
+  if (state.recommendedFittingsMechId !== context.mechId || !state.recommendedFittings.length) return "";
+  return `
+    <aside class="recommended-fittings-panel" aria-label="${escapeHtml(t("recommendations.title"))}">
+      <h3>${t("recommendations.title")}</h3>
+      <div class="recommended-fitting-list">
+        ${state.recommendedFittings.slice(0, 3).map((record) => `
+          <article class="recommended-fitting-card">
+            <div class="recommended-fitting-card-heading">
+              <strong>${escapeHtml(record.name)}</strong>
+              <span aria-label="${escapeHtml(`${t("community.like")}: ${record.likeCount}`)}">${communityLikeIconHtml()} ${record.likeCount}</span>
+            </div>
+            <div class="community-card-tags">${(record.tags || []).map((tag) => `<span class="community-tag tag-${escapeHtml(tag.key)}">${escapeHtml(tag.label)}</span>`).join("")}</div>
+            <button type="button" data-recommended-fitting-open="${escapeHtml(record.id)}">${t("recommendations.apply")}</button>
+          </article>
+        `).join("")}
+      </div>
+    </aside>
+  `;
+}
+
+function renderCommunityAreaPanel() {
+  return activeMechlabTab()?.communitySource
+    ? renderCommunitySourcePanel()
+    : renderRecommendedFittingsPanel();
+}
+
 function renderComponents(calc = calculateBuild()) {
   const quirkValues = mechlabQuirkValues();
   const ghostHeatGroups = new Set(mechlabGhostHeatWarnings().map(({ groupKey }) => groupKey));
@@ -12352,10 +12441,11 @@ function renderComponents(calc = calculateBuild()) {
   $("components").innerHTML = columns.map((column) => `
     <div class="component-column component-column-${column.className}">
       ${column.components.map((name) => rendered[name]).join("")}
-      ${column.className === "right-arm" ? renderCommunitySourcePanel() : ""}
+      ${column.className === "right-arm" ? renderCommunityAreaPanel() : ""}
       ${column.className === "left-arm" ? renderMechlabActionPanel() : ""}
     </div>
   `).join("");
+  notifyRecommendationContext();
 }
 
 function renderFixedSlot(itemId, ghostHeatGroups = new Set()) {
@@ -13403,11 +13493,11 @@ function communityFittingMechFilterOptions() {
   }));
 }
 
-function applyCommunityFitting(record, isPublic = false) {
-  if (isPublic && record.navigationMode !== "replace") preserveCurrentFittingHistoryEntry();
-  importMwoCode(record.loadoutCode, { closeDialog: false, updateNavigation: !isPublic });
+function applyCommunityFitting(record, isShared = false) {
+  if (isShared && record.navigationMode !== "replace") preserveCurrentFittingHistoryEntry();
+  importMwoCode(record.loadoutCode, { closeDialog: false, updateNavigation: !isShared });
   const tab = activeMechlabTab();
-  if (tab && isPublic) {
+  if (tab && isShared) {
     tab.communitySource = {
       id: record.id,
       ownerUid: record.ownerUid,
@@ -13456,7 +13546,29 @@ globalThis.MwoLabCommunityBridge = Object.freeze({
     applyCommunityFitting(record, false);
   },
   openPublicFitting(record) {
+    applyCommunityFitting(record, false);
+  },
+  openSharedFitting(record) {
     applyCommunityFitting(record, true);
+  },
+  setSharedFittingRequestPending(pending) {
+    state.sharedFittingRequestPending = Boolean(pending);
+    lastRecommendationContextSignature = "";
+    if (state.selectedMech && state.currentBuild) renderComponents();
+  },
+  recommendationContext,
+  setRecommendedFittings(mechId, records) {
+    const normalizedMechId = String(mechId || "");
+    if (normalizedMechId !== String(state.selectedMech?.id || "")) return false;
+    state.recommendedFittingsMechId = normalizedMechId;
+    state.recommendedFittings = (records || []).slice(0, 3).map((record) => ({
+      id: String(record.id || ""),
+      name: String(record.name || ""),
+      likeCount: Math.max(0, Number(record.likeCount) || 0),
+      tags: (record.tags || []).map((tag) => ({ key: String(tag.key || ""), label: String(tag.label || "") })),
+    })).filter((record) => record.id && record.name);
+    renderComponents();
+    return true;
   },
   restorePublicFitting: restoreCommunityFitting,
   updatePublicFittingLike(id, likeCount, liked, canLike = true) {
@@ -13561,6 +13673,7 @@ function showFullMechlabList(intent = null) {
   state.mechlabBrowseSelectionId = activeMechlabTab()?.mechId ?? null;
   state.mechBrowserHoverMechId = null;
   state.mechlabCompactListOpen = false;
+  notifyRecommendationContext();
   if (!alreadyBrowsing) updateMechNavigation("list");
   renderMechlabFittingTabs();
   renderMechList();
@@ -13859,6 +13972,15 @@ function renderUiSettingsDialog() {
   );
   $("show-weapon-tooltip-quirks-state").textContent = t(
     showWeaponTooltipQuirks.checked ? "ui.on" : "ui.off",
+  );
+  const showRecommendedFittings = $("show-recommended-fittings");
+  showRecommendedFittings.checked = state.showRecommendedFittings;
+  showRecommendedFittings.closest(".ui-display-option")?.classList.toggle(
+    "active",
+    showRecommendedFittings.checked,
+  );
+  $("show-recommended-fittings-state").textContent = t(
+    showRecommendedFittings.checked ? "ui.on" : "ui.off",
   );
 }
 
@@ -14934,6 +15056,21 @@ function installWarehouseItemInComponent(item, component, { render = true } = {}
   if (item.item_type === "engine") reflowInstalledEquipment();
   if (render) renderVariant();
   return true;
+}
+
+function setShowRecommendedFittings(enabled) {
+  state.showRecommendedFittings = Boolean(enabled);
+  try {
+    localStorage.setItem(
+      SHOW_RECOMMENDED_FITTINGS_STORAGE_KEY,
+      String(state.showRecommendedFittings),
+    );
+  } catch {
+    // Keep the selected mode for this session when storage is unavailable.
+  }
+  lastRecommendationContextSignature = "";
+  renderUiSettingsDialog();
+  if (state.selectedMech && state.currentBuild) renderComponents();
 }
 
 function autoInstallWarehouseItem(item) {
@@ -16245,6 +16382,9 @@ function bindEvents() {
   $("show-weapon-tooltip-quirks").addEventListener("change", (event) => {
     setShowWeaponTooltipQuirks(event.target.checked);
   });
+  $("show-recommended-fittings").addEventListener("change", (event) => {
+    setShowRecommendedFittings(event.target.checked);
+  });
   $("close-build-actions-x").addEventListener("click", closeBuildActionsDialog);
   $("close-build-actions").addEventListener("click", closeBuildActionsDialog);
   $("build-actions-overlay").addEventListener("click", (event) => {
@@ -17130,6 +17270,7 @@ if (globalThis.__MWOLAB_TEST__) {
     equipmentTooltipHtml,
     equipmentTooltipAppliedEffectsHtml,
     setShowWeaponTooltipQuirks,
+    setShowRecommendedFittings,
     showEquipmentTooltip,
     weaponTooltipRanges,
     atmRangeBoundary,
@@ -17143,6 +17284,7 @@ if (globalThis.__MWOLAB_TEST__) {
     communityFittingTags,
     communityInstalledWeaponSummary,
     communityRepresentativeWeapons,
+    recommendationContext,
     mechSpecialFeatures,
     mechMatchesQuirkFilters,
     normalizeMechHardpointFilterMinimum,

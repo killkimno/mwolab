@@ -135,7 +135,7 @@ test("통합 브라우저는 공개·로컬·내 업로드 탭과 chassisKey가 
   assert.doesNotMatch(client, /publicFittings|fittingOwners/);
 });
 
-test("공개 핏팅 공유는 문서 ID를 단건 조회해 기존 공개 적용과 좋아요 경로를 재사용한다", () => {
+test("공유 핏팅은 fitting 문서 URL로 연 경우에만 출처 상태를 만든다", () => {
   const app = read("public/app.js");
   const client = read("public/firebase-community.js");
   const html = read("public/index.html");
@@ -154,7 +154,7 @@ test("공개 핏팅 공유는 문서 ID를 단건 조회해 기존 공개 적용
   assert.match(client, /function sharedFittingUrl\(fittingId\)[\s\S]*const languageParam[\s\S]*url\.search = ""[\s\S]*url\.searchParams\.set\("fitting", fittingId\)/);
   assert.match(client, /function loadSharedFitting\(fittingId\)[\s\S]*Promise\.all\([\s\S]*firebaseReady[\s\S]*bridge\?\.ready/);
   assert.match(client, /getDoc\(firebaseApi\.doc\(db, "fittings", fittingId\)\)/);
-  assert.match(client, /normalizeSnapshot\(snapshot, "shared"\)[\s\S]*bridge\.openPublicFitting/);
+  assert.match(client, /normalizeSnapshot\(snapshot, "shared"\)[\s\S]*bridge\.openSharedFitting/);
   assert.match(client, /if \(currentUser\) await syncActiveSourceLikeState\(\)/);
   assert.match(client, /if \(!shared\.present\) \{[\s\S]*syncActiveSourceLikeState\(\)/);
   assert.doesNotMatch(
@@ -165,7 +165,9 @@ test("공개 핏팅 공유는 문서 ID를 단건 조회해 기존 공개 적용
   assert.match(app, /if \(params\.has\(SHARED_PUBLIC_FITTING_QUERY_PARAM\)\) return/);
   assert.match(app, /ready: communityBridgeReady/);
   assert.match(app, /updatePublicFittingNavigation\(record\.id, record\.navigationMode === "replace" \? "replace" : "push"\)/);
-  assert.match(app, /if \(isPublic && record\.navigationMode !== "replace"\) preserveCurrentFittingHistoryEntry\(\)/);
+  assert.match(app, /if \(isShared && record\.navigationMode !== "replace"\) preserveCurrentFittingHistoryEntry\(\)/);
+  assert.match(app, /openPublicFitting\(record\) \{\s*applyCommunityFitting\(record, false\)/);
+  assert.match(app, /openSharedFitting\(record\) \{\s*applyCommunityFitting\(record, true\)/);
   assert.match(app, /mechlabSnapshot: snapshot/);
   assert.match(app, /restoreMechlabHistorySnapshot\(window\.history\.state\?\.mechlabSnapshot\)/);
   assert.match(app, /rememberActiveMechlabTabBuild\(\);[\s\S]*applyMechlabHistorySnapshotToTab\(tab, snapshot, communityLikeCapability\);[\s\S]*applyActiveMechlabTabSelection\(\)/);
@@ -175,6 +177,194 @@ test("공개 핏팅 공유는 문서 ID를 단건 조회해 기존 공개 적용
   assert.match(rules, /match \/fittings\/\{fittingId\} \{[\s\S]*allow get: if true;[\s\S]*allow list: if request\.query\.limit/);
   assert.match(styles, /\.community-share-button/);
   assert.match(styles, /\.community-share-url-overlay \{ z-index: 1750; \}/);
+});
+
+test("추천 핏팅은 현재 mechId의 좋아요 상위 3개를 날짜별 캐시하고 공용 상세 섹션으로 미리 본다", () => {
+  const app = read("public/app.js");
+  const client = read("public/firebase-community.js");
+  const html = read("public/index.html");
+  const styles = read("public/styles.css");
+  const indexes = JSON.parse(read("firestore.indexes.json"));
+
+  assert.match(html, /id="show-recommended-fittings"[\s\S]*추천 핏팅 보이기/);
+  assert.match(html, /id="recommended-fitting-overlay"[\s\S]*id="recommended-fitting-content"[\s\S]*id="apply-recommended-fitting"/);
+  assert.match(app, /const SHOW_RECOMMENDED_FITTINGS_STORAGE_KEY = "mwolab:show-recommended-fittings"/);
+  assert.match(app, /return localStorage\.getItem\(SHOW_RECOMMENDED_FITTINGS_STORAGE_KEY\) !== "false"/);
+  assert.match(app, /sharedFittingRequestPending: new URL\(window\.location\.href\)\.searchParams\.has\(SHARED_PUBLIC_FITTING_QUERY_PARAM\)/);
+  assert.match(app, /function recommendationContext\(\)[\s\S]*state\.activeMainTab === "mechlab"[\s\S]*!state\.mechlabBrowseMode[\s\S]*state\.currentBuild[\s\S]*sharedFitting: Boolean\(source \|\| state\.sharedFittingRequestPending\)/);
+  assert.match(app, /setSharedFittingRequestPending\(pending\)[\s\S]*state\.sharedFittingRequestPending = Boolean\(pending\)/);
+  assert.match(app, /function setMainTab\(tabName\)[\s\S]*notifyRecommendationContext\(\)/);
+  assert.match(app, /function showFullMechlabList\(intent = null\)[\s\S]*state\.mechlabBrowseMode = true;[\s\S]*notifyRecommendationContext\(\)/);
+  assert.match(app, /function cancelSharedFittingRequest\(\)[\s\S]*mwolab:shared-fitting-navigation-cleared/);
+  assert.match(app, /state\.recommendedFittings\.slice\(0, 3\)/);
+  assert.match(app, /data-recommended-fitting-open="\$\{escapeHtml\(record\.id\)\}"[^>]*>\$\{t\("recommendations\.apply"\)\}/);
+
+  assert.match(client, /const RECOMMENDATION_LIMIT = 3/);
+  assert.match(client, /const RECOMMENDATION_CACHE_STORAGE_KEY = "mwolab:recommended-fittings:v1"/);
+  assert.match(client, /function recommendationCacheDay\(date = new Date\(\)\)[\s\S]*getFullYear\(\)[\s\S]*getMonth\(\)[\s\S]*getDate\(\)/);
+  assert.match(client, /function readRecommendationStorage\(\)[\s\S]*localStorage\.getItem\(RECOMMENDATION_CACHE_STORAGE_KEY\)/);
+  assert.match(client, /function storedRecommendations\(mechId\)[\s\S]*readRecommendationStorage\(\)/);
+  assert.match(client, /String\(record\.analysis\?\.mechId \|\| ""\) !== String\(mechId\)/);
+  assert.match(client, /function persistRecommendations\(mechId, recordList\)[\s\S]*localStorage\.setItem\(RECOMMENDATION_CACHE_STORAGE_KEY/);
+  assert.match(client, /const recommendationCache = new Map\(\);[\s\S]*const recommendationRequests = new Map\(\);[\s\S]*const recommendationGenerations = new Map\(\)/);
+  assert.match(client, /where\("mechId", "==", mechId\)[\s\S]*orderBy\("likeCount", "desc"\)[\s\S]*limit\(RECOMMENDATION_LIMIT\)/);
+  assert.match(client, /recommendationCache\.has\(mechId\)[\s\S]*recommendationCache\.get\(mechId\)/);
+  assert.match(client, /function openRecommendationDialog[\s\S]*fittingDetailSectionsHtml\(record\.analysis\)/);
+  assert.match(client, /function fittingDetailHtml[\s\S]*\$\{fittingDetailSectionsHtml\(analysis\)\}/);
+  assert.match(client, /function applyRecommendation[\s\S]*bridge\.openPublicFitting/);
+  assert.match(client, /function loadSharedFittingFromLocation\(\)[\s\S]*setSharedFittingRequestPending\?\.\(true\)/);
+  assert.match(client, /mwolab:shared-fitting-navigation-cleared[\s\S]*sharedLoadGeneration \+= 1/);
+  assert.match(client, /if \(!snapshot\.exists\(\)\) \{[\s\S]*setSharedFittingRequestPending\?\.\(false\)/);
+  assert.match(client, /function invalidateRecommendations\(mechId\)[\s\S]*recommendationGenerations\.set[\s\S]*recommendationCache\.delete\(normalizedMechId\)[\s\S]*recommendationRequests\.delete\(normalizedMechId\)[\s\S]*removeStoredRecommendations\(normalizedMechId\)[\s\S]*loadRecommendations\(context\)/);
+  assert.match(client, /requestEntry = \{ generation, request \}[\s\S]*recommendationGenerations\.get\(mechId\)[\s\S]*requestEntry\.generation/);
+  assert.match(client, /function updateLikeViews\(id, count, liked, mechId = ""\)[\s\S]*affectedMechIds\.add\(String\(mechId\)\)[\s\S]*affectedMechIds\.forEach\(invalidateRecommendations\)/);
+  assert.match(client, /return \{ count: next, liked: false, mechId: String\(fittingData\.mechId \|\| ""\) \}/);
+  assert.match(client, /updateLikeViews\(id, result\.count, result\.liked, result\.mechId\)/);
+  assert.match(client, /function deleteFitting[\s\S]*invalidateRecommendations\(record\.mechId\)/);
+  const loadRecommendationSource = client.match(/async function loadRecommendations\(context = activeRecommendationContext\(\)\) \{[\s\S]*?(?=\nfunction sharedFittingParameter)/)?.[0] || "";
+  assert.doesNotMatch(loadRecommendationSource, /hydrateRecordAuthors|onSnapshot|likes/);
+
+  assert.match(styles, /\.recommended-fittings-panel/);
+  assert.match(styles, /\.recommended-fitting-dialog \{[\s\S]*grid-template-rows: auto minmax\(0, 1fr\) auto/);
+  assert.match(styles, /body\.recommended-fitting-open[\s\S]*overflow: hidden/);
+  const signatures = indexes.indexes.map(({ fields }) => fields.map(({ fieldPath, order }) => `${fieldPath}:${order}`).join(","));
+  assert.ok(signatures.includes("mechId:ASCENDING,likeCount:DESCENDING"));
+});
+
+test("추천 핏팅 날짜 캐시는 재접속·빈 결과·손상 데이터·오래된 요청을 실제 상태로 처리한다", async () => {
+  const client = read("public/firebase-community.js");
+  const recommendationSource = client.match(/function activeRecommendationContext\(\) \{[\s\S]*?(?=\nfunction sharedFittingParameter)/)?.[0] || "";
+  assert.ok(recommendationSource);
+
+  const store = new Map();
+  const localStorage = {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => store.set(key, String(value)),
+  };
+  const RealDate = Date;
+  let now = new RealDate(2026, 8, 7, 12).valueOf();
+  class FakeDate extends RealDate {
+    constructor(...args) { super(...(args.length ? args : [now])); }
+  }
+  let context = { enabled: true, sharedFitting: false, mechId: "100" };
+  const published = [];
+  const bridge = {
+    ready: Promise.resolve(true),
+    recommendationContext: () => context,
+    setRecommendedFittings: (mechId, records) => published.push({ mechId, records }),
+  };
+  const remote = new Map([
+    ["100", [{ id: "fit-100", mechId: "100", name: "Daily", loadoutCode: "100:daily", likeCount: 7, schemaVersion: 3 }]],
+    ["empty", []],
+  ]);
+  const pending = [];
+  let queryCount = 0;
+  const firebaseApi = {
+    collection: () => ({ kind: "collection" }),
+    where: (_field, _operator, value) => ({ kind: "where", value }),
+    orderBy: () => ({ kind: "orderBy" }),
+    limit: () => ({ kind: "limit" }),
+    query: (...constraints) => constraints,
+    getDocs: (constraints) => {
+      queryCount += 1;
+      if (pending.length) return pending.shift().promise;
+      const mechId = constraints.find((entry) => entry.kind === "where").value;
+      return Promise.resolve({ docs: (remote.get(mechId) || []).map((data) => ({ id: data.id, data: () => data })) });
+    },
+  };
+  const analyzeRecord = (record) => ({
+    ...record,
+    valid: typeof record.loadoutCode === "string" && record.loadoutCode.includes(":"),
+    analysis: {
+      mechId: String(record.loadoutCode || "").split(":")[0],
+      tags: [],
+    },
+  });
+  const normalizeSnapshot = (snapshot, source) => analyzeRecord({ ...snapshot.data(), id: snapshot.id, source });
+  const factory = new Function("dependencies", `
+    const { bridge, firebaseApi, localStorage, Date, analyzeRecord, normalizeSnapshot } = dependencies;
+    const firebaseReady = Promise.resolve(true);
+    const db = {};
+    const copy = { tags: {} };
+    const RECOMMENDATION_LIMIT = 3;
+    const RECOMMENDATION_CACHE_STORAGE_KEY = "mwolab:recommended-fittings:v1";
+    const RECOMMENDATION_CACHE_VERSION = 1;
+    const recommendationCache = new Map();
+    const recommendationRequests = new Map();
+    const recommendationGenerations = new Map();
+    let activeRecommendationCacheDay = recommendationCacheDay();
+    ${recommendationSource}
+    return { loadRecommendations, invalidateRecommendations, recommendationCache };
+  `);
+  const api = factory({ bridge, firebaseApi, localStorage, Date: FakeDate, analyzeRecord, normalizeSnapshot });
+  const deferred = () => {
+    let resolve;
+    const promise = new Promise((done) => { resolve = done; });
+    return { promise, resolve };
+  };
+  const waitFor = async (predicate) => {
+    for (let attempt = 0; attempt < 20 && !predicate(); attempt += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.ok(predicate());
+  };
+
+  await api.loadRecommendations(context);
+  assert.equal(queryCount, 1);
+  api.recommendationCache.clear();
+  await api.loadRecommendations(context);
+  assert.equal(queryCount, 1, "같은 로컬 날짜의 재접속은 저장 캐시를 사용해야 한다");
+
+  context = { ...context, mechId: "empty" };
+  await api.loadRecommendations(context);
+  api.recommendationCache.clear();
+  await api.loadRecommendations(context);
+  assert.equal(queryCount, 2, "성공한 빈 결과도 같은 날짜에는 다시 조회하지 않아야 한다");
+
+  const cached = JSON.parse(store.get("mwolab:recommended-fittings:v1"));
+  cached.entries["100"][0].loadoutCode = "200:wrong-mech";
+  store.set("mwolab:recommended-fittings:v1", JSON.stringify(cached));
+  context = { ...context, mechId: "100" };
+  api.recommendationCache.clear();
+  await api.loadRecommendations(context);
+  assert.equal(queryCount, 3, "분석된 멕이 다른 손상 캐시는 폐기하고 다시 조회해야 한다");
+
+  now = new RealDate(2026, 8, 8, 12).valueOf();
+  await api.loadRecommendations(context);
+  assert.equal(queryCount, 4, "로컬 날짜가 바뀐 뒤에는 해당 멕을 다시 조회해야 한다");
+
+  context = { ...context, mechId: "300" };
+  const oldDayRequest = deferred();
+  pending.push(oldDayRequest);
+  const oldDayLoad = api.loadRecommendations(context);
+  await waitFor(() => queryCount === 5);
+  now = new RealDate(2026, 8, 9, 12).valueOf();
+  const newDayRequest = deferred();
+  pending.push(newDayRequest);
+  const newDayLoad = api.loadRecommendations(context);
+  await waitFor(() => queryCount === 6);
+  published.length = 0;
+  oldDayRequest.resolve({ docs: [{ id: "old", data: () => ({ id: "old", mechId: "300", name: "Old", loadoutCode: "300:old", schemaVersion: 3 }) }] });
+  await oldDayLoad;
+  assert.equal(published.length, 0, "이전 날짜에 시작한 응답은 화면과 캐시를 갱신하면 안 된다");
+  newDayRequest.resolve({ docs: [{ id: "new", data: () => ({ id: "new", mechId: "300", name: "New", loadoutCode: "300:new", schemaVersion: 3 }) }] });
+  await newDayLoad;
+  assert.equal(published.at(-1).records[0].id, "new");
+
+  const oldGenerationRequest = deferred();
+  const newGenerationRequest = deferred();
+  context = { ...context, mechId: "400" };
+  pending.push(oldGenerationRequest, newGenerationRequest);
+  const oldGenerationLoad = api.loadRecommendations(context);
+  await waitFor(() => queryCount === 7);
+  api.invalidateRecommendations("400");
+  await waitFor(() => queryCount === 8);
+  published.length = 0;
+  oldGenerationRequest.resolve({ docs: [{ id: "stale", data: () => ({ id: "stale", mechId: "400", name: "Stale", loadoutCode: "400:stale", schemaVersion: 3 }) }] });
+  await oldGenerationLoad;
+  assert.equal(published.length, 0, "무효화 전 세대의 응답은 표시하면 안 된다");
+  newGenerationRequest.resolve({ docs: [{ id: "fresh", data: () => ({ id: "fresh", mechId: "400", name: "Fresh", loadoutCode: "400:fresh", schemaVersion: 3 }) }] });
+  await waitFor(() => published.some((entry) => entry.records[0]?.id === "fresh"));
 });
 
 test("공개 핏팅은 사용자별 원자적 카운터로 100개를 제한하고 탭에는 수량을 표시하지 않는다", () => {
